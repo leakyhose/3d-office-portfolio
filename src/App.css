@@ -78,3 +78,40 @@
   opacity: 1;
 }
 
+#about-panel,
+#experience-panel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: min(60vw, 1020px);
+  height: 100%;
+  padding: 30px 72px;
+  display: flex;
+  flex-direction: column;
+  font-family: 'VT323', monospace;
+  color: #fff;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+#experience-panel {
+  justify-content: center;
+}
+
+#experience-panel .about-nav {
+  margin-top: 36px;
+}
+
+#experience-panel .about-nav a {
+  color: #f5e6d3;
+}
+
+#experience-panel .about-nav a:hover {
+  color: #fff;
+}
+
+#about-panel.visible,
+#experience-panel.visible {
+  opacity: 1;
+}
