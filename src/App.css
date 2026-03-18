@@ -171,3 +171,132 @@
 .projects-menu a:hover::before {
   content: '>';
 }
+
+#contact-panel {
+  position: absolute;
+  inset: 0;
+  height: 50%;
+  padding: 30px 78px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-start;
+  font-family: 'VT323', monospace;
+  color: #fff;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+  overflow: hidden;
+}
+
+#contact-panel.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.contact-title {
+  margin: 0;
+  font-size: 116px;
+  font-weight: 400;
+  line-height: 0.95;
+}
+
+.contact-main {
+  max-width: 980px;
+  max-height: 20vh;
+  text-align: right;
+}
+
+.contact-kicker {
+  margin: 10px 0 0;
+  white-space: nowrap;
+  color: #b8b8b8;
+  font-size: 28px;
+}
+
+.contact-links-row {
+  margin-top: 20px;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 22px;
+  align-items: stretch;
+  justify-content: flex-end;
+}
+
+.contact-pill {
+  min-width: 0;
+  padding: 0;
+  color: #9be7ff;
+  text-decoration: none;
+}
+
+.contact-pill-label {
+  display: block;
+  margin-bottom: 6px;
+  color: #a8a8a8;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.contact-copied {
+  color: #7be8a4;
+}
+
+.contact-pill .typed-live-text,
+.contact-pill .typed-reserve-text {
+  font-size: 30px;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.1em;
+}
+
+.contact-pill:hover {
+  color: #c4f2ff;
+}
+
+.contact-nav,
+.projects-nav {
+  position: absolute;
+  top: 48px;
+  left: 70px;
+  display: grid;
+  grid-template-columns: repeat(2, max-content);
+  justify-content: start;
+  column-gap: 56px;
+  row-gap: 16px;
+  font-family: 'VT323', monospace;
+}
+
+.contact-nav a,
+.projects-nav a {
+  position: relative;
+  color: #999;
+  text-decoration: none;
+  font-size: 50px;
+  line-height: 0.95;
+  cursor: default;
+  user-select: none;
+}
+
+.contact-nav a:has(.hn-home),
+.projects-nav a:has(.hn-home) {
+  font-size: 54px;
+}
+
+.contact-nav a::before,
+.projects-nav a::before {
+  content: '>';
+  position: absolute;
+  right: calc(100% + 0.3em);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.contact-nav a:hover,
+.projects-nav a:hover {
+  color: #fff;
+}
+
+.contact-nav a:hover::before,
+.projects-nav a:hover::before {
+  opacity: 1;
+}
