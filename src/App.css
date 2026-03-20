@@ -402,3 +402,65 @@
 @keyframes blink {
   50% { opacity: 0; }
 }
+
+/* ── Pixel Icons ── */
+
+.hn::before {
+  vertical-align: baseline;
+}
+
+/* Section title icons */
+.about-title .hn,
+.panel-title .hn,
+.contact-title .hn {
+  font-size: 100px;
+  margin-right: 0.2em;
+  vertical-align: middle;
+}
+
+/* Home nav icons */
+#menu .hn {
+  font-size: 42px;
+  margin-right: 0.25em;
+  vertical-align: middle;
+}
+
+/* Sub-nav icons */
+.about-nav .hn,
+.contact-nav .hn,
+.projects-nav .hn {
+  font-size: 38px;
+  margin-right: 0.2em;
+  vertical-align: middle;
+}
+
+/* Contact pill icons */
+.contact-pill .hn {
+  font-size: 28px;
+  margin-right: 0.25em;
+  vertical-align: middle;
+}
+
+/* ── Icon Colors ── */
+.hn-home    { color: #c2a87d; }
+.hn-user    { color: #8bbfd4; }
+.hn-trophy  { color: #d4b85a; }
+.hn-code    { color: #8dc4a0; }
+.hn-envelope { color: #c49a9a; }
+
+.hn-folder-open  { color: #8dc4a0; }
+.hn-location-pin { color: #c49a9a; }
+
+.contact-pill .hn-at       { color: #c49a9a; }
+.contact-pill .hn-linkedin { color: #8bb5d4; }
+.contact-pill .hn-github   { color: #b8b0c8; }
+
+#menu a:hover .hn-home     { color: #dcc49a; }
+#menu a:hover .hn-user     { color: #a8d6e8; }
+#menu a:hover .hn-trophy   { color: #e4cc72; }
+#menu a:hover .hn-code     { color: #a4d6b6; }
+#menu a:hover .hn-envelope { color: #d6b0b0; }
+
+.about-nav a:hover .hn,
+.contact-nav a:hover .hn,
+.projects-nav a:hover .hn   { filter: brightness(1.2); }
