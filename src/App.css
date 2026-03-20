@@ -300,3 +300,105 @@
 .projects-nav a:hover::before {
   opacity: 1;
 }
+
+.about-title {
+  margin: 0 0 8px;
+  font-size: 146px;
+  font-weight: 400;
+  line-height: 0.95;
+}
+
+.about-line {
+  margin: 36px 0 0;
+  font-size: 40px;
+  line-height: 1.05;
+  max-width: 820px;
+}
+
+.about-line-short {
+  max-width: 660px;
+}
+
+.about-nav {
+  margin-top: auto;
+  display: grid;
+  grid-template-columns: repeat(2, max-content);
+  column-gap: 62px;
+  row-gap: 18px;
+  max-width: 460px;
+}
+
+.about-highlight {
+  color: #7fd3ff;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.09em;
+}
+
+.about-highlight-clickable {
+  cursor: pointer;
+}
+
+.about-highlight-clickable:hover {
+  color: #a3e7ff;
+}
+
+.about-hl-botpress       { color: #a78bfa; }
+.about-hl-botpress:hover { color: #c4b5fd; }
+.about-hl-nokia          { color: #5bb8f5; }
+.about-hl-nokia:hover    { color: #8dd0ff; }
+.about-hl-ubc            { color: #f5c45b; }
+.about-hl-ubc:hover      { color: #fad97a; }
+
+.typed-reserve-wrap {
+  position: relative;
+  display: block;
+}
+
+.typed-reserve-text {
+  visibility: hidden;
+  display: block;
+}
+
+.typed-live-text {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+
+.about-nav a {
+  position: relative;
+  color: #999;
+  text-decoration: none;
+  font-size: 48px;
+  cursor: default;
+  user-select: none;
+}
+
+.about-nav a:has(.hn-home) {
+  font-size: 52px;
+}
+
+.about-nav a::before {
+  content: '>';
+  position: absolute;
+  right: calc(100% + 0.3em);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.about-nav a:hover {
+  color: #fff;
+}
+
+.about-nav a:hover::before {
+  opacity: 1;
+}
+
+.cursor {
+  animation: blink 0.5s step-end infinite;
+}
+
+@keyframes blink {
+  50% { opacity: 0; }
+}
