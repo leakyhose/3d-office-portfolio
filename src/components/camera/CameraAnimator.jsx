@@ -406,4 +406,3 @@ function CameraAnimator({ controlsRef, freeCam }) {
 }
 
 export default CameraAnimator
-// TODO: polish
