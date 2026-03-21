@@ -464,3 +464,16 @@
 .about-nav a:hover .hn,
 .contact-nav a:hover .hn,
 .projects-nav a:hover .hn   { filter: brightness(1.2); }
+
+/* ── Free-cam hint ── */
+.freecam-hint {
+  position: absolute;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: 'VT323', monospace;
+  font-size: 28px;
+  color: rgba(255, 255, 255, 0.5);
+  pointer-events: none;
+  user-select: none;
+}
