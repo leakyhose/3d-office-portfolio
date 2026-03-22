@@ -120,4 +120,3 @@ function Scene({ onLoaded, freeCam, screenPhase }) {
 }
 
 export default Scene
-// WIP
