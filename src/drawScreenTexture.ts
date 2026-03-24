@@ -1,8 +1,8 @@
-export function drawBlankScreen(width = 1024, height = 768) {
+export function drawBlankScreen(width = 1024, height = 768): HTMLCanvasElement {
   const canvas = document.createElement('canvas')
   canvas.width = width
   canvas.height = height
-  const ctx = canvas.getContext('2d')
+  const ctx = canvas.getContext('2d')!
   ctx.fillStyle = '#000000'
   ctx.fillRect(0, 0, width, height)
   return canvas
@@ -10,27 +10,27 @@ export function drawBlankScreen(width = 1024, height = 768) {
 
 // Preload assets
 const logoImg = new Image()
-const logoReady = new Promise(resolve => {
+const logoReady = new Promise<void>(resolve => {
   logoImg.onload = () => resolve()
   logoImg.onerror = () => resolve()
 })
 logoImg.src = '/windows_logo.svg'
 
 const win95LogoImg = new Image()
-const win95LogoReady = new Promise(resolve => {
+const win95LogoReady = new Promise<void>(resolve => {
   win95LogoImg.onload = () => resolve()
   win95LogoImg.onerror = () => resolve()
 })
 win95LogoImg.src = '/windows_95_logo_and_text.png'
 
 const cloudsImg = new Image()
-const cloudsReady = new Promise(resolve => {
+const cloudsReady = new Promise<void>(resolve => {
   cloudsImg.onload = () => resolve()
   cloudsImg.onerror = () => resolve()
 })
 cloudsImg.src = '/clouds_background.png'
 
-function drawRaised(ctx, x, y, w, h, bg = '#C0C0C0') {
+function drawRaised(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, bg = '#C0C0C0') {
   ctx.fillStyle = bg
   ctx.fillRect(x, y, w, h)
   ctx.fillStyle = '#fff'
@@ -41,8 +41,8 @@ function drawRaised(ctx, x, y, w, h, bg = '#C0C0C0') {
   ctx.fillRect(x + w - 2, y, 2, h)
 }
 
-function drawSunken(ctx, x, y, w, h, bg = '#C0C0C0') {
-  ctx.fillStyle = bg
+function drawSunken(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, _bg = '#C0C0C0') {
+  ctx.fillStyle = _bg
   ctx.fillRect(x, y, w, h)
   ctx.fillStyle = '#808080'
   ctx.fillRect(x, y, w, 2)
@@ -52,7 +52,7 @@ function drawSunken(ctx, x, y, w, h, bg = '#C0C0C0') {
   ctx.fillRect(x + w - 2, y, 2, h)
 }
 
-function drawTaskbar(ctx, width, height) {
+function drawTaskbar(ctx: CanvasRenderingContext2D, width: number, height: number) {
   const barH = Math.round(height * 0.08)
   const barY = height - barH
   drawRaised(ctx, 0, barY, width, barH)
@@ -89,14 +89,14 @@ function drawTaskbar(ctx, width, height) {
   ctx.fillText(clockStr, trayX + trayW / 2, barY + barH / 2)
 }
 
-function pixelateCanvas(ctx, width, height) {
+function pixelateCanvas(ctx: CanvasRenderingContext2D, width: number, height: number) {
   const lowW = 384
   const lowH = Math.round(lowW * (height / width))
 
   const tiny = document.createElement('canvas')
   tiny.width = lowW
   tiny.height = lowH
-  const tctx = tiny.getContext('2d')
+  const tctx = tiny.getContext('2d')!
   tctx.drawImage(ctx.canvas, 0, 0, lowW, lowH)
 
   ctx.clearRect(0, 0, width, height)
@@ -105,7 +105,7 @@ function pixelateCanvas(ctx, width, height) {
   ctx.imageSmoothingEnabled = true
 }
 
-function applyCRTEffects(ctx, width, height) {
+function applyCRTEffects(ctx: CanvasRenderingContext2D, width: number, height: number) {
   const borderW = Math.round(width * 0.03)
   const borderH = Math.round(height * 0.03)
   const snapshot = ctx.getImageData(0, 0, width, height)
@@ -114,7 +114,7 @@ function applyCRTEffects(ctx, width, height) {
   const tmp = document.createElement('canvas')
   tmp.width = width
   tmp.height = height
-  tmp.getContext('2d').putImageData(snapshot, 0, 0)
+  tmp.getContext('2d')!.putImageData(snapshot, 0, 0)
   ctx.drawImage(tmp, borderW, borderH, width - borderW * 2, height - borderH * 2)
 
   ctx.fillStyle = 'rgba(0, 0, 0, 0.2)'
@@ -132,11 +132,11 @@ function applyCRTEffects(ctx, width, height) {
   ctx.fillRect(0, 0, width, height)
 }
 
-export function drawCloudsScreen(width = 1024, height = 768, onUpdate) {
+export function drawCloudsScreen(width = 1024, height = 768, onUpdate?: () => void): HTMLCanvasElement {
   const canvas = document.createElement('canvas')
   canvas.width = width
   canvas.height = height
-  const ctx = canvas.getContext('2d')
+  const ctx = canvas.getContext('2d')!
 
   ctx.fillStyle = '#008080'
   ctx.fillRect(0, 0, width, height)
@@ -177,11 +177,11 @@ export function drawCloudsScreen(width = 1024, height = 768, onUpdate) {
   return canvas
 }
 
-export function drawBootScreen(width = 1024, height = 768, onUpdate) {
+export function drawBootScreen(width = 1024, height = 768, onUpdate?: () => void): HTMLCanvasElement {
   const canvas = document.createElement('canvas')
   canvas.width = width
   canvas.height = height
-  const ctx = canvas.getContext('2d')
+  const ctx = canvas.getContext('2d')!
 
   ctx.fillStyle = '#008080'
   ctx.fillRect(0, 0, width, height)
@@ -230,7 +230,7 @@ export function drawBootScreen(width = 1024, height = 768, onUpdate) {
   return canvas
 }
 
-export function drawTerminalScreen(width = 1024, height = 768, onUpdate) {
+export function drawTerminalScreen(width = 1024, height = 768, onUpdate?: () => void) {
   const canvas = drawBootScreen(width, height, onUpdate)
   return { canvas }
 }

@@ -2,15 +2,16 @@ import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { drawBlankScreen, drawCloudsScreen, drawBootScreen } from './drawScreenTexture'
 import { useScreenMesh } from './components/ScreenMeshContext'
+import type { ScreenPhase } from './types'
 
 const BOOT_DURATION = 400
 
 const CRT_SWITCH_DURATION = 300
 
-function makeNoiseCanvas(w, h, grainSize) {
+function makeNoiseCanvas(w: number, h: number, grainSize: number) {
   const c = document.createElement('canvas')
   c.width = w; c.height = h
-  const g = c.getContext('2d')
+  const g = c.getContext('2d')!
   const imgData = g.createImageData(w, h)
   const d = imgData.data
   for (let y = 0; y < h; y += grainSize) {
@@ -30,11 +31,15 @@ function makeNoiseCanvas(w, h, grainSize) {
   return c
 }
 
-export default function ComputerScreenContent({ screenPhase = 'clouds' }) {
+interface ComputerScreenContentProps {
+  screenPhase?: ScreenPhase
+}
+
+export default function ComputerScreenContent({ screenPhase = 'clouds' }: ComputerScreenContentProps) {
   const { screenMesh, screenSource } = useScreenMesh()
-  const canvasRef = useRef(null)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const prevPhaseRef = useRef(screenPhase)
-  const switchAnimRef = useRef(null)
+  const switchAnimRef = useRef<number | null>(null)
 
   const screenData = useMemo(() => {
     const mesh = screenMesh
@@ -48,7 +53,7 @@ export default function ComputerScreenContent({ screenPhase = 'clouds' }) {
     const size = new THREE.Vector3()
     box.getSize(size)
 
-    const geo = mesh.geometry
+    const geo = mesh.geometry as THREE.BufferGeometry
     if (!geo.attributes.uv) {
       console.warn('ComputerScreenContent: no UVs found, generating planar projection')
       const pos = geo.attributes.position
@@ -68,7 +73,7 @@ export default function ComputerScreenContent({ screenPhase = 'clouds' }) {
       geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2))
     } else {
       const uvAttr = geo.attributes.uv
-      const uvs = uvAttr.array
+      const uvs = uvAttr.array as Float32Array
       let minU = Infinity, maxU = -Infinity, minV = Infinity, maxV = -Infinity
       for (let i = 0; i < uvs.length; i += 2) {
         minU = Math.min(minU, uvs[i])
@@ -106,7 +111,7 @@ export default function ComputerScreenContent({ screenPhase = 'clouds' }) {
     if (screenPhase !== 'booting' || !screenData) return
 
     const { texWidth, texHeight, texture } = screenData
-    const ctx = canvasRef.current.getContext('2d')
+    const ctx = canvasRef.current!.getContext('2d')!
 
     let cloudsReady = false
     const cloudsCanvas = drawCloudsScreen(texWidth, texHeight, () => {
@@ -119,14 +124,14 @@ export default function ComputerScreenContent({ screenPhase = 'clouds' }) {
 
     const scanlineCanvas = document.createElement('canvas')
     scanlineCanvas.width = texWidth; scanlineCanvas.height = texHeight
-    const slCtx = scanlineCanvas.getContext('2d')
+    const slCtx = scanlineCanvas.getContext('2d')!
     slCtx.fillStyle = 'rgba(0, 0, 0, 0.12)'
     for (let sy = 0; sy < texHeight; sy += 2) slCtx.fillRect(0, sy, texWidth, 1)
 
     const glowH = 35
     const glowCanvas = document.createElement('canvas')
     glowCanvas.width = texWidth; glowCanvas.height = glowH * 2
-    const glCtx = glowCanvas.getContext('2d')
+    const glCtx = glowCanvas.getContext('2d')!
     const grad = glCtx.createLinearGradient(0, 0, 0, glowH * 2)
     grad.addColorStop(0, 'rgba(150, 180, 255, 0)')
     grad.addColorStop(0.4, 'rgba(150, 180, 255, 0.15)')
@@ -137,7 +142,7 @@ export default function ComputerScreenContent({ screenPhase = 'clouds' }) {
     glCtx.fillRect(0, 0, texWidth, glowH * 2)
 
     const startTime = performance.now()
-    let rafId
+    let rafId: number
     let lastDrawTime = 0
 
     function animate() {
@@ -252,7 +257,7 @@ export default function ComputerScreenContent({ screenPhase = 'clouds' }) {
     prevPhaseRef.current = screenPhase
 
     const { texWidth, texHeight, texture } = screenData
-    const ctx = canvasRef.current.getContext('2d')
+    const ctx = canvasRef.current!.getContext('2d')!
 
     if (switchAnimRef.current) {
       cancelAnimationFrame(switchAnimRef.current)
@@ -265,7 +270,7 @@ export default function ComputerScreenContent({ screenPhase = 'clouds' }) {
 
     if (!isSwitch) {
       const onLogoReady = () => {
-        const ctx2 = canvasRef.current.getContext('2d')
+        const ctx2 = canvasRef.current!.getContext('2d')!
         ctx2.clearRect(0, 0, texWidth, texHeight)
         ctx2.drawImage(newCanvas, 0, 0)
         texture.needsUpdate = true
@@ -288,7 +293,7 @@ export default function ComputerScreenContent({ screenPhase = 'clouds' }) {
     const snapshotCanvas = document.createElement('canvas')
     snapshotCanvas.width = texWidth
     snapshotCanvas.height = texHeight
-    snapshotCanvas.getContext('2d').drawImage(canvasRef.current, 0, 0)
+    snapshotCanvas.getContext('2d')!.drawImage(canvasRef.current!, 0, 0)
 
     const noiseW = 256
     const noiseH = Math.round(noiseW * (texHeight / texWidth))
@@ -297,7 +302,7 @@ export default function ComputerScreenContent({ screenPhase = 'clouds' }) {
     const glowH = 35
     const glowCanvas = document.createElement('canvas')
     glowCanvas.width = texWidth; glowCanvas.height = glowH * 2
-    const glCtx = glowCanvas.getContext('2d')
+    const glCtx = glowCanvas.getContext('2d')!
     const grad = glCtx.createLinearGradient(0, 0, 0, glowH * 2)
     grad.addColorStop(0, 'rgba(150, 180, 255, 0)')
     grad.addColorStop(0.4, 'rgba(150, 180, 255, 0.15)')
@@ -476,7 +481,7 @@ export default function ComputerScreenContent({ screenPhase = 'clouds' }) {
     mesh.visible = true
 
     return () => {
-      mesh.material.dispose()
+      ;(mesh.material as THREE.Material).dispose()
       texture.dispose()
       mesh.material = originalMaterial
     }

@@ -14,11 +14,22 @@ const MAX_LIFETIME = 8
 const SPAWN_RATE = 3
 const FADE_START = 0.6
 
-function rand(min, max) {
+interface SteamParticle {
+  age: number
+  maxAge: number
+  alive: boolean
+  baseScale: number
+  position: THREE.Vector3
+  velocity: THREE.Vector3
+  rotation: THREE.Euler
+  rotationSpeed: THREE.Vector3
+}
+
+function rand(min: number, max: number) {
   return min + Math.random() * (max - min)
 }
 
-function initParticle(p, center, radius) {
+function initParticle(p: SteamParticle, center: THREE.Vector3, radius: number) {
   const angle = Math.random() * Math.PI * 2
   const r = Math.sqrt(Math.random()) * radius
   p.position.set(
@@ -45,7 +56,7 @@ function initParticle(p, center, radius) {
 
 export default memo(function CoffeeSteam() {
   const { scene } = useGLTF('/newcat.glb')
-  const meshRef = useRef()
+  const meshRef = useRef<THREE.InstancedMesh>(null)
   const spawnAcc = useRef(0)
   const tmpMatrix = useRef(new THREE.Matrix4())
   const tmpQuat = useRef(new THREE.Quaternion())
@@ -53,15 +64,13 @@ export default memo(function CoffeeSteam() {
   const tmpScale = useRef(new THREE.Vector3())
 
   const { spawnCenter, spawnRadius, particles, geometry, material } = useMemo(() => {
-    let coffeeMesh = scene.getObjectByName('Cup')
-    if (!coffeeMesh) {
-      scene.traverse((child) => {
-        if (!coffeeMesh && child.name === 'Cup') coffeeMesh = child
-      })
-    }
+    let coffeeMesh: THREE.Object3D | undefined = undefined
+    scene.traverse((child) => {
+      if (!coffeeMesh && child.name === 'Cup') coffeeMesh = child
+    })
     if (!coffeeMesh) {
       console.warn('CoffeeSteam: "Cup" object not found')
-      return { spawnCenter: null, spawnRadius: 0, particles: [], geometry: null, material: null }
+      return { spawnCenter: null, spawnRadius: 0, particles: [] as SteamParticle[], geometry: null, material: null }
     }
 
     const box = new THREE.Box3().setFromObject(coffeeMesh)
@@ -81,7 +90,7 @@ export default memo(function CoffeeSteam() {
       metalness: 0.0,
     })
 
-    const parts = Array.from({ length: POOL_SIZE }, () => ({
+    const parts: SteamParticle[] = Array.from({ length: POOL_SIZE }, () => ({
       age: 0,
       maxAge: 0,
       alive: false,
@@ -156,7 +165,7 @@ export default memo(function CoffeeSteam() {
   return (
     <instancedMesh
       ref={meshRef}
-      args={[geometry, material, POOL_SIZE]}
+      args={[geometry!, material!, POOL_SIZE]}
       frustumCulled={false}
     />
   )

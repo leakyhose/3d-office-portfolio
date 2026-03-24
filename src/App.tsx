@@ -10,32 +10,39 @@ import Scene from './components/Scene'
 import { CameraInfoPanel } from './CameraInfo'
 import PANELS from './panels'
 import './App.css'
+import type { ViewName, PanelId, ViewConfig, ScreenPhase } from './types'
 
 function App() {
   const [sceneLoaded, setSceneLoaded] = useState(false)
-  const [leftPanel, setLeftPanel] = useState(null)
-  const [rightPanel, setRightPanel] = useState('home')
+  const [leftPanel, setLeftPanel] = useState<PanelId | null>(null)
+  const [rightPanel, setRightPanel] = useState<PanelId | null>('home')
   const [leftVisible, setLeftVisible] = useState(false)
   const [rightVisible, setRightVisible] = useState(false)
   const [freeCam, setFreeCam] = useState(false)
-  const [currentView, setCurrentView] = useState('home')
+  const [currentView, setCurrentView] = useState<ViewName>('home')
   const [showLoading, setShowLoading] = useState(true)
-  const [bootPhase, setBootPhase] = useState('off')
-  const [landedView, setLandedView] = useState('home')
+  const [bootPhase, setBootPhase] = useState<'off' | 'booting' | 'done'>('off')
+  const [landedView, setLandedView] = useState<ViewName>('home')
 
-  const pendingTarget = useRef(null)
+  const pendingTarget = useRef<ViewConfig | null>(null)
   const leftDone = useRef(true)
   const rightDone = useRef(true)
-  const swapTimer = useRef(null)
+  const swapTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const savedStateRef = useRef(null)
-  const currentViewRef = useRef('home')
+  const savedStateRef = useRef<{
+    leftPanel: PanelId | null
+    rightPanel: PanelId | null
+    leftVisible: boolean
+    rightVisible: boolean
+    viewName: ViewName
+  } | null>(null)
+  const currentViewRef = useRef<ViewName>('home')
   const navigatingRef = useRef(false)
   const isFreeCam = useRef(false)
 
   const onSceneLoaded = useCallback(() => setSceneLoaded(true), [])
 
-  const swapPanels = useCallback((target) => {
+  const swapPanels = useCallback((target: ViewConfig) => {
     if (swapTimer.current) clearTimeout(swapTimer.current)
     const extraDelay = target.extraDelay ?? 0
 
@@ -73,7 +80,7 @@ function App() {
     trySwap()
   }, [trySwap])
 
-  const navigateToSection = useCallback((viewName) => {
+  const navigateToSection = useCallback((viewName: ViewName) => {
     if (swapTimer.current) {
       clearTimeout(swapTimer.current)
       swapTimer.current = null
@@ -129,7 +136,7 @@ function App() {
   }, [])
 
   useEffect(() => {
-    const onKeyDown = (event) => {
+    const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Tab') {
         event.preventDefault()
         if (!isFreeCam.current) {
@@ -153,7 +160,7 @@ function App() {
   }, [navigateToSection, enterFreeCamMode, exitFreeCamMode])
 
   useEffect(() => {
-    const handler = (viewName) => setLandedView(viewName)
+    const handler = (viewName: ViewName) => setLandedView(viewName)
     setOnNavigationComplete(handler)
     return () => clearOnNavigationComplete(handler)
   }, [])
@@ -164,12 +171,15 @@ function App() {
     }
   }, [])
 
-  const screenPhase = bootPhase !== 'done'
+  const screenPhase: ScreenPhase = bootPhase !== 'done'
     ? bootPhase
     : (landedView === 'projects' ? 'projects' : 'clouds')
 
   const LeftComponent = leftPanel ? PANELS[leftPanel] : null
   const RightComponent = rightPanel ? PANELS[rightPanel] : null
+
+  // Suppress unused variable warning — currentView is kept for future use
+  void currentView
 
   return (
     <div id="app">

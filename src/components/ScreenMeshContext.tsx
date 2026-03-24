@@ -1,6 +1,8 @@
 import { createContext, useContext, useState, useCallback, useMemo } from 'react'
+import type * as THREE from 'three'
+import type { ScreenMeshContextValue } from '../types'
 
-const ScreenMeshContext = createContext({
+const ScreenMeshContext = createContext<ScreenMeshContextValue>({
   screenMesh: null,
   screenSource: null,
   fullScene: null,
@@ -8,17 +10,17 @@ const ScreenMeshContext = createContext({
   setFullScene: () => {},
 })
 
-export function ScreenMeshProvider({ children }) {
-  const [screenMesh, setScreenMeshState] = useState(null)
-  const [screenSource, setScreenSource] = useState(null)
-  const [fullScene, setFullSceneState] = useState(null)
+export function ScreenMeshProvider({ children }: { children: React.ReactNode }) {
+  const [screenMesh, setScreenMeshState] = useState<THREE.Mesh | null>(null)
+  const [screenSource, setScreenSource] = useState<string | null>(null)
+  const [fullScene, setFullSceneState] = useState<THREE.Group | null>(null)
 
-  const setScreenMesh = useCallback((mesh, source) => {
+  const setScreenMesh = useCallback((mesh: THREE.Mesh, source: string) => {
     setScreenMeshState(mesh)
     setScreenSource(source)
   }, [])
 
-  const setFullScene = useCallback((scene) => {
+  const setFullScene = useCallback((scene: THREE.Group) => {
     setFullSceneState(scene)
   }, [])
 

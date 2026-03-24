@@ -1,18 +1,20 @@
-const INITIAL_POSITION = [-5.9, 10.47, 14.15]
-const INITIAL_ROTATION = [-0.588, -0.637, -0.377]
+import type { ViewsMap } from '../types'
 
-export const INTRO_POSITION = [-18, 22, 30]
+const INITIAL_POSITION: [number, number, number] = [-5.9, 10.47, 14.15]
+const INITIAL_ROTATION: [number, number, number] = [-0.588, -0.637, -0.377]
+
+export const INTRO_POSITION: [number, number, number] = [-18, 22, 30]
 export const INTRO_ROTATION = INITIAL_ROTATION
 
-export const START_POSITION = [-0.2, 7.38, 4.58]
-export const START_ROTATION = [-0.198, -0.007, -0.001]
+export const START_POSITION: [number, number, number] = [-0.2, 7.38, 4.58]
+export const START_ROTATION: [number, number, number] = [-0.198, -0.007, -0.001]
 
 export const ANIM_DURATION = 1.5
 export const INTRO_ANIM_DURATION = 1.8
 export const INTRO_ZOOM_DURATION = 3.0
 export const MIN_LOADING_TIME = 800
 
-export const VIEWS = {
+export const VIEWS: ViewsMap = {
   home: {
     position: INITIAL_POSITION,
     rotation: INITIAL_ROTATION,

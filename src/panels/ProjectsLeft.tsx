@@ -1,7 +1,8 @@
 import TypedText from '../components/TypedText'
 import useUntypeTracker from '../components/useUntypeTracker'
+import type { PanelProps } from '../types'
 
-function ProjectsLeft({ visible, onNavigate, onUntypeComplete }) {
+function ProjectsLeft({ visible, onNavigate, onUntypeComplete }: PanelProps) {
   const onUntyped = useUntypeTracker(4, visible, onUntypeComplete)
 
   return (

@@ -4,26 +4,28 @@ import * as THREE from 'three'
 import { VIEWS, ANIM_DURATION } from '../../config/views'
 import { setNavigateTo, clearNavigateTo, setFreeCamHandler, clearFreeCamHandler, setComputeCloseup, clearComputeCloseup, fireNavigationComplete } from './bridge'
 import { useScreenMesh } from '../ScreenMeshContext'
+import type { ViewName } from '../../types'
+import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 
 const REF_ASPECT = 16 / 9
-const ANCHOR_VIEWS = new Set(['projects'])
+const ANCHOR_VIEWS = new Set<string>(['projects'])
 
-function computeAnchorGoal(viewName, aspect) {
+function computeAnchorGoal(viewName: string, aspect: number) {
   if (!ANCHOR_VIEWS.has(viewName)) return 0
   return 1 - REF_ASPECT / aspect
 }
 
-export function easeOut(t) {
+export function easeOut(t: number) {
   return 1 - Math.pow(1 - t, 4)
 }
 
-export function easeInOut(t) {
+export function easeInOut(t: number) {
   return t < 0.5
     ? 8 * t * t * t * t
     : 1 - Math.pow(-2 * t + 2, 4) / 2
 }
 
-export function computeTarget(position, rotation, dist = 20) {
+export function computeTarget(position: [number, number, number], rotation: [number, number, number], dist = 20) {
   const euler = new THREE.Euler(...rotation)
   const dir = new THREE.Vector3(0, 0, -1).applyEuler(euler)
   return new THREE.Vector3(...position).add(dir.multiplyScalar(dist))
@@ -31,8 +33,8 @@ export function computeTarget(position, rotation, dist = 20) {
 
 const _box = new THREE.Box3()
 const _center = new THREE.Vector3()
-function getPivotCenter(root, name) {
-  let obj = null
+function getPivotCenter(root: THREE.Object3D, name: string) {
+  let obj: THREE.Object3D | null = null
   root.traverse((child) => {
     if (!obj && child.name === name) obj = child
   })
@@ -46,14 +48,14 @@ const _searchQuat = new THREE.Quaternion()
 const _searchOffset = new THREE.Vector3()
 
 // Safe oy range that keeps polar angle within bounds
-function computeOyLimits(offset, right, minPolar, maxPolar) {
+function computeOyLimits(offset: THREE.Vector3, right: THREE.Vector3, minPolar: number, maxPolar: number) {
   const len = offset.length()
   if (len < 1e-6) return { min: -Math.PI, max: Math.PI }
 
   const STEP = 0.005
   const BOUND = Math.PI
 
-  function polarAt(oy) {
+  function polarAt(oy: number) {
     _searchQuat.setFromAxisAngle(right, -oy)
     _searchOffset.copy(offset).applyQuaternion(_searchQuat)
     return Math.acos(THREE.MathUtils.clamp(_searchOffset.y / len, -1, 1))
@@ -80,7 +82,12 @@ function computeOyLimits(offset, right, minPolar, maxPolar) {
   return { min: oyMin, max: oyMax }
 }
 
-function CameraAnimator({ controlsRef, freeCam }) {
+interface CameraAnimatorProps {
+  controlsRef: React.RefObject<OrbitControlsImpl | null>
+  freeCam: boolean
+}
+
+function CameraAnimator({ controlsRef, freeCam }: CameraAnimatorProps) {
   const { camera, scene, gl } = useThree()
   const { screenMesh: ctxScreenMesh, fullScene } = useScreenMesh()
   const animating = useRef(false)
@@ -92,7 +99,7 @@ function CameraAnimator({ controlsRef, freeCam }) {
   const elapsed = useRef(0)
   const duration = useRef(ANIM_DURATION)
 
-  const currentViewName = useRef('home')
+  const currentViewName = useRef<ViewName>('home')
   const pivotPoint = useRef(new THREE.Vector3())
   const restPos = useRef(new THREE.Vector3())
   const restTarget = useRef(new THREE.Vector3())
@@ -118,7 +125,7 @@ function CameraAnimator({ controlsRef, freeCam }) {
   const MAX_POLAR = Math.PI - 0.15
   const oyLimits = useRef({ min: -Infinity, max: Infinity })
 
-  const navigateTo = useCallback((viewName, dur, isIntro) => {
+  const navigateTo = useCallback((viewName: ViewName, dur?: number, isIntro?: boolean) => {
     const view = VIEWS[viewName]
     if (!view || !controlsRef.current) return
     startPos.current.copy(camera.position)
@@ -158,7 +165,7 @@ function CameraAnimator({ controlsRef, freeCam }) {
     const homePos = new THREE.Vector3(...VIEWS.home.position)
     if (homePos.clone().sub(center).dot(normal) < 0) normal.negate()
 
-    const fovRad = THREE.MathUtils.degToRad(camera.fov)
+    const fovRad = THREE.MathUtils.degToRad((camera as THREE.PerspectiveCamera).fov)
     const dist = (size.y / 2) / Math.tan(fovRad / 2) * 0.6
 
     const closeupPos = center.clone().add(normal.clone().multiplyScalar(dist))
@@ -173,7 +180,7 @@ function CameraAnimator({ controlsRef, freeCam }) {
     return () => clearComputeCloseup(computeScreenCloseup)
   }, [computeScreenCloseup])
 
-  const handleFreeCam = useCallback((entering) => {
+  const handleFreeCam = useCallback((entering: boolean) => {
     if (entering) {
       animating.current = false
       restPos.current.copy(camera.position)
@@ -258,7 +265,7 @@ function CameraAnimator({ controlsRef, freeCam }) {
   useEffect(() => {
     const canvas = gl.domElement
 
-    const onPointerDown = (e) => {
+    const onPointerDown = (e: PointerEvent) => {
       if (e.button !== 0 || animating.current || !ready.current) return
       if (e.shiftKey && freeCamRef.current) {
         panning.current = true
@@ -268,7 +275,7 @@ function CameraAnimator({ controlsRef, freeCam }) {
       lastPointer.current = { x: e.clientX, y: e.clientY }
     }
 
-    const onPointerMove = (e) => {
+    const onPointerMove = (e: PointerEvent) => {
       if (panning.current) {
         const dx = e.clientX - lastPointer.current.x
         const dy = e.clientY - lastPointer.current.y
@@ -309,7 +316,7 @@ function CameraAnimator({ controlsRef, freeCam }) {
       panning.current = false
     }
 
-    const onWheel = (e) => {
+    const onWheel = (e: WheelEvent) => {
       if (!freeCamRef.current || animating.current || !ready.current) return
       e.preventDefault()
       const factor = e.deltaY > 0 ? 1.1 : 1 / 1.1

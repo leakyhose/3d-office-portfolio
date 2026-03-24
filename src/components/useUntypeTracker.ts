@@ -1,6 +1,6 @@
 import { useRef, useCallback, useEffect } from 'react'
 
-export default function useUntypeTracker(count, visible, onComplete) {
+export default function useUntypeTracker(count: number, visible: boolean, onComplete?: () => void): () => void {
   const doneCount = useRef(0)
   const fired = useRef(false)
 

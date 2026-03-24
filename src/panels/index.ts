@@ -1,3 +1,4 @@
+import type { PanelProps, PanelId } from '../types'
 import HomeRight from './HomeRight'
 import AboutLeft from './AboutLeft'
 import ContactLeft from './ContactLeft'
@@ -6,7 +7,7 @@ import ExperienceLeft from './ExperienceLeft'
 import ProjectsLeft from './ProjectsLeft'
 import ProjectsRight from './ProjectsRight'
 
-const PANELS = {
+const PANELS: Record<PanelId, React.ComponentType<PanelProps>> = {
   'home': HomeRight,
   'about': AboutLeft,
   'contact-left': ContactLeft,

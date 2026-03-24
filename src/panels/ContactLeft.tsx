@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import TypedText from '../components/TypedText'
 import useUntypeTracker from '../components/useUntypeTracker'
+import type { PanelProps } from '../types'
 
-function ContactLeft({ visible, onUntypeComplete }) {
+function ContactLeft({ visible, onUntypeComplete }: PanelProps) {
   const onUntyped = useUntypeTracker(7, visible, onUntypeComplete)
   const [copied, setCopied] = useState(false)
 
@@ -12,7 +13,7 @@ function ContactLeft({ visible, onUntypeComplete }) {
     return () => clearTimeout(t)
   }, [copied])
 
-  const copyEmail = (e) => {
+  const copyEmail = (e: React.MouseEvent) => {
     e.preventDefault()
     navigator.clipboard.writeText('yimingsu2007@gmail.com')
     setCopied(true)

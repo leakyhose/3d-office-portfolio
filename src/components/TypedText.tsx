@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
+import type { TypedTextProps, TextSegment } from '../types'
 
-
-function renderSegments(segments, start, end) {
-  const result = []
+function renderSegments(segments: TextSegment[], start: number, end: number): React.ReactNode[] {
+  const result: React.ReactNode[] = []
   let pos = 0
   for (let i = 0; i < segments.length; i++) {
     const seg = segments[i]
@@ -28,14 +28,14 @@ function renderSegments(segments, start, end) {
   return result
 }
 
-function TypedText({ text, segments, visible, speed, untypeSpeed = speed, onTyped, onUntyped, reserveSpace = false, untypeFrom = 'end', icon }) {
+function TypedText({ text, segments, visible, speed, untypeSpeed = speed, onTyped, onUntyped, reserveSpace = false, untypeFrom = 'end', icon }: TypedTextProps) {
   const [length, setLength] = useState(0)
-  const timeoutRef = useRef(null)
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lengthRef = useRef(0)
   const peakRef = useRef(0)
   const prevVisibleRef = useRef(visible)
 
-  const fullText = segments ? segments.map(s => s.text).join('') : text
+  const fullText = segments ? segments.map(s => s.text).join('') : text ?? ''
   const iconOffset = icon ? 1 : 0
   const totalLength = fullText.length + iconOffset
 
@@ -90,20 +90,20 @@ function TypedText({ text, segments, visible, speed, untypeSpeed = speed, onType
   const isUntyping = !visible && length > 0
   const deleteFromStart = isUntyping && untypeFrom === 'start'
 
-  let displayedContent
+  let displayedContent: React.ReactNode
   let showIcon = false
 
   if (deleteFromStart) {
     const peak = peakRef.current
     const removed = peak - length
-    showIcon = icon && removed < 1
+    showIcon = Boolean(icon) && removed < 1
     const textStart = Math.max(0, removed - iconOffset)
     const textPeak = peak - iconOffset
     displayedContent = segments
       ? renderSegments(segments, textStart, textPeak)
       : fullText.slice(textStart, textPeak)
   } else {
-    showIcon = icon && length >= 1
+    showIcon = Boolean(icon) && length >= 1
     const textChars = Math.max(0, length - iconOffset)
     displayedContent = segments
       ? renderSegments(segments, 0, textChars)

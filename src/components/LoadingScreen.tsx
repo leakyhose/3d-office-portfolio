@@ -4,33 +4,38 @@ const TOTAL_SEGMENTS = 20
 const LOADING_INTERVAL = 120
 const FAST_INTERVAL = 40
 
-function LoadingScreen({ loaded, onComplete }) {
-  const overlayRef = useRef(null)
+interface LoadingScreenProps {
+  loaded: boolean
+  onComplete: () => void
+}
+
+function LoadingScreen({ loaded, onComplete }: LoadingScreenProps) {
+  const overlayRef = useRef<HTMLDivElement>(null)
   const [segments, setSegments] = useState(0)
   const [done, setDone] = useState(false)
-  const intervalRef = useRef(null)
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
     intervalRef.current = setInterval(() => {
       setSegments(prev => {
         if (prev >= 17) {
-          clearInterval(intervalRef.current)
+          clearInterval(intervalRef.current!)
           return prev
         }
         return prev + 1
       })
     }, LOADING_INTERVAL)
-    return () => clearInterval(intervalRef.current)
+    return () => clearInterval(intervalRef.current!)
   }, [])
 
   useEffect(() => {
     if (!loaded) return
-    clearInterval(intervalRef.current)
+    clearInterval(intervalRef.current!)
 
     intervalRef.current = setInterval(() => {
       setSegments(prev => {
         if (prev >= TOTAL_SEGMENTS) {
-          clearInterval(intervalRef.current)
+          clearInterval(intervalRef.current!)
           return prev
         }
         return prev + 1
@@ -39,12 +44,12 @@ function LoadingScreen({ loaded, onComplete }) {
 
     const t = setTimeout(() => setDone(true), 500)
     return () => {
-      clearInterval(intervalRef.current)
+      clearInterval(intervalRef.current!)
       clearTimeout(t)
     }
   }, [loaded])
 
-  const handleTransitionEnd = useCallback((e) => {
+  const handleTransitionEnd = useCallback((e: React.TransitionEvent<HTMLDivElement>) => {
     if (done && e.propertyName === 'opacity' && e.target === overlayRef.current) {
       onComplete?.()
     }

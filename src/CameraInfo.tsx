@@ -1,9 +1,10 @@
 import { useFrame, useThree } from '@react-three/fiber'
-import { useRef, useState, useCallback, createContext, useContext } from 'react'
+import { useRef, useState, useCallback } from 'react'
+import type { CameraInfoState } from './types'
 
-const round = (v, d = 2) => Number(v.toFixed(d))
+const round = (v: number, d = 2) => Number(v.toFixed(d))
 
-let _setInfoExternal = null
+let _setInfoExternal: React.Dispatch<React.SetStateAction<CameraInfoState>> | null = null
 
 export function CameraTracker() {
   const { camera } = useThree()
@@ -20,15 +21,17 @@ export function CameraTracker() {
       rx: round(camera.rotation.x, 3),
       ry: round(camera.rotation.y, 3),
       rz: round(camera.rotation.z, 3),
-      fov: round(camera.fov),
+      fov: round((camera as THREE.PerspectiveCamera).fov),
     })
   })
 
   return null
 }
 
+import * as THREE from 'three'
+
 export function CameraInfoPanel() {
-  const [info, setInfo] = useState({})
+  const [info, setInfo] = useState<CameraInfoState>({})
   const [copied, setCopied] = useState(false)
   _setInfoExternal = setInfo
 

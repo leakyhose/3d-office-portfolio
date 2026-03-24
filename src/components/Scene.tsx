@@ -11,14 +11,20 @@ import CoffeeSteam from '../CoffeeSteam'
 import ComputerScreenContent from '../ComputerScreenContent'
 import { ScreenMeshProvider, useScreenMesh } from './ScreenMeshContext'
 import { VIEWS } from '../config/views'
+import type { ScreenPhase } from '../types'
+import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 
 const T0 = performance.now()
-const log = (msg) => console.log(`[${(performance.now() - T0).toFixed(0)}ms] ${msg}`)
+const log = (msg: string) => console.log(`[${(performance.now() - T0).toFixed(0)}ms] ${msg}`)
 
 log('Scene module loaded — starting preload')
 useGLTF.preload('/newcat.glb')
 
-const OfficeModel = memo(function OfficeModel({ onLoaded }) {
+interface OfficeModelProps {
+  onLoaded?: () => void
+}
+
+const OfficeModel = memo(function OfficeModel({ onLoaded }: OfficeModelProps) {
   log('useGLTF called')
   const { scene } = useGLTF('/newcat.glb')
   const gl = useThree((s) => s.gl)
@@ -27,12 +33,13 @@ const OfficeModel = memo(function OfficeModel({ onLoaded }) {
   const { setScreenMesh, setFullScene } = useScreenMesh()
   log('useGLTF returned')
   useEffect(() => {
-    let screenMesh = null
+    let screenMesh: THREE.Mesh | null = null
     scene.traverse((child) => {
-      if (child.isMesh) {
-        child.castShadow = true
-        child.receiveShadow = true
-        if (child.name === 'ComputerScreen') screenMesh = child
+      if ((child as THREE.Mesh).isMesh) {
+        const mesh = child as THREE.Mesh
+        mesh.castShadow = true
+        mesh.receiveShadow = true
+        if (mesh.name === 'ComputerScreen') screenMesh = mesh
       }
     })
     if (screenMesh) setScreenMesh(screenMesh, 'full')
@@ -40,12 +47,16 @@ const OfficeModel = memo(function OfficeModel({ onLoaded }) {
     gl.compile(rootScene, camera)
     // Pre-upload textures to avoid VRAM stalls on first render
     rootScene.traverse((obj) => {
-      if (!obj.isMesh) return
-      const mats = Array.isArray(obj.material) ? obj.material : [obj.material]
+      if (!(obj as THREE.Mesh).isMesh) return
+      const meshObj = obj as THREE.Mesh
+      const mats = Array.isArray(meshObj.material) ? meshObj.material : [meshObj.material]
       for (const mat of mats) {
         if (!mat) continue
         for (const key of Object.keys(mat)) {
-          if (mat[key]?.isTexture) gl.initTexture(mat[key])
+          const val = (mat as unknown as Record<string, unknown>)[key]
+          if (val && typeof val === 'object' && (val as THREE.Texture).isTexture) {
+            gl.initTexture(val as THREE.Texture)
+          }
         }
       }
     })
@@ -79,8 +90,14 @@ function Floor() {
   )
 }
 
-function Scene({ onLoaded, freeCam, screenPhase }) {
-  const controlsRef = useRef()
+interface SceneProps {
+  onLoaded: () => void
+  freeCam: boolean
+  screenPhase: ScreenPhase
+}
+
+function Scene({ onLoaded, freeCam, screenPhase }: SceneProps) {
+  const controlsRef = useRef<OrbitControlsImpl>(null)
   return (
     <ScreenMeshProvider>
       <color attach="background" args={['#3d352e']} />
