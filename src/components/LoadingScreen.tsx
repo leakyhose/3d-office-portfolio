@@ -63,7 +63,7 @@ function LoadingScreen({ loaded, onComplete }: LoadingScreenProps) {
         position: 'fixed',
         inset: 0,
         zIndex: 100,
-        background: '#3d352e',
+        background: '#1e1a15',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -77,7 +77,7 @@ function LoadingScreen({ loaded, onComplete }: LoadingScreenProps) {
       <div style={{
         fontFamily: '"VT323", monospace',
         fontSize: 52,
-        color: '#c4b8a8',
+        color: '#a0c0ff',
         letterSpacing: '0.05em',
         userSelect: 'none',
       }}>

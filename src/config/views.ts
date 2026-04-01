@@ -40,8 +40,8 @@ export const VIEWS: ViewsMap = {
     extraDelay: 0,
   },
   projects: {
-    position: [0.46, 7.6, 6.07],
-    rotation: [-0.06, -0.22, -0.013],
+    position: [0.05, 7.52, 5.13],
+    rotation: [-0.055, -0.307, -0.017],
     pivotObject: 'ComputerScreen',
     left: 'projects-nav',
     right: 'projects',

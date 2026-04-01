@@ -1,7 +1,7 @@
 import { useEffect, useRef, Suspense, memo } from 'react'
 import { useThree } from '@react-three/fiber'
 import { OrbitControls, useGLTF, ContactShadows, Environment } from '@react-three/drei'
-import { EffectComposer, N8AO, Bloom } from '@react-three/postprocessing'
+import { EffectComposer, N8AO, Bloom, Vignette } from '@react-three/postprocessing'
 import * as THREE from 'three'
 import CameraSetup from './camera/CameraSetup'
 import CameraAnimator from './camera/CameraAnimator'
@@ -9,6 +9,7 @@ import IntroFog from './camera/IntroFog'
 import { CameraTracker } from '../CameraInfo'
 import CoffeeSteam from '../CoffeeSteam'
 import ComputerScreenContent from '../ComputerScreenContent'
+import CRTLight from './CRTLight'
 import { ScreenMeshProvider, useScreenMesh } from './ScreenMeshContext'
 import { VIEWS } from '../config/views'
 import type { ScreenPhase } from '../types'
@@ -85,7 +86,7 @@ function Floor() {
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]} receiveShadow>
       <planeGeometry args={[600, 600]} />
-      <meshStandardMaterial color="#3d352e" roughness={1} metalness={0} />
+      <meshStandardMaterial color="#1e1a15" roughness={1} metalness={0} />
     </mesh>
   )
 }
@@ -94,34 +95,38 @@ interface SceneProps {
   onLoaded: () => void
   freeCam: boolean
   screenPhase: ScreenPhase
+  hoveredProject: string | null
+  introComplete: boolean
 }
 
-function Scene({ onLoaded, freeCam, screenPhase }: SceneProps) {
+function Scene({ onLoaded, freeCam, screenPhase, hoveredProject, introComplete }: SceneProps) {
   const controlsRef = useRef<OrbitControlsImpl>(null)
   return (
     <ScreenMeshProvider>
-      <color attach="background" args={['#3d352e']} />
+      <color attach="background" args={['#1e1a15']} />
       <IntroFog />
-      <hemisphereLight args={['#f5e6d3', '#2a2218', 0.5]} />
+      <hemisphereLight args={['#c4a878', '#0f0d0a', 0.2]} />
       <directionalLight
-        color="#fff5e0" intensity={2.2} position={[14.2, 13.3, 12.3]}
+        color="#ffe0a0" intensity={2.8} position={[14.2, 13.3, 12.3]}
         castShadow shadow-mapSize-width={4096} shadow-mapSize-height={4096}
         shadow-camera-far={200} shadow-camera-left={-60} shadow-camera-right={60}
         shadow-camera-top={60} shadow-camera-bottom={-60}
         shadow-normalBias={0.05} shadow-bias={-0.002}
       />
-      <directionalLight color="#ffe8cc" intensity={0.2} position={[30, 20, -10]} />
+      <directionalLight color="#ffe8cc" intensity={0.03} position={[30, 20, -10]} />
       <Suspense fallback={null}>
         <OfficeModel onLoaded={onLoaded} />
-        <Environment preset="apartment" background={false} environmentIntensity={0.3} />
+        <Environment preset="apartment" background={false} environmentIntensity={0.08} />
       </Suspense>
-      <CoffeeSteam />
-      <ComputerScreenContent screenPhase={screenPhase} />
+      <CoffeeSteam active={introComplete} />
+      <ComputerScreenContent screenPhase={screenPhase} hoveredProject={hoveredProject} />
+      <CRTLight />
       <Floor />
-      <ContactShadows position={[0, 0, 0]} opacity={0.5} scale={100} blur={2.5} far={50} color="#2a2218" />
+      <ContactShadows position={[0, 0, 0]} opacity={0.8} scale={100} blur={2.5} far={50} color="#1e1a15" />
       <EffectComposer>
-        <N8AO aoRadius={2} intensity={3} distanceFalloff={2} color="#2a2218" />
-        <Bloom luminanceThreshold={0.9} luminanceSmoothing={0.4} intensity={0.4} mipmapBlur />
+        <N8AO aoRadius={3} intensity={5} distanceFalloff={1.5} color="#2a2218" />
+        <Bloom luminanceThreshold={0.6} luminanceSmoothing={0.3} intensity={0.7} mipmapBlur />
+        <Vignette offset={0.3} darkness={0.7} />
       </EffectComposer>
       <OrbitControls
         ref={controlsRef}

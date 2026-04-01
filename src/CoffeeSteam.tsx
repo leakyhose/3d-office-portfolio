@@ -54,7 +54,7 @@ function initParticle(p: SteamParticle, center: THREE.Vector3, radius: number) {
   p.alive = true
 }
 
-export default memo(function CoffeeSteam() {
+export default memo(function CoffeeSteam({ active = true }: { active?: boolean }) {
   const { scene } = useGLTF('/newcat.glb')
   const meshRef = useRef<THREE.InstancedMesh>(null)
   const spawnAcc = useRef(0)
@@ -116,11 +116,13 @@ export default memo(function CoffeeSteam() {
     const delta = Math.min(rawDelta, 0.1)
     const mesh = meshRef.current
 
-    spawnAcc.current += delta * SPAWN_RATE
-    while (spawnAcc.current >= 1) {
-      spawnAcc.current -= 1
-      const dead = particles.find((p) => !p.alive)
-      if (dead) initParticle(dead, spawnCenter, spawnRadius)
+    if (active) {
+      spawnAcc.current += delta * SPAWN_RATE
+      while (spawnAcc.current >= 1) {
+        spawnAcc.current -= 1
+        const dead = particles.find((p) => !p.alive)
+        if (dead) initParticle(dead, spawnCenter, spawnRadius)
+      }
     }
 
     for (let i = 0; i < POOL_SIZE; i++) {

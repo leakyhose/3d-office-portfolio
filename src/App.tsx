@@ -23,11 +23,14 @@ function App() {
   const [showLoading, setShowLoading] = useState(true)
   const [bootPhase, setBootPhase] = useState<'off' | 'booting' | 'done'>('off')
   const [landedView, setLandedView] = useState<ViewName>('home')
+  const [hoveredProject, setHoveredProject] = useState<string | null>(null)
 
   const pendingTarget = useRef<ViewConfig | null>(null)
   const leftDone = useRef(true)
   const rightDone = useRef(true)
   const swapTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const navHovered = useRef(false)
+  const bufferedLandedView = useRef<ViewName | null>(null)
 
   const savedStateRef = useRef<{
     leftPanel: PanelId | null
@@ -125,6 +128,8 @@ function App() {
     navigateToView(saved.viewName)
   }, [])
 
+  const [introComplete, setIntroComplete] = useState(false)
+
   const onLoadingComplete = useCallback(() => {
     setShowLoading(false)
     setBootPhase('booting')
@@ -132,6 +137,7 @@ function App() {
       setBootPhase('done')
       triggerIntroZoom()
       setTimeout(() => setRightVisible(true), INTRO_ZOOM_DURATION * 600)
+      setTimeout(() => setIntroComplete(true), INTRO_ZOOM_DURATION * 600)
     }, 400)
   }, [])
 
@@ -159,8 +165,22 @@ function App() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [navigateToSection, enterFreeCamMode, exitFreeCamMode])
 
+  const onNavHoverChange = useCallback((hovering: boolean) => {
+    navHovered.current = hovering
+    if (!hovering && bufferedLandedView.current !== null) {
+      setLandedView(bufferedLandedView.current)
+      bufferedLandedView.current = null
+    }
+  }, [])
+
   useEffect(() => {
-    const handler = (viewName: ViewName) => setLandedView(viewName)
+    const handler = (viewName: ViewName) => {
+      if (navHovered.current) {
+        bufferedLandedView.current = viewName
+      } else {
+        setLandedView(viewName)
+      }
+    }
     setOnNavigationComplete(handler)
     return () => clearOnNavigationComplete(handler)
   }, [])
@@ -187,9 +207,9 @@ function App() {
         camera={{ fov: 50 }}
         shadows
         style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
-        gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.0 }}
+        gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 0.7 }}
       >
-        <Scene onLoaded={onSceneLoaded} freeCam={freeCam} screenPhase={screenPhase} />
+        <Scene onLoaded={onSceneLoaded} freeCam={freeCam} screenPhase={screenPhase} hoveredProject={hoveredProject} introComplete={introComplete} />
       </Canvas>
 
       <div id="overlay">
@@ -204,6 +224,7 @@ function App() {
             visible={leftVisible}
             onNavigate={navigateToSection}
             onUntypeComplete={onLeftUntypeComplete}
+            onHoverChange={onNavHoverChange}
           />
         )}
         {RightComponent && (
@@ -211,6 +232,8 @@ function App() {
             visible={rightVisible}
             onNavigate={navigateToSection}
             onUntypeComplete={onRightUntypeComplete}
+            onProjectHover={setHoveredProject}
+            activeProject={hoveredProject}
           />
         )}
       </div>

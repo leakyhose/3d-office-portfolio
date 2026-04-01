@@ -142,6 +142,7 @@
   font-size: 146px;
   font-weight: 400;
   line-height: 0.95;
+  min-height: calc(1em * 0.95);
 }
 
 .panel-line {
@@ -464,6 +465,88 @@
 .about-nav a:hover .hn,
 .contact-nav a:hover .hn,
 .projects-nav a:hover .hn   { filter: brightness(1.2); }
+
+/* ── Project List ── */
+
+.project-list {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin-top: 20px;
+}
+
+.project-card {
+  display: block;
+  text-align: right;
+  text-decoration: none;
+  color: inherit;
+  padding: 10px 0;
+  cursor: default;
+  pointer-events: auto;
+}
+
+.project-card-active .project-name {
+  color: #8dc4a0;
+}
+
+.project-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.project-icon {
+  width: 30px;
+  height: 30px;
+  image-rendering: pixelated;
+}
+
+.project-name {
+  font-size: 36px;
+  color: #fff;
+}
+
+.project-link-icon {
+  font-size: 22px;
+  color: #777;
+  text-decoration: none;
+  pointer-events: auto;
+  transition: color 0.2s;
+}
+
+.project-link-icon:hover {
+  color: #fff;
+}
+
+.project-link-ext {
+  font-family: 'VT323', monospace;
+  font-size: 28px;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.project-desc {
+  margin: 10px 0 0;
+  font-size: 22px;
+  color: #a8a8a8;
+  line-height: 1.2;
+}
+
+.project-tech-tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.project-tech-tag {
+  font-size: 16px;
+  color: #8dc4a0;
+  padding: 1px 6px;
+  border: 1px solid rgba(141, 196, 160, 0.25);
+}
 
 /* ── Free-cam hint ── */
 .freecam-hint {

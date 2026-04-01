@@ -2,11 +2,15 @@ import TypedText from '../components/TypedText'
 import useUntypeTracker from '../components/useUntypeTracker'
 import type { PanelProps } from '../types'
 
-function ProjectsLeft({ visible, onNavigate, onUntypeComplete }: PanelProps) {
+function ProjectsLeft({ visible, onNavigate, onUntypeComplete, onHoverChange }: PanelProps) {
   const onUntyped = useUntypeTracker(4, visible, onUntypeComplete)
 
   return (
-    <nav className="projects-nav">
+    <nav
+      className="projects-nav"
+      onMouseEnter={() => onHoverChange?.(true)}
+      onMouseLeave={() => onHoverChange?.(false)}
+    >
       <a onClick={() => onNavigate('home')}>
         <TypedText text="Home" icon="home" visible={visible} speed={23} onUntyped={onUntyped} />
       </a>

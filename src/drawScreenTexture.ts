@@ -30,6 +30,37 @@ const cloudsReady = new Promise<void>(resolve => {
 })
 cloudsImg.src = '/clouds_background.png'
 
+interface DesktopIcon {
+  img: HTMLImageElement
+  ready: Promise<void>
+  label: string
+}
+
+const desktopIcons: DesktopIcon[] = [
+  { label: 'My Computer', img: new Image(), ready: null! },
+  { label: 'Network\nNeighborhood', img: new Image(), ready: null! },
+  { label: 'Documents', img: new Image(), ready: null! },
+  { label: 'Recycle Bin', img: new Image(), ready: null! },
+]
+
+const iconFiles = [
+  'My Computer.ico',
+  'Network Neighborhood.ico',
+  'Documents Folder.ico',
+  'Empty Recycle Bin.ico',
+]
+
+for (let i = 0; i < desktopIcons.length; i++) {
+  const icon = desktopIcons[i]
+  icon.ready = new Promise<void>(resolve => {
+    icon.img.onload = () => resolve()
+    icon.img.onerror = () => resolve()
+  })
+  icon.img.src = `/windows-95-desktop/${iconFiles[i]}`
+}
+
+const allIconsReady = Promise.all(desktopIcons.map(ic => ic.ready))
+
 function drawRaised(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, bg = '#C0C0C0') {
   ctx.fillStyle = bg
   ctx.fillRect(x, y, w, h)
@@ -52,7 +83,7 @@ function drawSunken(ctx: CanvasRenderingContext2D, x: number, y: number, w: numb
   ctx.fillRect(x + w - 2, y, 2, h)
 }
 
-function drawTaskbar(ctx: CanvasRenderingContext2D, width: number, height: number) {
+function drawTaskbar(ctx: CanvasRenderingContext2D, width: number, height: number, withStartLogo = false) {
   const barH = Math.round(height * 0.08)
   const barY = height - barH
   drawRaised(ctx, 0, barY, width, barH)
@@ -87,10 +118,58 @@ function drawTaskbar(ctx: CanvasRenderingContext2D, width: number, height: numbe
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   ctx.fillText(clockStr, trayX + trayW / 2, barY + barH / 2)
+
+  if (withStartLogo && logoImg.naturalWidth) {
+    const btnLogoSize = Math.round(innerH * 0.7)
+    const btnLogoX = pad + Math.round((innerH - btnLogoSize) / 2) + 4
+    const btnLogoY = barY + pad + Math.round((innerH - btnLogoSize) / 2)
+    ctx.drawImage(logoImg, btnLogoX, btnLogoY, btnLogoSize, btnLogoSize)
+  }
 }
 
-function pixelateCanvas(ctx: CanvasRenderingContext2D, width: number, height: number) {
-  const lowW = 384
+function drawDesktopIcons(ctx: CanvasRenderingContext2D, width: number, height: number) {
+  const iconSize = 56
+  const leftMargin = 48
+  const topMargin = 40
+  const verticalSpacing = 110
+  const labelFontSize = 20
+  const labelGap = 6
+
+  void width; void height
+
+  ctx.save()
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'top'
+  ctx.font = `${labelFontSize}px "VT323", monospace`
+
+  for (let i = 0; i < desktopIcons.length; i++) {
+    const icon = desktopIcons[i]
+    const centerX = leftMargin + iconSize / 2
+    const iconY = topMargin + i * verticalSpacing
+
+    if (icon.img.naturalWidth) {
+      ctx.imageSmoothingEnabled = false
+      ctx.drawImage(icon.img, centerX - iconSize / 2, iconY, iconSize, iconSize)
+      ctx.imageSmoothingEnabled = true
+    }
+
+    const labelY = iconY + iconSize + labelGap
+    const lines = icon.label.split('\n')
+
+    for (let li = 0; li < lines.length; li++) {
+      const lineY = labelY + li * (labelFontSize + 2)
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)'
+      ctx.fillText(lines[li], centerX + 1, lineY + 1)
+      ctx.fillStyle = '#ffffff'
+      ctx.fillText(lines[li], centerX, lineY)
+    }
+  }
+
+  ctx.restore()
+}
+
+function pixelateCanvas(ctx: CanvasRenderingContext2D, width: number, height: number, resolution = 384) {
+  const lowW = resolution
   const lowH = Math.round(lowW * (height / width))
 
   const tiny = document.createElement('canvas')
@@ -188,41 +267,10 @@ export function drawBootScreen(width = 1024, height = 768, onUpdate?: () => void
 
   drawTaskbar(ctx, width, height)
 
-  const drawLogo = () => {
-    const barH = Math.round(height * 0.08)
-    const availableH = height - barH
-    const logoH = Math.round(availableH * 0.3)
-    const aspect = logoImg.naturalWidth / logoImg.naturalHeight
-    const logoW = Math.round(logoH * aspect)
-    const logoX = (width - logoW) / 2
-    const logoY = (availableH - logoH) / 2
-    ctx.drawImage(logoImg, logoX, logoY, logoW, logoH)
-
-    const labelSize = Math.round(logoH * 0.18)
-    ctx.font = `${labelSize}px "VT323", monospace`
-    ctx.fillStyle = '#fff'
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'top'
-    ctx.shadowColor = 'rgba(0,0,0,0.4)'
-    ctx.shadowBlur = 0
-    ctx.shadowOffsetX = 2
-    ctx.shadowOffsetY = 2
-    ctx.fillText('ysu.dev', width / 2, logoY + logoH + Math.round(logoH * 0.08))
-    ctx.shadowColor = 'transparent'
-    ctx.shadowOffsetX = 0
-    ctx.shadowOffsetY = 0
-
-    const pad = Math.round(barH * 0.12)
-    const innerH = barH - pad * 2
-    const btnLogoSize = Math.round(innerH * 0.7)
-    const btnLogoX = pad + Math.round((innerH - btnLogoSize) / 2) + 4
-    const btnLogoY = (height - barH) + pad + Math.round((innerH - btnLogoSize) / 2)
-    ctx.drawImage(logoImg, btnLogoX, btnLogoY, btnLogoSize, btnLogoSize)
-  }
-
-  logoReady.then(() => {
-    drawLogo()
-    pixelateCanvas(ctx, width, height)
+  Promise.all([logoReady, allIconsReady]).then(() => {
+    drawTaskbar(ctx, width, height, true)
+    drawDesktopIcons(ctx, width, height)
+    pixelateCanvas(ctx, width, height, 820)
     applyCRTEffects(ctx, width, height)
     onUpdate?.()
   })
@@ -233,4 +281,149 @@ export function drawBootScreen(width = 1024, height = 768, onUpdate?: () => void
 export function drawTerminalScreen(width = 1024, height = 768, onUpdate?: () => void) {
   const canvas = drawBootScreen(width, height, onUpdate)
   return { canvas }
+}
+
+// Pre-rendered boot screen background cache (drawn once, reused every video frame)
+let _bgCache: { canvas: HTMLCanvasElement; w: number; h: number } | null = null
+
+function getBootBg(width: number, height: number): HTMLCanvasElement {
+  if (_bgCache && _bgCache.w === width && _bgCache.h === height) return _bgCache.canvas
+
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d')!
+
+  // Draw the full desktop: teal bg, taskbar, icons — same as drawBootScreen but synchronous snapshot
+  ctx.fillStyle = '#008080'
+  ctx.fillRect(0, 0, width, height)
+  drawTaskbar(ctx, width, height, logoImg.naturalWidth ? true : false)
+  if (desktopIcons.every(ic => ic.img.naturalWidth)) {
+    drawDesktopIcons(ctx, width, height)
+  }
+  pixelateCanvas(ctx, width, height, 820)
+  // Apply only the border + scanlines, NOT the vignette — vignette goes on top of everything at the end
+  const borderW = Math.round(width * 0.03)
+  const borderH = Math.round(height * 0.03)
+  const snapshot = ctx.getImageData(0, 0, width, height)
+  ctx.fillStyle = '#000000'
+  ctx.fillRect(0, 0, width, height)
+  const tmp = document.createElement('canvas')
+  tmp.width = width
+  tmp.height = height
+  tmp.getContext('2d')!.putImageData(snapshot, 0, 0)
+  ctx.drawImage(tmp, borderW, borderH, width - borderW * 2, height - borderH * 2)
+
+  _bgCache = { canvas, w: width, h: height }
+  return canvas
+}
+
+// Invalidate cache when assets finish loading so icons appear
+Promise.all([logoReady, allIconsReady]).then(() => { _bgCache = null })
+
+export function drawVideoWindow(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  video: HTMLVideoElement,
+  windowTitle: string
+) {
+  // Draw cached boot screen background (icons, taskbar, pixelated, with CRT border)
+  const bg = getBootBg(width, height)
+  ctx.drawImage(bg, 0, 0)
+
+  // Window bounds — sized to match video aspect ratio, centered in desktop area (inside CRT border)
+  const borderW = Math.round(width * 0.03)
+  const borderH = Math.round(height * 0.03)
+  const taskbarH = Math.round(height * 0.08)
+  const margin = Math.round(width * 0.02)
+
+  const areaX = borderW + margin
+  const areaY = borderH + margin
+  const areaW = width - borderW * 2 - margin * 2
+  const areaH = height - borderH * 2 - taskbarH - margin * 2
+
+  const titleBarH = Math.max(18, Math.round(areaH * 0.055))
+  const chrome = titleBarH + 14
+
+  let winW: number, winH: number
+  if (video.videoWidth && video.videoHeight) {
+    const videoAspect = video.videoWidth / video.videoHeight
+    const contentW = areaW - 8
+    const contentH = contentW / videoAspect
+    if (contentH + chrome <= areaH) {
+      winW = areaW
+      winH = Math.round(contentH + chrome)
+    } else {
+      const fitContentH = areaH - chrome
+      const fitContentW = fitContentH * videoAspect
+      winW = Math.round(fitContentW + 8)
+      winH = areaH
+    }
+  } else {
+    winW = areaW
+    winH = areaH
+  }
+
+  const winX = Math.round(areaX + (areaW - winW) / 2)
+  const winY = Math.round(areaY + (areaH - winH) / 2)
+
+  // Window frame (raised)
+  drawRaised(ctx, winX, winY, winW, winH)
+
+  // Title bar
+  const tbPad = 3
+  ctx.fillStyle = '#000080'
+  ctx.fillRect(winX + tbPad, winY + tbPad, winW - tbPad * 2, titleBarH)
+
+  const titleFontSize = Math.round(titleBarH * 0.75)
+  ctx.font = `bold ${titleFontSize}px "VT323", monospace`
+  ctx.fillStyle = '#fff'
+  ctx.textAlign = 'left'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(windowTitle, winX + tbPad + 8, winY + tbPad + titleBarH / 2)
+
+  // Close button
+  const closeBtnSize = titleBarH - 6
+  const closeBtnX = winX + winW - tbPad - closeBtnSize - 4
+  const closeBtnY = winY + tbPad + 3
+  drawRaised(ctx, closeBtnX, closeBtnY, closeBtnSize, closeBtnSize)
+  ctx.strokeStyle = '#000'
+  ctx.lineWidth = 2
+  ctx.beginPath()
+  const xPad = 4
+  ctx.moveTo(closeBtnX + xPad, closeBtnY + xPad)
+  ctx.lineTo(closeBtnX + closeBtnSize - xPad, closeBtnY + closeBtnSize - xPad)
+  ctx.moveTo(closeBtnX + closeBtnSize - xPad, closeBtnY + xPad)
+  ctx.lineTo(closeBtnX + xPad, closeBtnY + closeBtnSize - xPad)
+  ctx.stroke()
+
+  // Content area (sunken)
+  const contentPad = 4
+  const contentX = winX + contentPad
+  const contentY = winY + tbPad + titleBarH + contentPad
+  const contentW = winW - contentPad * 2
+  const contentH = winH - tbPad - titleBarH - contentPad * 2 - 4
+  drawSunken(ctx, contentX, contentY, contentW, contentH, '#000')
+
+  // Draw video frame
+  if (video.videoWidth && video.videoHeight) {
+    ctx.drawImage(video, contentX + 2, contentY + 2, contentW - 4, contentH - 4)
+  }
+
+  // Scanlines over everything
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.15)'
+  for (let y = 0; y < height; y += 2) {
+    ctx.fillRect(0, y, width, 1)
+  }
+
+  // Vignette
+  const cx = width / 2
+  const cy = height / 2
+  const outerR = Math.sqrt(cx * cx + cy * cy)
+  const grad = ctx.createRadialGradient(cx, cy, outerR * 0.35, cx, cy, outerR)
+  grad.addColorStop(0, 'rgba(0, 0, 0, 0)')
+  grad.addColorStop(1, 'rgba(0, 0, 0, 0.35)')
+  ctx.fillStyle = grad
+  ctx.fillRect(0, 0, width, height)
 }

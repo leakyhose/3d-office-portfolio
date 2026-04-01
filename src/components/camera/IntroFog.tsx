@@ -1,5 +1,5 @@
 function IntroFog() {
-  return <fog attach="fog" args={['#3d352e', 30, 120]} />
+  return <fog attach="fog" args={['#1e1a15', 20, 65]} />
 }
 
 export default IntroFog

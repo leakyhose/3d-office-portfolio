@@ -26,6 +26,9 @@ export interface PanelProps {
   visible: boolean
   onNavigate: (viewName: ViewName) => void
   onUntypeComplete: () => void
+  onHoverChange?: (hovering: boolean) => void
+  onProjectHover?: (projectId: string | null) => void
+  activeProject?: string | null
 }
 
 export interface TextSegment {
