@@ -2,27 +2,27 @@ import TypedText from '../components/TypedText'
 import useUntypeTracker from '../components/useUntypeTracker'
 import type { PanelProps } from '../types'
 
-function ExperienceLeft({ visible, onNavigate, onUntypeComplete }: PanelProps) {
+function ExperienceRight({ visible, onNavigate, onUntypeComplete }: PanelProps) {
   const onUntyped = useUntypeTracker(4, visible, onUntypeComplete)
 
   return (
     <div id="experience-panel" className="visible">
       <nav className="about-nav">
         <a onClick={() => onNavigate('home')}>
-          <TypedText text="Home" icon="home" visible={visible} speed={25} onUntyped={onUntyped} />
+          <TypedText text="Home" icon="home" visible={visible} speed={25} onUntyped={onUntyped} untypeFrom="start" />
         </a>
         <a onClick={() => onNavigate('about')}>
-          <TypedText text="About" icon="user" visible={visible} speed={25} onUntyped={onUntyped} />
+          <TypedText text="About" icon="user" visible={visible} speed={25} onUntyped={onUntyped} untypeFrom="start" />
         </a>
         <a onClick={() => onNavigate('projects')}>
-          <TypedText text="Projects" icon="code" visible={visible} speed={25} onUntyped={onUntyped} />
+          <TypedText text="Projects" icon="code" visible={visible} speed={25} onUntyped={onUntyped} untypeFrom="start" />
         </a>
         <a onClick={() => onNavigate('contact')}>
-          <TypedText text="Contact" icon="envelope" visible={visible} speed={25} onUntyped={onUntyped} />
+          <TypedText text="Contact" icon="envelope" visible={visible} speed={25} onUntyped={onUntyped} untypeFrom="start" />
         </a>
       </nav>
     </div>
   )
 }
 
-export default ExperienceLeft
+export default ExperienceRight

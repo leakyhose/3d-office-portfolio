@@ -32,11 +32,11 @@ export const VIEWS: ViewsMap = {
     extraDelay: 0,
   },
   experience: {
-    position: [4.15, 6.26, 2.65],
-    rotation: [-1.341, -0.003, -0.011],
+    position: [5.62, 6.94, 2.95],
+    rotation: [-1.367, 0.015, 0.073],
     pivotObject: 'Paper2',
-    left: 'experience',
-    right: null,
+    left: null,
+    right: 'experience',
     extraDelay: 0,
   },
   projects: {

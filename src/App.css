@@ -78,8 +78,7 @@
   opacity: 1;
 }
 
-#about-panel,
-#experience-panel {
+#about-panel {
   position: absolute;
   top: 0;
   left: 0;
@@ -96,11 +95,27 @@
 }
 
 #experience-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: min(60vw, 1020px);
+  height: 100%;
+  padding: 30px 72px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-family: 'VT323', monospace;
+  color: #fff;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
   justify-content: center;
 }
 
 #experience-panel .about-nav {
   margin-top: 36px;
+  justify-items: end;
+  margin-left: auto;
 }
 
 #experience-panel .about-nav a {

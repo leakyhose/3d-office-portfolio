@@ -3,7 +3,7 @@ import HomeRight from './HomeRight'
 import AboutLeft from './AboutLeft'
 import ContactLeft from './ContactLeft'
 import ContactRight from './ContactRight'
-import ExperienceLeft from './ExperienceLeft'
+import ExperienceRight from './ExperienceRight'
 import ProjectsLeft from './ProjectsLeft'
 import ProjectsRight from './ProjectsRight'
 
@@ -12,7 +12,7 @@ const PANELS: Record<PanelId, React.ComponentType<PanelProps>> = {
   'about': AboutLeft,
   'contact-left': ContactLeft,
   'contact-right': ContactRight,
-  'experience': ExperienceLeft,
+  'experience': ExperienceRight,
   'projects-nav': ProjectsLeft,
   'projects': ProjectsRight,
 }
