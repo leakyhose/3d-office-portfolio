@@ -1,6 +1,6 @@
 import { useEffect, useRef, Suspense, memo } from 'react'
 import { useThree } from '@react-three/fiber'
-import { OrbitControls, useGLTF, ContactShadows, Environment } from '@react-three/drei'
+import { OrbitControls, useGLTF, ContactShadows, Environment, PerformanceMonitor } from '@react-three/drei'
 import { EffectComposer, N8AO, Bloom, Vignette } from '@react-three/postprocessing'
 import * as THREE from 'three'
 import CameraSetup from './camera/CameraSetup'
@@ -11,8 +11,10 @@ import CoffeeSteam from '../CoffeeSteam'
 import ComputerScreenContent from '../ComputerScreenContent'
 import CRTLight from './CRTLight'
 import { ScreenMeshProvider, useScreenMesh } from './ScreenMeshContext'
+import { useQuality } from '../hooks/useQualityTier'
 import { VIEWS } from '../config/views'
 import type { ScreenPhase } from '../types'
+import type { QualitySettings } from '../hooks/useQualityTier'
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 
 const T0 = performance.now()
@@ -35,10 +37,15 @@ const OfficeModel = memo(function OfficeModel({ onLoaded }: OfficeModelProps) {
   log('useGLTF returned')
   useEffect(() => {
     let screenMesh: THREE.Mesh | null = null
+    const _size = new THREE.Vector3()
     scene.traverse((child) => {
       if ((child as THREE.Mesh).isMesh) {
         const mesh = child as THREE.Mesh
-        mesh.castShadow = true
+        // Only large meshes cast shadows — small objects (pens, keys) are too small to matter
+        const box = new THREE.Box3().setFromObject(mesh)
+        box.getSize(_size)
+        const maxDim = Math.max(_size.x, _size.y, _size.z)
+        mesh.castShadow = maxDim > 0.5
         mesh.receiveShadow = true
         if (mesh.name === 'ComputerScreen') screenMesh = mesh
       }
@@ -91,26 +98,55 @@ function Floor() {
   )
 }
 
+function Effects({ quality }: { quality: QualitySettings }) {
+  if (quality.enableN8AO) {
+    return (
+      <EffectComposer>
+        <N8AO aoRadius={1.5} intensity={3} distanceFalloff={1} color="#2a2218" halfRes={quality.n8aoHalfRes} quality={quality.n8aoQuality} />
+        {quality.enableBloom ? <Bloom luminanceThreshold={0.6} luminanceSmoothing={0.3} intensity={0.7} mipmapBlur /> : <></>}
+        <Vignette offset={0.3} darkness={0.7} />
+      </EffectComposer>
+    )
+  }
+  if (quality.enableBloom) {
+    return (
+      <EffectComposer>
+        <Bloom luminanceThreshold={0.6} luminanceSmoothing={0.3} intensity={0.7} mipmapBlur />
+        <Vignette offset={0.3} darkness={0.7} />
+      </EffectComposer>
+    )
+  }
+  return (
+    <EffectComposer>
+      <Vignette offset={0.3} darkness={0.7} />
+    </EffectComposer>
+  )
+}
+
 interface SceneProps {
   onLoaded: () => void
   freeCam: boolean
   screenPhase: ScreenPhase
   hoveredProject: string | null
   introComplete: boolean
+  onPerfDecline?: () => void
 }
 
-function Scene({ onLoaded, freeCam, screenPhase, hoveredProject, introComplete }: SceneProps) {
+function Scene({ onLoaded, freeCam, screenPhase, hoveredProject, introComplete, onPerfDecline }: SceneProps) {
   const controlsRef = useRef<OrbitControlsImpl>(null)
+  const quality = useQuality()
+  const shadowSize = quality.shadowMapSize
   return (
     <ScreenMeshProvider>
+      <PerformanceMonitor onDecline={onPerfDecline} />
       <color attach="background" args={['#1e1a15']} />
       <IntroFog />
       <hemisphereLight args={['#c4a878', '#0f0d0a', 0.2]} />
       <directionalLight
         color="#ffe0a0" intensity={2.8} position={[14.2, 13.3, 12.3]}
-        castShadow shadow-mapSize-width={4096} shadow-mapSize-height={4096}
-        shadow-camera-far={200} shadow-camera-left={-60} shadow-camera-right={60}
-        shadow-camera-top={60} shadow-camera-bottom={-60}
+        castShadow shadow-mapSize-width={shadowSize} shadow-mapSize-height={shadowSize}
+        shadow-camera-far={80} shadow-camera-left={-15} shadow-camera-right={15}
+        shadow-camera-top={15} shadow-camera-bottom={-15}
         shadow-normalBias={0.05} shadow-bias={-0.002}
       />
       <directionalLight color="#ffe8cc" intensity={0.03} position={[30, 20, -10]} />
@@ -122,12 +158,8 @@ function Scene({ onLoaded, freeCam, screenPhase, hoveredProject, introComplete }
       <ComputerScreenContent screenPhase={screenPhase} hoveredProject={hoveredProject} />
       <CRTLight />
       <Floor />
-      <ContactShadows position={[0, 0, 0]} opacity={0.8} scale={100} blur={2.5} far={50} color="#1e1a15" />
-      <EffectComposer>
-        <N8AO aoRadius={3} intensity={5} distanceFalloff={1.5} color="#2a2218" />
-        <Bloom luminanceThreshold={0.6} luminanceSmoothing={0.3} intensity={0.7} mipmapBlur />
-        <Vignette offset={0.3} darkness={0.7} />
-      </EffectComposer>
+      <ContactShadows position={[0, 0, 0]} opacity={0.8} scale={100} blur={2.5} far={50} color="#1e1a15" frames={1} />
+      <Effects quality={quality} />
       <OrbitControls
         ref={controlsRef}
         enableZoom={false}

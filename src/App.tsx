@@ -9,6 +9,7 @@ import LoadingScreen from './components/LoadingScreen'
 import Scene from './components/Scene'
 import { CameraInfoPanel } from './CameraInfo'
 import PANELS from './panels'
+import { QualityContext, detectQualityLevel, getPreset, downgradeLevel, type QualitySettings } from './hooks/useQualityTier'
 import './App.css'
 import type { ViewName, PanelId, ViewConfig, ScreenPhase } from './types'
 
@@ -24,6 +25,22 @@ function App() {
   const [bootPhase, setBootPhase] = useState<'off' | 'booting' | 'done'>('off')
   const [landedView, setLandedView] = useState<ViewName>('home')
   const [hoveredProject, setHoveredProject] = useState<string | null>(null)
+  const [quality, setQuality] = useState<QualitySettings>(getPreset('high'))
+
+  // Detect GPU tier on mount and set quality accordingly
+  useEffect(() => {
+    detectQualityLevel().then((level) => {
+      setQuality(getPreset(level))
+    })
+  }, [])
+
+  const handlePerfDecline = useCallback(() => {
+    setQuality((prev) => {
+      const next = downgradeLevel(prev.level)
+      if (next === prev.level) return prev
+      return getPreset(next)
+    })
+  }, [])
 
   const pendingTarget = useRef<ViewConfig | null>(null)
   const leftDone = useRef(true)
@@ -203,14 +220,18 @@ function App() {
 
   return (
     <div id="app">
-      <Canvas
-        camera={{ fov: 50 }}
-        shadows
-        style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
-        gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 0.7 }}
-      >
-        <Scene onLoaded={onSceneLoaded} freeCam={freeCam} screenPhase={screenPhase} hoveredProject={hoveredProject} introComplete={introComplete} />
-      </Canvas>
+      <QualityContext.Provider value={quality}>
+        <Canvas
+          camera={{ fov: 50 }}
+          shadows
+          dpr={quality.dpr}
+          performance={{ min: 0.5 }}
+          style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
+          gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 0.7 }}
+        >
+          <Scene onLoaded={onSceneLoaded} freeCam={freeCam} screenPhase={screenPhase} hoveredProject={hoveredProject} introComplete={introComplete} onPerfDecline={handlePerfDecline} />
+        </Canvas>
+      </QualityContext.Provider>
 
       <div id="overlay">
         {freeCam && (

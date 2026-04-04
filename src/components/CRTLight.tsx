@@ -52,9 +52,6 @@ export default function CRTLight() {
       angle={Math.PI / 4}
       penumbra={0.6}
       decay={2}
-      castShadow
-      shadow-mapSize-width={512}
-      shadow-mapSize-height={512}
     />
   )
 }

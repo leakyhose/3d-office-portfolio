@@ -168,13 +168,65 @@ function drawDesktopIcons(ctx: CanvasRenderingContext2D, width: number, height: 
   ctx.restore()
 }
 
+// Cached temp canvases to avoid allocating on every call
+let _pixelateTiny: HTMLCanvasElement | null = null
+let _crtTmp: HTMLCanvasElement | null = null
+let _scanlineCache: { canvas: HTMLCanvasElement; w: number; h: number } | null = null
+let _vignetteCache: { canvas: HTMLCanvasElement; w: number; h: number } | null = null
+
+function getPixelateTiny(w: number, h: number) {
+  if (!_pixelateTiny) _pixelateTiny = document.createElement('canvas')
+  _pixelateTiny.width = w
+  _pixelateTiny.height = h
+  return _pixelateTiny
+}
+
+function getCrtTmp(w: number, h: number) {
+  if (!_crtTmp) _crtTmp = document.createElement('canvas')
+  if (_crtTmp.width !== w || _crtTmp.height !== h) {
+    _crtTmp.width = w
+    _crtTmp.height = h
+  }
+  return _crtTmp
+}
+
+function getScanlineOverlay(w: number, h: number) {
+  if (_scanlineCache && _scanlineCache.w === w && _scanlineCache.h === h) return _scanlineCache.canvas
+  const canvas = document.createElement('canvas')
+  canvas.width = w
+  canvas.height = h
+  const ctx = canvas.getContext('2d')!
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.2)'
+  for (let y = 0; y < h; y += 2) {
+    ctx.fillRect(0, y, w, 1)
+  }
+  _scanlineCache = { canvas, w, h }
+  return canvas
+}
+
+function getVignetteOverlay(w: number, h: number) {
+  if (_vignetteCache && _vignetteCache.w === w && _vignetteCache.h === h) return _vignetteCache.canvas
+  const canvas = document.createElement('canvas')
+  canvas.width = w
+  canvas.height = h
+  const ctx = canvas.getContext('2d')!
+  const cx = w / 2
+  const cy = h / 2
+  const outerR = Math.sqrt(cx * cx + cy * cy)
+  const grad = ctx.createRadialGradient(cx, cy, outerR * 0.35, cx, cy, outerR)
+  grad.addColorStop(0, 'rgba(0, 0, 0, 0)')
+  grad.addColorStop(1, 'rgba(0, 0, 0, 0.35)')
+  ctx.fillStyle = grad
+  ctx.fillRect(0, 0, w, h)
+  _vignetteCache = { canvas, w, h }
+  return canvas
+}
+
 function pixelateCanvas(ctx: CanvasRenderingContext2D, width: number, height: number, resolution = 384) {
   const lowW = resolution
   const lowH = Math.round(lowW * (height / width))
 
-  const tiny = document.createElement('canvas')
-  tiny.width = lowW
-  tiny.height = lowH
+  const tiny = getPixelateTiny(lowW, lowH)
   const tctx = tiny.getContext('2d')!
   tctx.drawImage(ctx.canvas, 0, 0, lowW, lowH)
 
@@ -187,28 +239,19 @@ function pixelateCanvas(ctx: CanvasRenderingContext2D, width: number, height: nu
 function applyCRTEffects(ctx: CanvasRenderingContext2D, width: number, height: number) {
   const borderW = Math.round(width * 0.03)
   const borderH = Math.round(height * 0.03)
-  const snapshot = ctx.getImageData(0, 0, width, height)
+
+  // Use cached tmp canvas instead of getImageData/putImageData
+  const tmp = getCrtTmp(width, height)
+  tmp.getContext('2d')!.drawImage(ctx.canvas, 0, 0)
   ctx.fillStyle = '#000000'
   ctx.fillRect(0, 0, width, height)
-  const tmp = document.createElement('canvas')
-  tmp.width = width
-  tmp.height = height
-  tmp.getContext('2d')!.putImageData(snapshot, 0, 0)
   ctx.drawImage(tmp, borderW, borderH, width - borderW * 2, height - borderH * 2)
 
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.2)'
-  for (let y = 0; y < height; y += 2) {
-    ctx.fillRect(0, y, width, 1)
-  }
+  // Pre-rendered scanline overlay instead of per-row fillRect loop
+  ctx.drawImage(getScanlineOverlay(width, height), 0, 0)
 
-  const cx = width / 2
-  const cy = height / 2
-  const outerR = Math.sqrt(cx * cx + cy * cy)
-  const grad = ctx.createRadialGradient(cx, cy, outerR * 0.35, cx, cy, outerR)
-  grad.addColorStop(0, 'rgba(0, 0, 0, 0)')
-  grad.addColorStop(1, 'rgba(0, 0, 0, 0.35)')
-  ctx.fillStyle = grad
-  ctx.fillRect(0, 0, width, height)
+  // Pre-rendered vignette overlay instead of creating gradient each time
+  ctx.drawImage(getVignetteOverlay(width, height), 0, 0)
 }
 
 export function drawCloudsScreen(width = 1024, height = 768, onUpdate?: () => void): HTMLCanvasElement {
@@ -411,19 +454,11 @@ export function drawVideoWindow(
     ctx.drawImage(video, contentX + 2, contentY + 2, contentW - 4, contentH - 4)
   }
 
-  // Scanlines over everything
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.15)'
-  for (let y = 0; y < height; y += 2) {
-    ctx.fillRect(0, y, width, 1)
-  }
+  // Pre-rendered scanline overlay (slightly lighter than CRT version)
+  ctx.globalAlpha = 0.75
+  ctx.drawImage(getScanlineOverlay(width, height), 0, 0)
+  ctx.globalAlpha = 1
 
-  // Vignette
-  const cx = width / 2
-  const cy = height / 2
-  const outerR = Math.sqrt(cx * cx + cy * cy)
-  const grad = ctx.createRadialGradient(cx, cy, outerR * 0.35, cx, cy, outerR)
-  grad.addColorStop(0, 'rgba(0, 0, 0, 0)')
-  grad.addColorStop(1, 'rgba(0, 0, 0, 0.35)')
-  ctx.fillStyle = grad
-  ctx.fillRect(0, 0, width, height)
+  // Pre-rendered vignette overlay
+  ctx.drawImage(getVignetteOverlay(width, height), 0, 0)
 }

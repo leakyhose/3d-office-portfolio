@@ -350,6 +350,14 @@ function CameraAnimator({ controlsRef, freeCam }: CameraAnimatorProps) {
   useFrame(() => {
     if (animating.current || !ready.current) return
 
+    // Fast path: skip all math when idle with no drag offset
+    if (!dragging.current && !freeCamRef.current &&
+        Math.abs(dragOffset.current.x) < 0.0001 && Math.abs(dragOffset.current.y) < 0.0001) {
+      dragOffset.current.x = 0
+      dragOffset.current.y = 0
+      return
+    }
+
     const ox = dragOffset.current.x
     dragOffset.current.y = THREE.MathUtils.clamp(
       dragOffset.current.y, oyLimits.current.min, oyLimits.current.max
