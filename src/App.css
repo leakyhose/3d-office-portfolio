@@ -580,3 +580,274 @@
   pointer-events: none;
   user-select: none;
 }
+
+/* ══════════════════════════════════
+   Mobile Layout (≤ 768px)
+   ══════════════════════════════════ */
+
+@media (max-width: 768px) {
+
+  /* ── Fix pointer-events: panels inherit none from desktop CSS,
+     override rule only targets #overlay a — mobile needs auto ── */
+  #mobile-app,
+  #mobile-app * {
+    pointer-events: auto;
+  }
+
+  /* ── Mobile container ── */
+  #mobile-app {
+    position: relative;
+    width: 100%;
+    min-height: 100dvh;
+    padding: 24px 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-family: 'VT323', monospace;
+  }
+
+  /* ── Home: name title ── */
+  #name-title {
+    position: relative;
+    top: auto;
+    right: auto;
+    text-align: center;
+    font-size: clamp(40px, 12vw, 72px);
+    padding: 16px 0;
+  }
+
+  /* ── Home: nav menu ── */
+  #menu {
+    position: relative;
+    top: auto;
+    right: auto;
+    align-items: center;
+    padding: 0;
+    gap: clamp(10px, 2vw, 18px);
+  }
+
+  #menu a {
+    font-size: clamp(24px, 6vw, 36px);
+  }
+
+  #menu a:has(.hn-home) {
+    font-size: clamp(26px, 6.5vw, 38px);
+  }
+
+  /* ── About panel ── */
+  #about-panel {
+    position: relative;
+    top: auto;
+    left: auto;
+    width: 100%;
+    height: auto;
+    padding: 16px 20px;
+    align-items: center;
+    text-align: center;
+  }
+
+  .about-title {
+    font-size: clamp(28px, 8vw, 48px);
+    text-align: center;
+  }
+
+  .about-line {
+    font-size: clamp(18px, 4.5vw, 28px);
+    max-width: 100%;
+    text-align: center;
+  }
+
+  .about-line-short {
+    max-width: 100%;
+  }
+
+  .about-nav {
+    margin-top: 24px;
+    max-width: 100%;
+    justify-items: center;
+    justify-content: center;
+  }
+
+  .about-nav a {
+    font-size: clamp(22px, 5.5vw, 34px);
+  }
+
+  .about-nav a:has(.hn-home) {
+    font-size: clamp(24px, 6vw, 36px);
+  }
+
+  /* ── Experience panel ── */
+  #experience-panel {
+    position: relative;
+    top: auto;
+    right: auto;
+    width: 100%;
+    height: auto;
+    padding: 16px 0;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #experience-panel .about-nav {
+    margin-left: 0;
+    justify-items: center;
+    justify-content: center;
+  }
+
+  /* ── Projects: nav appears BELOW content ── */
+  .projects-nav {
+    order: 2;
+  }
+
+  #projects-panel {
+    order: 1;
+  }
+
+  /* ── Projects panel ── */
+  #projects-panel {
+    position: relative;
+    top: auto;
+    right: auto;
+    width: 100%;
+    height: auto;
+    padding: 16px 0;
+    align-items: center;
+    text-align: center;
+  }
+
+  .panel-title {
+    font-size: clamp(28px, 8vw, 48px);
+    text-align: center;
+  }
+
+  .project-list {
+    width: 100%;
+  }
+
+  .project-card {
+    text-align: center;
+  }
+
+  .project-card-header {
+    justify-content: center;
+  }
+
+  .project-name {
+    font-size: clamp(18px, 5vw, 28px);
+  }
+
+  .project-desc {
+    font-size: clamp(15px, 3.8vw, 22px);
+    text-align: center;
+  }
+
+  .project-tech-tags {
+    justify-content: center;
+  }
+
+  /* ── Contact panel ── */
+  #contact-panel {
+    position: relative;
+    inset: auto;
+    width: 100%;
+    height: auto;
+    padding: 16px 0;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .contact-main {
+    max-height: none;
+    text-align: center;
+  }
+
+  .contact-title {
+    font-size: clamp(24px, 7vw, 42px);
+    text-align: center;
+  }
+
+  .contact-links-row {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 16px;
+  }
+
+  .contact-pill {
+    text-align: center;
+  }
+
+  .contact-pill .typed-live-text,
+  .contact-pill .typed-reserve-text {
+    font-size: clamp(15px, 3.8vw, 22px);
+  }
+
+  .contact-pill-label {
+    font-size: clamp(12px, 3vw, 18px);
+    text-align: center;
+  }
+
+  /* ── Nav grids (projects-nav, contact-nav) ── */
+  .contact-nav,
+  .projects-nav {
+    position: relative;
+    top: auto;
+    left: auto;
+    justify-content: center;
+    padding: 16px 0;
+  }
+
+  .contact-nav a,
+  .projects-nav a {
+    font-size: clamp(22px, 5.5vw, 34px);
+  }
+
+  .contact-nav a:has(.hn-home),
+  .projects-nav a:has(.hn-home) {
+    font-size: clamp(24px, 6vw, 36px);
+  }
+
+  /* ── Icon sizes ── */
+  .about-title .hn,
+  .panel-title .hn,
+  .contact-title .hn {
+    font-size: clamp(22px, 6vw, 40px);
+  }
+
+  #menu .hn {
+    font-size: clamp(20px, 5vw, 32px);
+  }
+
+  .about-nav .hn,
+  .contact-nav .hn,
+  .projects-nav .hn {
+    font-size: clamp(18px, 4.5vw, 28px);
+  }
+
+  .contact-pill .hn {
+    font-size: clamp(14px, 3.5vw, 22px);
+  }
+
+  /* ── Touch targets ── */
+  #menu a,
+  .about-nav a,
+  .contact-nav a,
+  .projects-nav a {
+    padding: 8px 0;
+  }
+
+  /* ── Hover states: replace with :active for touch ── */
+  #menu a::before,
+  .about-nav a::before,
+  .contact-nav a::before,
+  .projects-nav a::before {
+    display: none;
+  }
+
+  #menu a:active,
+  .about-nav a:active,
+  .contact-nav a:active,
+  .projects-nav a:active {
+    color: #fff;
+  }
+}

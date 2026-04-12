@@ -1,19 +1,22 @@
 import { Canvas } from '@react-three/fiber'
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState, useCallback } from 'react'
 import * as THREE from 'three'
 import '@fontsource/vt323'
 import '@hackernoon/pixel-icon-library/fonts/iconfont.css'
 import { VIEWS, INTRO_ZOOM_DURATION } from './config/views'
 import { navigateToView, triggerIntroZoom, enterFreeCam, setOnNavigationComplete, clearOnNavigationComplete } from './components/camera/bridge'
 import LoadingScreen from './components/LoadingScreen'
-import Scene from './components/Scene'
-import { CameraInfoPanel } from './CameraInfo'
 import PANELS from './panels'
 import { QualityContext, detectQualityLevel, getPreset, downgradeLevel, type QualitySettings } from './hooks/useQualityTier'
+import useIsMobile from './hooks/useIsMobile'
 import './App.css'
 import type { ViewName, PanelId, ViewConfig, ScreenPhase } from './types'
 
+const Scene = lazy(() => import('./components/Scene'))
+const CameraInfoPanel = lazy(() => import('./CameraInfo').then(m => ({ default: m.CameraInfoPanel })))
+
 function App() {
+  const isMobile = useIsMobile()
   const [sceneLoaded, setSceneLoaded] = useState(false)
   const [leftPanel, setLeftPanel] = useState<PanelId | null>(null)
   const [rightPanel, setRightPanel] = useState<PanelId | null>('home')
@@ -29,10 +32,16 @@ function App() {
 
   // Detect GPU tier on mount and set quality accordingly
   useEffect(() => {
+    if (isMobile) return
     detectQualityLevel().then((level) => {
       setQuality(getPreset(level))
     })
-  }, [])
+  }, [isMobile])
+
+  // On mobile, no scene to load — mark ready immediately
+  useEffect(() => {
+    if (isMobile) setSceneLoaded(true)
+  }, [isMobile])
 
   const handlePerfDecline = useCallback(() => {
     setQuality((prev) => {
@@ -149,6 +158,11 @@ function App() {
 
   const onLoadingComplete = useCallback(() => {
     setShowLoading(false)
+    if (isMobile) {
+      setRightVisible(true)
+      setIntroComplete(true)
+      return
+    }
     setBootPhase('booting')
     setTimeout(() => {
       setBootPhase('done')
@@ -156,11 +170,11 @@ function App() {
       setTimeout(() => setRightVisible(true), INTRO_ZOOM_DURATION * 600)
       setTimeout(() => setIntroComplete(true), INTRO_ZOOM_DURATION * 600)
     }, 400)
-  }, [])
+  }, [isMobile])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Tab') {
+      if (event.key === 'Tab' && !isMobile) {
         event.preventDefault()
         if (!isFreeCam.current) {
           enterFreeCamMode()
@@ -170,7 +184,7 @@ function App() {
         return
       }
       if (event.key === 'Escape') {
-        if (isFreeCam.current) {
+        if (!isMobile && isFreeCam.current) {
           exitFreeCamMode()
         } else {
           navigateToSection('home')
@@ -180,7 +194,7 @@ function App() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [navigateToSection, enterFreeCamMode, exitFreeCamMode])
+  }, [isMobile, navigateToSection, enterFreeCamMode, exitFreeCamMode])
 
   const onNavHoverChange = useCallback((hovering: boolean) => {
     navHovered.current = hovering
@@ -215,47 +229,55 @@ function App() {
   const LeftComponent = leftPanel ? PANELS[leftPanel] : null
   const RightComponent = rightPanel ? PANELS[rightPanel] : null
 
-  // Suppress unused variable warning — currentView is kept for future use
   void currentView
+
+  const panelProps = {
+    left: {
+      visible: leftVisible,
+      onNavigate: navigateToSection,
+      onUntypeComplete: onLeftUntypeComplete,
+      onHoverChange: onNavHoverChange,
+    },
+    right: {
+      visible: rightVisible,
+      onNavigate: navigateToSection,
+      onUntypeComplete: onRightUntypeComplete,
+      onProjectHover: setHoveredProject,
+      activeProject: hoveredProject,
+    },
+  } as const
 
   return (
     <div id="app">
-      <QualityContext.Provider value={quality}>
-        <Canvas
-          camera={{ fov: 50 }}
-          shadows
-          dpr={quality.dpr}
-          performance={{ min: 0.5 }}
-          style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
-          gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 0.7 }}
-        >
-          <Scene onLoaded={onSceneLoaded} freeCam={freeCam} screenPhase={screenPhase} hoveredProject={hoveredProject} introComplete={introComplete} onPerfDecline={handlePerfDecline} />
-        </Canvas>
-      </QualityContext.Provider>
+      {!isMobile && (
+        <QualityContext.Provider value={quality}>
+          <Canvas
+            camera={{ fov: 50 }}
+            shadows
+            dpr={quality.dpr}
+            performance={{ min: 0.5 }}
+            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
+            gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 0.7 }}
+          >
+            <Suspense fallback={null}>
+              <Scene onLoaded={onSceneLoaded} freeCam={freeCam} screenPhase={screenPhase} hoveredProject={hoveredProject} introComplete={introComplete} onPerfDecline={handlePerfDecline} />
+            </Suspense>
+          </Canvas>
+        </QualityContext.Provider>
+      )}
 
-      <div id="overlay">
-        {freeCam && (
-          <>
+      <div id={isMobile ? 'mobile-app' : 'overlay'}>
+        {!isMobile && freeCam && (
+          <Suspense fallback={null}>
             <CameraInfoPanel />
             <div className="freecam-hint">FREE CAM &mdash; Press Tab to return</div>
-          </>
+          </Suspense>
         )}
         {LeftComponent && (
-          <LeftComponent
-            visible={leftVisible}
-            onNavigate={navigateToSection}
-            onUntypeComplete={onLeftUntypeComplete}
-            onHoverChange={onNavHoverChange}
-          />
+          <LeftComponent {...panelProps.left} />
         )}
         {RightComponent && (
-          <RightComponent
-            visible={rightVisible}
-            onNavigate={navigateToSection}
-            onUntypeComplete={onRightUntypeComplete}
-            onProjectHover={setHoveredProject}
-            activeProject={hoveredProject}
-          />
+          <RightComponent {...panelProps.right} />
         )}
       </div>
       {showLoading && (

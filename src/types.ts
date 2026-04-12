@@ -18,6 +18,7 @@ export interface ViewConfig {
   left: PanelId | null
   right: PanelId | null
   extraDelay: number
+  mobileOrder?: ('left' | 'right')[]
 }
 
 export type ViewsMap = Record<ViewName, ViewConfig>

@@ -10,3 +10,11 @@ html, body, #root {
   overflow: hidden;
   background: #3d352e;
 }
+
+@media (max-width: 768px) {
+  html, body, #root {
+    overflow-y: auto;
+    height: auto;
+    min-height: 100%;
+  }
+}

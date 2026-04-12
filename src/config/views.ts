@@ -22,6 +22,7 @@ export const VIEWS: ViewsMap = {
     left: null,
     right: 'home',
     extraDelay: 0,
+    mobileOrder: ['right'],
   },
   about: {
     position: [-0.45, 6.65, 4.09],
@@ -30,6 +31,7 @@ export const VIEWS: ViewsMap = {
     left: 'about',
     right: null,
     extraDelay: 0,
+    mobileOrder: ['left'],
   },
   experience: {
     position: [5.62, 6.94, 2.95],
@@ -38,6 +40,7 @@ export const VIEWS: ViewsMap = {
     left: null,
     right: 'experience',
     extraDelay: 0,
+    mobileOrder: ['right'],
   },
   projects: {
     position: [0.05, 7.52, 5.13],
@@ -46,6 +49,7 @@ export const VIEWS: ViewsMap = {
     left: 'projects-nav',
     right: 'projects',
     extraDelay: 0,
+    mobileOrder: ['right', 'left'],
   },
   contact: {
     position: [2, 5.42, 2.51],
@@ -54,5 +58,6 @@ export const VIEWS: ViewsMap = {
     left: 'contact-left',
     right: 'contact-right',
     extraDelay: 0,
+    mobileOrder: ['left', 'right'],
   },
 }
