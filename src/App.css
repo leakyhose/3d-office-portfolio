@@ -581,6 +581,56 @@
   user-select: none;
 }
 
+/* ── Experience Timeline ── */
+
+.experience-timeline {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+
+.experience-entry {
+  display: flex;
+  align-items: center;
+  gap: clamp(12px, 1.5vw, 24px);
+}
+
+.experience-logo {
+  width: clamp(32px, 4vw, 56px);
+  height: clamp(32px, 4vw, 56px);
+  object-fit: contain;
+  image-rendering: auto;
+}
+
+.experience-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.experience-name {
+  font-size: clamp(22px, 2.6vw, 40px);
+  color: #fff;
+}
+
+.experience-date {
+  font-size: clamp(14px, 1.5vw, 24px);
+  color: #999;
+}
+
+.experience-arrow {
+  display: flex;
+  justify-content: center;
+  padding: clamp(10px, 1.5vw, 20px) 0;
+}
+
+.experience-arrow-line {
+  display: block;
+  width: 2px;
+  height: clamp(28px, 3.5vw, 56px);
+  background: #555;
+}
+
 /* ══════════════════════════════════
    Mobile Layout (≤ 768px)
    ══════════════════════════════════ */
@@ -663,7 +713,7 @@
   }
 
   .about-nav {
-    margin-top: 24px;
+    margin-top: 48px;
     max-width: 100%;
     justify-items: center;
     justify-content: center;
@@ -690,9 +740,23 @@
   }
 
   #experience-panel .about-nav {
+    margin-top: 48px;
     margin-left: 0;
     justify-items: center;
     justify-content: center;
+  }
+
+  .experience-logo {
+    width: clamp(28px, 8vw, 44px);
+    height: clamp(28px, 8vw, 44px);
+  }
+
+  .experience-name {
+    font-size: clamp(20px, 5vw, 32px);
+  }
+
+  .experience-date {
+    font-size: clamp(13px, 3.5vw, 20px);
   }
 
   /* ── Projects: nav appears BELOW content ── */
@@ -794,7 +858,8 @@
     top: auto;
     left: auto;
     justify-content: center;
-    padding: 16px 0;
+    margin-top: 48px;
+    padding: 0;
   }
 
   .contact-nav a,
