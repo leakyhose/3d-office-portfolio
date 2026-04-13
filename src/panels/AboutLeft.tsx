@@ -27,13 +27,32 @@ function AboutLeft({ visible, onNavigate, onUntypeComplete }: PanelProps) {
           segments={[
             { text: "I'm currently studying at " },
             { text: "UBC", className: "about-highlight about-highlight-clickable about-hl-ubc", onClick: () => onNavigate('experience') },
-            { text: ", and I'm interested in agentic systems, fullstack development, and data science." },
+            { text: ", and I'm interested in " },
+            { text: "agentic systems", className: "about-highlight-subtle" },
+            { text: ", " },
+            { text: "fullstack development", className: "about-highlight-subtle" },
+            { text: ", and " },
+            { text: "data science", className: "about-highlight-subtle" },
+            { text: "." },
           ]}
           visible={visible} speed={5} reserveSpace={true} onUntyped={onUntyped}
         />
       </p>
       <p className="about-line about-line-short">
-        <TypedText text="Also a big fan of blender, the NBA, Minecraft, medieval history." visible={visible} speed={5} reserveSpace={true} onUntyped={onUntyped} />
+        <TypedText
+          segments={[
+            { text: "Also a big fan of " },
+            { text: "blender", className: "about-highlight-subtle" },
+            { text: ", the " },
+            { text: "NBA", className: "about-highlight-subtle" },
+            { text: ", " },
+            { text: "Minecraft", className: "about-highlight-subtle" },
+            { text: ", and " },
+            { text: "medieval history", className: "about-highlight-subtle" },
+            { text: "." },
+          ]}
+          visible={visible} speed={5} reserveSpace={true} onUntyped={onUntyped}
+        />
       </p>
       <nav className="about-nav">
         <a onClick={() => onNavigate('home')}>

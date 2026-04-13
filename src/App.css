@@ -369,6 +369,13 @@
 .about-hl-ubc            { color: #f5c45b; }
 .about-hl-ubc:hover      { color: #fad97a; }
 
+.about-highlight-subtle  {
+  text-decoration: underline;
+  text-decoration-color: rgba(255, 255, 255, 0.25);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.15em;
+}
+
 .typed-reserve-wrap {
   position: relative;
   display: block;
