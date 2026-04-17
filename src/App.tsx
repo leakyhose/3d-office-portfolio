@@ -3,8 +3,8 @@ import { lazy, Suspense, useEffect, useRef, useState, useCallback } from 'react'
 import * as THREE from 'three'
 import '@fontsource/vt323'
 import '@hackernoon/pixel-icon-library/fonts/iconfont.css'
-import { VIEWS, INTRO_ZOOM_DURATION } from './config/views'
-import { navigateToView, triggerIntroZoom, enterFreeCam, setOnNavigationComplete, clearOnNavigationComplete } from './components/camera/bridge'
+import { VIEWS } from './config/views'
+import { navigateToView, triggerIntroZoom, enterFreeCam, setOnNavigationComplete, clearOnNavigationComplete, setOnIntroPreComplete, clearOnIntroPreComplete } from './components/camera/bridge'
 import LoadingScreen from './components/LoadingScreen'
 import PANELS from './panels'
 import { QualityContext, detectQualityLevel, getPreset, downgradeLevel, type QualitySettings } from './hooks/useQualityTier'
@@ -44,6 +44,7 @@ function App() {
   }, [isMobile])
 
   const handlePerfDecline = useCallback(() => {
+    if (!introCompleteRef.current) return
     setQuality((prev) => {
       const next = downgradeLevel(prev.level)
       if (next === prev.level) return prev
@@ -68,6 +69,8 @@ function App() {
   const currentViewRef = useRef<ViewName>('home')
   const navigatingRef = useRef(false)
   const isFreeCam = useRef(false)
+  const introZoomRef = useRef(false)
+  const introCompleteRef = useRef(false)
 
   const onSceneLoaded = useCallback(() => setSceneLoaded(true), [])
 
@@ -157,18 +160,19 @@ function App() {
   const [introComplete, setIntroComplete] = useState(false)
 
   const onLoadingComplete = useCallback(() => {
+    performance.mark('intro:loading-complete')
     setShowLoading(false)
     if (isMobile) {
       setRightVisible(true)
       setIntroComplete(true)
       return
     }
+    performance.mark('intro:boot-start')
     setBootPhase('booting')
     setTimeout(() => {
-      setBootPhase('done')
+      performance.mark('intro:zoom-trigger')
+      introZoomRef.current = true
       triggerIntroZoom()
-      setTimeout(() => setRightVisible(true), INTRO_ZOOM_DURATION * 600)
-      setTimeout(() => setIntroComplete(true), INTRO_ZOOM_DURATION * 600)
     }, 400)
   }, [isMobile])
 
@@ -205,7 +209,31 @@ function App() {
   }, [])
 
   useEffect(() => {
+    const preHandler = () => {
+      if (!introZoomRef.current) return
+      performance.mark('intro:right-visible')
+      setBootPhase('done')
+      setRightVisible(true)
+    }
+    setOnIntroPreComplete(preHandler)
+    return () => clearOnIntroPreComplete(preHandler)
+  }, [])
+
+  useEffect(() => {
     const handler = (viewName: ViewName) => {
+      if (introZoomRef.current) {
+        introZoomRef.current = false
+        // Fallback: if pre-complete didn't fire (e.g., intro ran in one
+        // catastrophically slow frame), make sure the panel is shown.
+        setBootPhase('done')
+        setRightVisible(true)
+        performance.mark('intro:intro-complete')
+        try { performance.measure('intro:boot-duration', 'intro:boot-start', 'intro:boot-anim-done') } catch {}
+        try { performance.measure('intro:zoom-duration', 'intro:zoom-trigger', 'intro:anim-done') } catch {}
+        try { performance.measure('intro:reveal-lead', 'intro:right-visible', 'intro:anim-done') } catch {}
+        setIntroComplete(true)
+        introCompleteRef.current = true
+      }
       if (navHovered.current) {
         bufferedLandedView.current = viewName
       } else {

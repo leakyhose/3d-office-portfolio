@@ -17,10 +17,6 @@ import type { ScreenPhase } from '../types'
 import type { QualitySettings } from '../hooks/useQualityTier'
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 
-const T0 = performance.now()
-const log = (msg: string) => console.log(`[${(performance.now() - T0).toFixed(0)}ms] ${msg}`)
-
-log('Scene module loaded — starting preload')
 useGLTF.preload('/newcat.glb')
 
 interface OfficeModelProps {
@@ -28,13 +24,11 @@ interface OfficeModelProps {
 }
 
 const OfficeModel = memo(function OfficeModel({ onLoaded }: OfficeModelProps) {
-  log('useGLTF called')
   const { scene } = useGLTF('/newcat.glb')
   const gl = useThree((s) => s.gl)
   const rootScene = useThree((s) => s.scene)
   const camera = useThree((s) => s.camera)
   const { setScreenMesh, setFullScene } = useScreenMesh()
-  log('useGLTF returned')
   useEffect(() => {
     let screenMesh: THREE.Mesh | null = null
     const _size = new THREE.Vector3()
@@ -83,7 +77,11 @@ const OfficeModel = memo(function OfficeModel({ onLoaded }: OfficeModelProps) {
     camera.quaternion.copy(savedQuat)
     camera.updateMatrixWorld(true)
 
-    log('OfficeModel ready')
+    // Scene is static: lights and shadow casters don't move. Pin the shadow
+    // map after one real-camera pass instead of re-rendering it every frame.
+    gl.shadowMap.needsUpdate = true
+    gl.shadowMap.autoUpdate = false
+
     if (onLoaded) onLoaded()
   }, [scene, onLoaded, setScreenMesh, setFullScene, gl, rootScene, camera])
   return <primitive object={scene} />

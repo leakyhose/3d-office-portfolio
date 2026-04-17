@@ -114,6 +114,7 @@ export default function ComputerScreenContent({ screenPhase = 'clouds', hoveredP
 
   useEffect(() => {
     if (screenPhase !== 'booting' || !screenData) return
+    performance.mark('intro:boot-effect-mount')
 
     const { texWidth, texHeight, texture } = screenData
     const ctx = canvasRef.current!.getContext('2d')!
@@ -244,6 +245,8 @@ export default function ComputerScreenContent({ screenPhase = 'clouds', hoveredP
 
       if (t < 1) {
         rafId = requestAnimationFrame(animate)
+      } else {
+        performance.mark('intro:boot-anim-done')
       }
     }
 

@@ -2,7 +2,7 @@ import { useThree, useFrame } from '@react-three/fiber'
 import { useEffect, useRef, useCallback } from 'react'
 import * as THREE from 'three'
 import { VIEWS, ANIM_DURATION } from '../../config/views'
-import { setNavigateTo, clearNavigateTo, setFreeCamHandler, clearFreeCamHandler, setComputeCloseup, clearComputeCloseup, fireNavigationComplete } from './bridge'
+import { setNavigateTo, clearNavigateTo, setFreeCamHandler, clearFreeCamHandler, setComputeCloseup, clearComputeCloseup, fireNavigationComplete, fireIntroPreComplete } from './bridge'
 import { useScreenMesh } from '../ScreenMeshContext'
 import type { ViewName } from '../../types'
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
@@ -117,6 +117,9 @@ function CameraAnimator({ controlsRef, freeCam }: CameraAnimatorProps) {
   const freeCamRef = useRef(false)
   useEffect(() => { freeCamRef.current = freeCam }, [freeCam])
 
+  const introPreCompleteFired = useRef(false)
+  const introFirstFrame = useRef(false)
+  const INTRO_PRE_COMPLETE_T = 0.85
   const rangeRef = useRef(0.45)
   const ROTATE_SPEED = 0.003
   const BASE_RANGE = 0.45
@@ -143,8 +146,11 @@ function CameraAnimator({ controlsRef, freeCam }: CameraAnimatorProps) {
 
     animating.current = true
     introAnim.current = Boolean(isIntro)
+    introPreCompleteFired.current = false
+    introFirstFrame.current = Boolean(isIntro)
     ready.current = false
     dragOffset.current = { x: 0, y: 0 }
+    if (isIntro) performance.mark('intro:anim-start')
   }, [controlsRef, camera, scene, gl])
 
   useEffect(() => {
@@ -208,21 +214,11 @@ function CameraAnimator({ controlsRef, freeCam }: CameraAnimatorProps) {
     return () => clearFreeCamHandler(handleFreeCam)
   }, [handleFreeCam])
 
-  const lastFrameTime = useRef(0)
   useFrame((_, delta) => {
     if (!animating.current || !controlsRef.current) return
-    if (introAnim.current) {
-      const now = performance.now()
-      if (lastFrameTime.current > 0) {
-        const frameDuration = now - lastFrameTime.current
-        if (frameDuration > 20) {
-          const progress = Math.min(elapsed.current / duration.current, 1)
-          console.warn(`[ZOOM STUTTER] frame took ${frameDuration.toFixed(1)}ms at progress=${(progress * 100).toFixed(1)}%`)
-        }
-      }
-      lastFrameTime.current = now
-    } else {
-      lastFrameTime.current = 0
+    if (introFirstFrame.current) {
+      introFirstFrame.current = false
+      performance.mark('intro:anim-first-frame')
     }
     elapsed.current += delta
     const t = Math.min(elapsed.current / duration.current, 1)
@@ -231,7 +227,13 @@ function CameraAnimator({ controlsRef, freeCam }: CameraAnimatorProps) {
     controlsRef.current.target.lerpVectors(startTarget.current, goalTarget.current, eased)
     anchorOx.current = startAnchorOx.current + (goalAnchorOx.current - startAnchorOx.current) * eased
     controlsRef.current.update()
+    if (introAnim.current && !introPreCompleteFired.current && t >= INTRO_PRE_COMPLETE_T) {
+      introPreCompleteFired.current = true
+      performance.mark('intro:pre-complete')
+      fireIntroPreComplete(currentViewName.current)
+    }
     if (t >= 1) {
+      const wasIntro = introAnim.current
       animating.current = false
       introAnim.current = false
       anchorOx.current = goalAnchorOx.current
@@ -258,6 +260,7 @@ function CameraAnimator({ controlsRef, freeCam }: CameraAnimatorProps) {
 
       ready.current = true
 
+      if (wasIntro) performance.mark('intro:anim-done')
       fireNavigationComplete(currentViewName.current)
     }
   })

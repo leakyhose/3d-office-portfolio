@@ -10,6 +10,7 @@ let _navigateTo: NavigateToFn | null = null
 let _computeCloseup: VoidFn | null = null
 let _freeCamHandler: FreeCamHandlerFn | null = null
 let _onNavigationComplete: NavigationCompleteFn | null = null
+let _onIntroPreComplete: NavigationCompleteFn | null = null
 
 export function setNavigateTo(fn: NavigateToFn) { _navigateTo = fn }
 export function clearNavigateTo(fn: NavigateToFn) { if (_navigateTo === fn) _navigateTo = null }
@@ -23,8 +24,15 @@ export function clearFreeCamHandler(fn: FreeCamHandlerFn) { if (_freeCamHandler 
 export function setOnNavigationComplete(fn: NavigationCompleteFn) { _onNavigationComplete = fn }
 export function clearOnNavigationComplete(fn: NavigationCompleteFn) { if (_onNavigationComplete === fn) _onNavigationComplete = null }
 
+export function setOnIntroPreComplete(fn: NavigationCompleteFn) { _onIntroPreComplete = fn }
+export function clearOnIntroPreComplete(fn: NavigationCompleteFn) { if (_onIntroPreComplete === fn) _onIntroPreComplete = null }
+
 export function fireNavigationComplete(viewName: ViewName) {
   if (_onNavigationComplete) _onNavigationComplete(viewName)
+}
+
+export function fireIntroPreComplete(viewName: ViewName) {
+  if (_onIntroPreComplete) _onIntroPreComplete(viewName)
 }
 
 export function navigateToView(viewName: ViewName) {

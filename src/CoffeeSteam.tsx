@@ -81,8 +81,6 @@ export default memo(function CoffeeSteam({ active = true }: { active?: boolean }
     center.y = box.max.y
     const radius = Math.max(size.x, size.z) / 2 * 0.3
 
-    console.log('CoffeeSteam: found mesh, world center =', center.toArray(), 'bbox size =', size.toArray(), 'radius =', radius)
-
     const geo = new THREE.BoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE)
     const mat = new THREE.MeshStandardMaterial({
       color: '#dddddd',
