@@ -415,10 +415,21 @@ function CameraAnimator({ controlsRef, freeCam }: CameraAnimatorProps) {
       }
     }
 
-    const els = camera.projectionMatrix.elements
-    if (els[8] === anchorOx.current) return
-    els[8] = anchorOx.current
-    camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert()
+    const pcam = camera as THREE.PerspectiveCamera
+    const anchor = anchorOx.current
+    const W = state.size.width
+    const H = state.size.height
+
+    if (Math.abs(anchor) < 1e-6) {
+      if (pcam.view?.enabled) pcam.clearViewOffset()
+      return
+    }
+
+    const offsetX = (anchor / 2) * W
+    const v = pcam.view
+    if (!v?.enabled || v.offsetX !== offsetX || v.fullWidth !== W || v.fullHeight !== H) {
+      pcam.setViewOffset(W, H, offsetX, 0, W, H)
+    }
   }, 2)
 
   return null
