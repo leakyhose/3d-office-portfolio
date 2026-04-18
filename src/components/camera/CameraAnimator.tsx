@@ -225,7 +225,8 @@ function CameraAnimator({ controlsRef, freeCam }: CameraAnimatorProps) {
     const eased = introAnim.current ? easeInOut(t) : easeOut(t)
     camera.position.lerpVectors(startPos.current, goalPos.current, eased)
     controlsRef.current.target.lerpVectors(startTarget.current, goalTarget.current, eased)
-    anchorOx.current = startAnchorOx.current + (goalAnchorOx.current - startAnchorOx.current) * eased
+    const anchorEased = goalAnchorOx.current === 0 ? easeOut(t) : easeInOut(t)
+    anchorOx.current = startAnchorOx.current + (goalAnchorOx.current - startAnchorOx.current) * anchorEased
     controlsRef.current.update()
     if (introAnim.current && !introPreCompleteFired.current && t >= INTRO_PRE_COMPLETE_T) {
       introPreCompleteFired.current = true
