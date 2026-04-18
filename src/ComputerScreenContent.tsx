@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useRef } from 'react'
-import * as THREE from 'three'
-import { drawBlankScreen, drawCloudsScreen, drawBootScreen, drawVideoWindow } from './drawScreenTexture'
+import { useEffect, useRef } from 'react'
+import { drawCloudsScreen, drawBootScreen, drawVideoWindow } from './drawScreenTexture'
 import { useScreenMesh } from './components/ScreenMeshContext'
 import { getVideo } from './videoManager'
 import { PROJECTS } from './config/projects'
@@ -39,85 +38,19 @@ interface ComputerScreenContentProps {
 }
 
 export default function ComputerScreenContent({ screenPhase = 'clouds', hoveredProject = null }: ComputerScreenContentProps) {
-  const { screenMesh, screenSource } = useScreenMesh()
-  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const { screenCanvas, screenTexture, screenTexSize } = useScreenMesh()
   const prevPhaseRef = useRef(screenPhase)
   const switchAnimRef = useRef<number | null>(null)
   const videoRafRef = useRef<number | null>(null)
   const activeVideoRef = useRef<HTMLVideoElement | null>(null)
 
-  const screenData = useMemo(() => {
-    const mesh = screenMesh
-    if (!mesh) {
-      return null
-    }
-
-    mesh.updateWorldMatrix(true, false)
-
-    const box = new THREE.Box3().setFromObject(mesh)
-    const size = new THREE.Vector3()
-    box.getSize(size)
-
-    const geo = mesh.geometry as THREE.BufferGeometry
-    if (!geo.attributes.uv) {
-      console.warn('ComputerScreenContent: no UVs found, generating planar projection')
-      const pos = geo.attributes.position
-      const uvs = new Float32Array(pos.count * 2)
-      const localBox = new THREE.Box3()
-      for (let i = 0; i < pos.count; i++) {
-        const v = new THREE.Vector3(pos.getX(i), pos.getY(i), pos.getZ(i))
-        localBox.expandByPoint(v)
-      }
-      const localSize = new THREE.Vector3()
-      localBox.getSize(localSize)
-      const localMin = localBox.min
-      for (let i = 0; i < pos.count; i++) {
-        uvs[i * 2] = (pos.getX(i) - localMin.x) / (localSize.x || 1)
-        uvs[i * 2 + 1] = (pos.getY(i) - localMin.y) / (localSize.y || 1)
-      }
-      geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2))
-    } else {
-      const uvAttr = geo.attributes.uv
-      const uvs = uvAttr.array as Float32Array
-      let minU = Infinity, maxU = -Infinity, minV = Infinity, maxV = -Infinity
-      for (let i = 0; i < uvs.length; i += 2) {
-        minU = Math.min(minU, uvs[i])
-        maxU = Math.max(maxU, uvs[i])
-        minV = Math.min(minV, uvs[i + 1])
-        maxV = Math.max(maxV, uvs[i + 1])
-      }
-      const rangeU = maxU - minU
-      const rangeV = maxV - minV
-      if (minU > 0.05 || maxU < 0.95 || minV > 0.05 || maxV < 0.95) {
-        for (let i = 0; i < uvs.length; i += 2) {
-          uvs[i] = (uvs[i] - minU) / (rangeU || 1)
-          uvs[i + 1] = (uvs[i + 1] - minV) / (rangeV || 1)
-        }
-        uvAttr.needsUpdate = true
-      }
-    }
-
-    const texWidth = 1024
-    const texHeight = Math.round(texWidth * (size.y / size.x))
-    const canvas = drawBlankScreen(texWidth, texHeight)
-
-    const texture = new THREE.CanvasTexture(canvas)
-    texture.colorSpace = THREE.SRGBColorSpace
-    texture.wrapS = THREE.ClampToEdgeWrapping
-    texture.wrapT = THREE.ClampToEdgeWrapping
-    texture.needsUpdate = true
-
-    canvasRef.current = canvas
-
-    return { mesh, texture, texWidth, texHeight, originalMaterial: mesh.material }
-  }, [screenMesh, screenSource])
-
   useEffect(() => {
-    if (screenPhase !== 'booting' || !screenData) return
+    if (screenPhase !== 'booting' || !screenCanvas || !screenTexture || !screenTexSize) return
     performance.mark('intro:boot-effect-mount')
 
-    const { texWidth, texHeight, texture } = screenData
-    const ctx = canvasRef.current!.getContext('2d')!
+    const { width: texWidth, height: texHeight } = screenTexSize
+    const ctx = screenCanvas.getContext('2d')!
+    const texture = screenTexture
 
     let cloudsReady = false
     const cloudsCanvas = drawCloudsScreen(texWidth, texHeight, () => {
@@ -252,10 +185,10 @@ export default function ComputerScreenContent({ screenPhase = 'clouds', hoveredP
 
     rafId = requestAnimationFrame(animate)
     return () => cancelAnimationFrame(rafId)
-  }, [screenPhase, screenData])
+  }, [screenPhase, screenCanvas, screenTexture, screenTexSize])
 
   useEffect(() => {
-    if (!screenData) return
+    if (!screenCanvas || !screenTexture || !screenTexSize) return
     if (screenPhase === 'off' || screenPhase === 'booting') {
       prevPhaseRef.current = screenPhase
       return
@@ -264,8 +197,10 @@ export default function ComputerScreenContent({ screenPhase = 'clouds', hoveredP
     const prev = prevPhaseRef.current
     prevPhaseRef.current = screenPhase
 
-    const { texWidth, texHeight, texture } = screenData
-    const ctx = canvasRef.current!.getContext('2d')!
+    const { width: texWidth, height: texHeight } = screenTexSize
+    const ctx = screenCanvas.getContext('2d')!
+    const canvas = screenCanvas
+    const texture = screenTexture
 
     if (switchAnimRef.current) {
       cancelAnimationFrame(switchAnimRef.current)
@@ -278,7 +213,7 @@ export default function ComputerScreenContent({ screenPhase = 'clouds', hoveredP
 
     if (!isSwitch) {
       const onLogoReady = () => {
-        const ctx2 = canvasRef.current!.getContext('2d')!
+        const ctx2 = canvas.getContext('2d')!
         ctx2.clearRect(0, 0, texWidth, texHeight)
         ctx2.drawImage(newCanvas, 0, 0)
         texture.needsUpdate = true
@@ -301,7 +236,7 @@ export default function ComputerScreenContent({ screenPhase = 'clouds', hoveredP
     const snapshotCanvas = document.createElement('canvas')
     snapshotCanvas.width = texWidth
     snapshotCanvas.height = texHeight
-    snapshotCanvas.getContext('2d')!.drawImage(canvasRef.current!, 0, 0)
+    snapshotCanvas.getContext('2d')!.drawImage(canvas, 0, 0)
 
     const startTime = performance.now()
     let lastDrawTime = 0
@@ -402,14 +337,15 @@ export default function ComputerScreenContent({ screenPhase = 'clouds', hoveredP
         switchAnimRef.current = null
       }
     }
-  }, [screenPhase, screenData])
+  }, [screenPhase, screenCanvas, screenTexture, screenTexSize])
 
   // Video hover loop
   useEffect(() => {
-    if (!screenData || !hoveredProject) return
+    if (!screenCanvas || !screenTexture || !screenTexSize || !hoveredProject) return
 
-    const { texWidth, texHeight, texture } = screenData
-    const ctx = canvasRef.current!.getContext('2d')!
+    const { width: texWidth, height: texHeight } = screenTexSize
+    const ctx = screenCanvas.getContext('2d')!
+    const texture = screenTexture
 
     // Clean up previous video loop
     if (videoRafRef.current) {
@@ -461,30 +397,7 @@ export default function ComputerScreenContent({ screenPhase = 'clouds', hoveredP
         activeVideoRef.current = null
       }
     }
-  }, [hoveredProject, screenPhase, screenData])
-
-  useEffect(() => {
-    if (!screenData) return
-    const { mesh, texture, originalMaterial } = screenData
-
-    mesh.material = new THREE.MeshStandardMaterial({
-      color: new THREE.Color('#000000'),
-      emissive: new THREE.Color('#ffffff'),
-      emissiveMap: texture,
-      emissiveIntensity: 0.95,
-      roughness: 1.0,
-      metalness: 0.0,
-      toneMapped: true,
-      envMapIntensity: 0,
-    })
-    mesh.visible = true
-
-    return () => {
-      ;(mesh.material as THREE.Material).dispose()
-      texture.dispose()
-      mesh.material = originalMaterial
-    }
-  }, [screenData])
+  }, [hoveredProject, screenPhase, screenCanvas, screenTexture, screenTexSize])
 
   return null
 }

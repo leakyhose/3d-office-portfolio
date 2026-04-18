@@ -1,17 +1,13 @@
-import { useRef, useEffect, useState } from 'react'
+import { useRef, useEffect } from 'react'
 import * as THREE from 'three'
 import { useScreenMesh } from './ScreenMeshContext'
 
 export default function CRTLight() {
   const { screenMesh } = useScreenMesh()
   const spotRef = useRef<THREE.SpotLight>(null)
-  const [lightState, setLightState] = useState<{
-    position: THREE.Vector3
-    target: THREE.Vector3
-  } | null>(null)
 
   useEffect(() => {
-    if (!screenMesh) return
+    if (!screenMesh || !spotRef.current) return
 
     screenMesh.updateWorldMatrix(true, false)
     const box = new THREE.Box3().setFromObject(screenMesh)
@@ -31,23 +27,20 @@ export default function CRTLight() {
       .add(normal.clone().multiplyScalar(1.5))
       .add(new THREE.Vector3(0, -2, 0))
 
-    setLightState({ position, target })
+    spotRef.current.position.copy(position)
+    spotRef.current.target.position.copy(target)
+    spotRef.current.target.updateMatrixWorld()
   }, [screenMesh])
 
-  useEffect(() => {
-    if (!spotRef.current || !lightState) return
-    spotRef.current.target.position.copy(lightState.target)
-    spotRef.current.target.updateMatrixWorld()
-  }, [lightState])
-
-  if (!lightState) return null
-
+  // Always render the spotLight so its program (and the NUM_SPOT_LIGHTS=1
+  // variant of every lit MeshStandardMaterial) is compiled during warmup.
+  // Placeholder position is overwritten via ref once screenMesh is known.
   return (
     <spotLight
       ref={spotRef}
       color="#a0c0ff"
       intensity={2.5}
-      position={lightState.position}
+      position={[0, 8, 5]}
       distance={12}
       angle={Math.PI / 4}
       penumbra={0.6}

@@ -4,29 +4,47 @@ import type { ScreenMeshContextValue } from '../types'
 
 const ScreenMeshContext = createContext<ScreenMeshContextValue>({
   screenMesh: null,
-  screenSource: null,
+  screenCanvas: null,
+  screenTexture: null,
+  screenTexSize: null,
   fullScene: null,
-  setScreenMesh: () => {},
+  setScreenSetup: () => {},
   setFullScene: () => {},
 })
 
+interface ScreenSetup {
+  mesh: THREE.Mesh
+  canvas: HTMLCanvasElement
+  texture: THREE.CanvasTexture
+  width: number
+  height: number
+}
+
 export function ScreenMeshProvider({ children }: { children: React.ReactNode }) {
-  const [screenMesh, setScreenMeshState] = useState<THREE.Mesh | null>(null)
-  const [screenSource, setScreenSource] = useState<string | null>(null)
+  const [screenSetup, setScreenSetupState] = useState<ScreenSetup | null>(null)
   const [fullScene, setFullSceneState] = useState<THREE.Group | null>(null)
 
-  const setScreenMesh = useCallback((mesh: THREE.Mesh, source: string) => {
-    setScreenMeshState(mesh)
-    setScreenSource(source)
+  const setScreenSetup = useCallback((setup: ScreenSetup) => {
+    setScreenSetupState(setup)
   }, [])
 
   const setFullScene = useCallback((scene: THREE.Group) => {
     setFullSceneState(scene)
   }, [])
 
-  const value = useMemo(
-    () => ({ screenMesh, screenSource, fullScene, setScreenMesh, setFullScene }),
-    [screenMesh, screenSource, fullScene, setScreenMesh, setFullScene]
+  const value = useMemo<ScreenMeshContextValue>(
+    () => ({
+      screenMesh: screenSetup?.mesh ?? null,
+      screenCanvas: screenSetup?.canvas ?? null,
+      screenTexture: screenSetup?.texture ?? null,
+      screenTexSize: screenSetup
+        ? { width: screenSetup.width, height: screenSetup.height }
+        : null,
+      fullScene,
+      setScreenSetup,
+      setFullScene,
+    }),
+    [screenSetup, fullScene, setScreenSetup, setFullScene]
   )
 
   return (

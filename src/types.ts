@@ -53,9 +53,17 @@ export interface TypedTextProps {
 
 export interface ScreenMeshContextValue {
   screenMesh: THREE.Mesh | null
-  screenSource: string | null
+  screenCanvas: HTMLCanvasElement | null
+  screenTexture: THREE.CanvasTexture | null
+  screenTexSize: { width: number; height: number } | null
   fullScene: THREE.Group | null
-  setScreenMesh: (mesh: THREE.Mesh, source: string) => void
+  setScreenSetup: (setup: {
+    mesh: THREE.Mesh
+    canvas: HTMLCanvasElement
+    texture: THREE.CanvasTexture
+    width: number
+    height: number
+  }) => void
   setFullScene: (scene: THREE.Group) => void
 }
 

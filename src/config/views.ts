@@ -6,8 +6,8 @@ const INITIAL_ROTATION: [number, number, number] = [-0.588, -0.637, -0.377]
 export const INTRO_POSITION: [number, number, number] = [-18, 22, 30]
 export const INTRO_ROTATION = INITIAL_ROTATION
 
-export const START_POSITION: [number, number, number] = [-0.2, 7.38, 4.58]
-export const START_ROTATION: [number, number, number] = [-0.198, -0.007, -0.001]
+export const START_POSITION: [number, number, number] = [-0.18, 7.28, 3.85]
+export const START_ROTATION: [number, number, number] = [-0.154, -0.026, -0.004]
 
 export const ANIM_DURATION = 1.5
 export const INTRO_ANIM_DURATION = 1.8
