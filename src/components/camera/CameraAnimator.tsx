@@ -119,7 +119,7 @@ function CameraAnimator({ controlsRef, freeCam }: CameraAnimatorProps) {
 
   const introPreCompleteFired = useRef(false)
   const introFirstFrame = useRef(false)
-  const INTRO_PRE_COMPLETE_T = 0.85
+  const INTRO_PRE_COMPLETE_T = 0.65
   const rangeRef = useRef(0.45)
   const ROTATE_SPEED = 0.003
   const BASE_RANGE = 0.45

@@ -275,14 +275,21 @@ function App() {
     },
   } as const
 
+  // During the intro zoom, render at DPR=1 to cut fragment cost ~4x while
+  // keeping N8AO/Bloom/shadow-map settings identical to the final look — so
+  // nothing visually flips at intro end except the resolution uplift.
+  const effectiveQuality: QualitySettings = introComplete
+    ? quality
+    : { ...quality, dpr: [1, 1] }
+
   return (
     <div id="app">
       {!isMobile && (
-        <QualityContext.Provider value={quality}>
+        <QualityContext.Provider value={effectiveQuality}>
           <Canvas
             camera={{ fov: 50 }}
             shadows
-            dpr={quality.dpr}
+            dpr={effectiveQuality.dpr}
             performance={{ min: 0.5 }}
             style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
             gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 0.7 }}

@@ -8,20 +8,20 @@ function HomeRight({ visible, onNavigate, onUntypeComplete }: PanelProps) {
   return (
     <>
       <div id="name-title" onClick={() => onNavigate('home')}>
-        <TypedText text="Yiming Su" visible={visible} speed={25} onUntyped={onUntyped} untypeFrom="start" />
+        <TypedText text="Yiming Su" visible={visible} speed={50} onUntyped={onUntyped} untypeFrom="start" />
       </div>
       <nav id="menu">
         <a onClick={() => onNavigate('about')}>
-          <TypedText text="About Me" icon="user" visible={visible} speed={25} onUntyped={onUntyped} untypeFrom="start" />
+          <TypedText text="About Me" icon="user" visible={visible} speed={50} onUntyped={onUntyped} untypeFrom="start" />
         </a>
         <a onClick={() => onNavigate('experience')}>
-          <TypedText text="Experience" icon="trophy" visible={visible} speed={25} onUntyped={onUntyped} untypeFrom="start" />
+          <TypedText text="Experience" icon="trophy" visible={visible} speed={50} onUntyped={onUntyped} untypeFrom="start" />
         </a>
         <a onClick={() => onNavigate('projects')}>
-          <TypedText text="Projects" icon="code" visible={visible} speed={25} onUntyped={onUntyped} untypeFrom="start" />
+          <TypedText text="Projects" icon="code" visible={visible} speed={50} onUntyped={onUntyped} untypeFrom="start" />
         </a>
         <a onClick={() => onNavigate('contact')}>
-          <TypedText text="Contact Me" icon="envelope" visible={visible} speed={25} onUntyped={onUntyped} untypeFrom="start" />
+          <TypedText text="Contact Me" icon="envelope" visible={visible} speed={50} onUntyped={onUntyped} untypeFrom="start" />
         </a>
       </nav>
     </>
