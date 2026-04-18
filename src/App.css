@@ -588,6 +588,34 @@
   user-select: none;
 }
 
+/* ── Key hints overlay ── */
+.key-hints {
+  position: absolute;
+  bottom: 32px;
+  right: 32px;
+  font-family: 'VT323', monospace;
+  font-size: clamp(14px, 1.2vw, 20px);
+  color: rgba(255, 255, 255, 0.45);
+  pointer-events: none;
+  user-select: none;
+  opacity: 0;
+  transition: opacity 0.8s ease-out;
+  display: flex;
+  gap: clamp(14px, 1.5vw, 24px);
+}
+
+.key-hints.visible {
+  opacity: 1;
+}
+
+.key-hints-key {
+  color: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  padding: 0 6px;
+  margin-right: 6px;
+  border-radius: 2px;
+}
+
 /* ── Experience Timeline ── */
 
 .experience-timeline {

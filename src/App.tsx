@@ -13,7 +13,7 @@ import './App.css'
 import type { ViewName, PanelId, ViewConfig, ScreenPhase } from './types'
 
 const Scene = lazy(() => import('./components/Scene'))
-const CameraInfoPanel = lazy(() => import('./CameraInfo').then(m => ({ default: m.CameraInfoPanel })))
+// const CameraInfoPanel = lazy(() => import('./CameraInfo').then(m => ({ default: m.CameraInfoPanel })))
 
 function App() {
   const isMobile = useIsMobile()
@@ -158,6 +158,15 @@ function App() {
   }, [])
 
   const [introComplete, setIntroComplete] = useState(false)
+  const [keyHintArmed, setKeyHintArmed] = useState(false)
+  const [keyHintDismissed, setKeyHintDismissed] = useState(false)
+  const showKeyHints = keyHintArmed && !keyHintDismissed && !freeCam && !isMobile
+
+  useEffect(() => {
+    if (!introComplete || isMobile) return
+    const t = setTimeout(() => setKeyHintArmed(true), 800)
+    return () => clearTimeout(t)
+  }, [introComplete, isMobile])
 
   const onLoadingComplete = useCallback(() => {
     performance.mark('intro:loading-complete')
@@ -178,6 +187,7 @@ function App() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      setKeyHintDismissed(true)
       if (event.key === 'Tab' && !isMobile) {
         event.preventDefault()
         if (!isFreeCam.current) {
@@ -304,7 +314,7 @@ function App() {
       <div id={isMobile ? 'mobile-app' : 'overlay'}>
         {!isMobile && freeCam && (
           <Suspense fallback={null}>
-            <CameraInfoPanel />
+            {/* <CameraInfoPanel /> */}
             <div className="freecam-hint">FREE CAM &mdash; Press Tab to return</div>
           </Suspense>
         )}
@@ -313,6 +323,12 @@ function App() {
         )}
         {RightComponent && (
           <RightComponent {...panelProps.right} />
+        )}
+        {!isMobile && (
+          <div className={`key-hints${showKeyHints ? ' visible' : ''}`}>
+            <span><span className="key-hints-key">Tab</span>Free cam</span>
+            <span><span className="key-hints-key">Esc</span>Home</span>
+          </div>
         )}
       </div>
       {showLoading && (

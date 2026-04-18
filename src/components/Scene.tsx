@@ -6,7 +6,7 @@ import * as THREE from 'three'
 import CameraSetup from './camera/CameraSetup'
 import CameraAnimator from './camera/CameraAnimator'
 import IntroFog from './camera/IntroFog'
-import { CameraTracker } from '../CameraInfo'
+// import { CameraTracker } from '../CameraInfo'
 import CoffeeSteam from '../CoffeeSteam'
 import ComputerScreenContent from '../ComputerScreenContent'
 import CRTLight from './CRTLight'
@@ -285,7 +285,7 @@ function Scene({ onLoaded, freeCam, screenPhase, hoveredProject, introComplete, 
       />
       <CameraSetup controlsRef={controlsRef} />
       <CameraAnimator controlsRef={controlsRef} freeCam={freeCam} />
-      <CameraTracker />
+      {/* <CameraTracker /> */}
     </ScreenMeshProvider>
   )
 }
