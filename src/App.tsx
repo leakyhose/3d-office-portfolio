@@ -7,7 +7,7 @@ import { VIEWS } from './config/views'
 import { navigateToView, triggerIntroZoom, enterFreeCam, setOnNavigationComplete, clearOnNavigationComplete, setOnIntroPreComplete, clearOnIntroPreComplete } from './components/camera/bridge'
 import LoadingScreen from './components/LoadingScreen'
 import PANELS from './panels'
-import { QualityContext, detectQualityLevel, getPreset, downgradeLevel, type QualitySettings } from './hooks/useQualityTier'
+import { QualityContext, detectQualityLevel, getPreset, type QualitySettings } from './hooks/useQualityTier'
 import useIsMobile from './hooks/useIsMobile'
 import './App.css'
 import type { ViewName, PanelId, ViewConfig, ScreenPhase } from './types'
@@ -42,15 +42,6 @@ function App() {
   useEffect(() => {
     if (isMobile) setSceneLoaded(true)
   }, [isMobile])
-
-  const handlePerfDecline = useCallback(() => {
-    if (!introCompleteRef.current) return
-    setQuality((prev) => {
-      const next = downgradeLevel(prev.level)
-      if (next === prev.level) return prev
-      return getPreset(next)
-    })
-  }, [])
 
   const pendingTarget = useRef<ViewConfig | null>(null)
   const leftDone = useRef(true)
@@ -295,7 +286,7 @@ function App() {
             gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 0.7 }}
           >
             <Suspense fallback={null}>
-              <Scene onLoaded={onSceneLoaded} freeCam={freeCam} screenPhase={screenPhase} hoveredProject={hoveredProject} introComplete={introComplete} onPerfDecline={handlePerfDecline} />
+              <Scene onLoaded={onSceneLoaded} freeCam={freeCam} screenPhase={screenPhase} hoveredProject={hoveredProject} introComplete={introComplete} />
             </Suspense>
           </Canvas>
         </QualityContext.Provider>
