@@ -1,6 +1,6 @@
 import { useEffect, useRef, Suspense, memo } from 'react'
 import { useThree } from '@react-three/fiber'
-import { OrbitControls, useGLTF, ContactShadows, Environment } from '@react-three/drei'
+import { OrbitControls, useGLTF, ContactShadows, Environment, PerformanceMonitor } from '@react-three/drei'
 import { EffectComposer, N8AO, Bloom, Vignette } from '@react-three/postprocessing'
 import * as THREE from 'three'
 import CameraSetup from './camera/CameraSetup'
@@ -246,14 +246,16 @@ interface SceneProps {
   screenPhase: ScreenPhase
   hoveredProject: string | null
   introComplete: boolean
+  onPerfDecline?: () => void
 }
 
-function Scene({ onLoaded, freeCam, screenPhase, hoveredProject, introComplete }: SceneProps) {
+function Scene({ onLoaded, freeCam, screenPhase, hoveredProject, introComplete, onPerfDecline }: SceneProps) {
   const controlsRef = useRef<OrbitControlsImpl>(null)
   const quality = useQuality()
   const shadowSize = quality.shadowMapSize
   return (
     <ScreenMeshProvider>
+      <PerformanceMonitor onDecline={onPerfDecline} />
       <color attach="background" args={['#1e1a15']} />
       <IntroFog />
       <hemisphereLight args={['#c4a878', '#0f0d0a', 0.2]} />
