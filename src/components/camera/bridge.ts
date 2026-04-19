@@ -11,6 +11,7 @@ let _computeCloseup: VoidFn | null = null
 let _freeCamHandler: FreeCamHandlerFn | null = null
 let _onNavigationComplete: NavigationCompleteFn | null = null
 let _onIntroPreComplete: NavigationCompleteFn | null = null
+let _isCameraAnimating: (() => boolean) | null = null
 
 export function setNavigateTo(fn: NavigateToFn) { _navigateTo = fn }
 export function clearNavigateTo(fn: NavigateToFn) { if (_navigateTo === fn) _navigateTo = null }
@@ -53,4 +54,11 @@ export function enterFreeCam() {
 
 export function exitFreeCam() {
   if (_freeCamHandler) _freeCamHandler(false)
+}
+
+export function setCameraAnimatingQuery(fn: () => boolean) { _isCameraAnimating = fn }
+export function clearCameraAnimatingQuery(fn: () => boolean) { if (_isCameraAnimating === fn) _isCameraAnimating = null }
+
+export function isCameraAnimating(): boolean {
+  return _isCameraAnimating ? _isCameraAnimating() : false
 }

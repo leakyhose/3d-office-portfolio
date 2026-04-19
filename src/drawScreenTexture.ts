@@ -362,20 +362,32 @@ function getBootBg(width: number, height: number): HTMLCanvasElement {
 }
 
 // Invalidate cache when assets finish loading so icons appear
-Promise.all([logoReady, allIconsReady]).then(() => { _bgCache = null })
+Promise.all([logoReady, allIconsReady]).then(() => {
+  _bgCache = null
+  _videoChromeCache = null
+})
 
-export function drawVideoWindow(
-  ctx: CanvasRenderingContext2D,
+// Cached static composite for the video window: boot background + window
+// chrome + scanlines + vignette, with the video content rectangle left
+// transparent. Drawn once per (w, h, title, videoAspect) and blitted over the
+// raw video frame each draw — collapses ~12 ops + fillText + strokes into a
+// single drawImage per frame.
+interface VideoChromeCache {
+  composite: HTMLCanvasElement
+  contentX: number
+  contentY: number
+  contentW: number
+  contentH: number
+  key: string
+}
+let _videoChromeCache: VideoChromeCache | null = null
+
+function buildVideoChrome(
   width: number,
   height: number,
-  video: HTMLVideoElement,
-  windowTitle: string
-) {
-  // Draw cached boot screen background (icons, taskbar, pixelated, with CRT border)
-  const bg = getBootBg(width, height)
-  ctx.drawImage(bg, 0, 0)
-
-  // Window bounds — sized to match video aspect ratio, centered in desktop area (inside CRT border)
+  windowTitle: string,
+  videoAspect: number
+): VideoChromeCache {
   const borderW = Math.round(width * 0.03)
   const borderH = Math.round(height * 0.03)
   const taskbarH = Math.round(height * 0.08)
@@ -390,8 +402,7 @@ export function drawVideoWindow(
   const chrome = titleBarH + 14
 
   let winW: number, winH: number
-  if (video.videoWidth && video.videoHeight) {
-    const videoAspect = video.videoWidth / video.videoHeight
+  if (videoAspect > 0) {
     const contentW = areaW - 8
     const contentH = contentW / videoAspect
     if (contentH + chrome <= areaH) {
@@ -411,11 +422,25 @@ export function drawVideoWindow(
   const winX = Math.round(areaX + (areaW - winW) / 2)
   const winY = Math.round(areaY + (areaH - winH) / 2)
 
+  const contentPad = 4
+  const tbPad = 3
+  const contentX = winX + contentPad
+  const contentY = winY + tbPad + titleBarH + contentPad
+  const contentW = winW - contentPad * 2
+  const contentH = winH - tbPad - titleBarH - contentPad * 2 - 4
+
+  const composite = document.createElement('canvas')
+  composite.width = width
+  composite.height = height
+  const ctx = composite.getContext('2d')!
+
+  // Boot background (cached itself)
+  ctx.drawImage(getBootBg(width, height), 0, 0)
+
   // Window frame (raised)
   drawRaised(ctx, winX, winY, winW, winH)
 
   // Title bar
-  const tbPad = 3
   ctx.fillStyle = '#000080'
   ctx.fillRect(winX + tbPad, winY + tbPad, winW - tbPad * 2, titleBarH)
 
@@ -441,24 +466,70 @@ export function drawVideoWindow(
   ctx.lineTo(closeBtnX + xPad, closeBtnY + closeBtnSize - xPad)
   ctx.stroke()
 
-  // Content area (sunken)
-  const contentPad = 4
-  const contentX = winX + contentPad
-  const contentY = winY + tbPad + titleBarH + contentPad
-  const contentW = winW - contentPad * 2
-  const contentH = winH - tbPad - titleBarH - contentPad * 2 - 4
+  // Sunken content frame
   drawSunken(ctx, contentX, contentY, contentW, contentH, '#000')
 
-  // Draw video frame
-  if (video.videoWidth && video.videoHeight) {
-    ctx.drawImage(video, contentX + 2, contentY + 2, contentW - 4, contentH - 4)
-  }
+  // Punch a transparent hole where the video pixels go, so when the composite
+  // is blitted over the video the video shows through (with scanlines/vignette
+  // landing on top via the next two draws).
+  ctx.save()
+  ctx.globalCompositeOperation = 'destination-out'
+  ctx.fillStyle = '#000'
+  ctx.fillRect(contentX + 2, contentY + 2, contentW - 4, contentH - 4)
+  ctx.restore()
 
-  // Pre-rendered scanline overlay (slightly lighter than CRT version)
+  // Scanlines + vignette layered on top so they dim the video too.
   ctx.globalAlpha = 0.75
   ctx.drawImage(getScanlineOverlay(width, height), 0, 0)
   ctx.globalAlpha = 1
-
-  // Pre-rendered vignette overlay
   ctx.drawImage(getVignetteOverlay(width, height), 0, 0)
+
+  return {
+    composite,
+    contentX,
+    contentY,
+    contentW,
+    contentH,
+    key: `${width}x${height}|${windowTitle}|${videoAspect.toFixed(4)}`,
+  }
+}
+
+export function drawVideoWindow(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  video: HTMLVideoElement,
+  windowTitle: string
+) {
+  const videoAspect =
+    video.videoWidth && video.videoHeight
+      ? video.videoWidth / video.videoHeight
+      : 0
+  const key = `${width}x${height}|${windowTitle}|${videoAspect.toFixed(4)}`
+
+  if (!_videoChromeCache || _videoChromeCache.key !== key) {
+    _videoChromeCache = buildVideoChrome(width, height, windowTitle, videoAspect)
+  }
+
+  const cache = _videoChromeCache
+
+  // Black backdrop for the area outside the chrome (composite has transparent
+  // pixels there too since the boot background fully covers but we still want
+  // a clean slate).
+  ctx.fillStyle = '#000'
+  ctx.fillRect(0, 0, width, height)
+
+  // Video first, in the same content rect the composite punched out.
+  if (videoAspect > 0) {
+    ctx.drawImage(
+      video,
+      cache.contentX + 2,
+      cache.contentY + 2,
+      cache.contentW - 4,
+      cache.contentH - 4
+    )
+  }
+
+  // Single blit of the entire chrome (background + window frame + scanlines + vignette).
+  ctx.drawImage(cache.composite, 0, 0)
 }

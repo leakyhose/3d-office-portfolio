@@ -3,6 +3,7 @@ import { drawCloudsScreen, drawBootScreen, drawVideoWindow } from './drawScreenT
 import { useScreenMesh } from './components/ScreenMeshContext'
 import { getVideo } from './videoManager'
 import { PROJECTS } from './config/projects'
+import { isCameraAnimating } from './components/camera/bridge'
 import type { ScreenPhase } from './types'
 
 const BOOT_DURATION = 400
@@ -374,6 +375,13 @@ export default function ComputerScreenContent({ screenPhase = 'clouds', hoveredP
       const now = performance.now()
       // Wait for any CRT switch animation to finish
       if (switchAnimRef.current) {
+        videoRafRef.current = requestAnimationFrame(drawFrame)
+        return
+      }
+      // Skip the texImage2D upload while the camera is lerping — keeps the
+      // R3F frame budget free for the navigation animation. Loop resumes
+      // immediately once the camera settles.
+      if (isCameraAnimating()) {
         videoRafRef.current = requestAnimationFrame(drawFrame)
         return
       }

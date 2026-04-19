@@ -2,7 +2,7 @@ import { useThree, useFrame } from '@react-three/fiber'
 import { useEffect, useRef, useCallback } from 'react'
 import * as THREE from 'three'
 import { VIEWS, ANIM_DURATION } from '../../config/views'
-import { setNavigateTo, clearNavigateTo, setFreeCamHandler, clearFreeCamHandler, setComputeCloseup, clearComputeCloseup, fireNavigationComplete, fireIntroPreComplete } from './bridge'
+import { setNavigateTo, clearNavigateTo, setFreeCamHandler, clearFreeCamHandler, setComputeCloseup, clearComputeCloseup, fireNavigationComplete, fireIntroPreComplete, setCameraAnimatingQuery, clearCameraAnimatingQuery } from './bridge'
 import { useScreenMesh } from '../ScreenMeshContext'
 import type { ViewName } from '../../types'
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
@@ -213,6 +213,12 @@ function CameraAnimator({ controlsRef, freeCam }: CameraAnimatorProps) {
     setFreeCamHandler(handleFreeCam)
     return () => clearFreeCamHandler(handleFreeCam)
   }, [handleFreeCam])
+
+  useEffect(() => {
+    const query = () => animating.current
+    setCameraAnimatingQuery(query)
+    return () => clearCameraAnimatingQuery(query)
+  }, [])
 
   useFrame((_, delta) => {
     if (!animating.current || !controlsRef.current) return
