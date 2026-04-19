@@ -262,7 +262,7 @@ function App() {
 
   const screenPhase: ScreenPhase = bootPhase !== 'done'
     ? bootPhase
-    : (landedView === 'projects' ? 'projects' : 'clouds')
+    : (landedView === 'projects' || hoveredProject ? 'projects' : 'clouds')
 
   const LeftComponent = leftPanel ? PANELS[leftPanel] : null
   const RightComponent = rightPanel ? PANELS[rightPanel] : null
