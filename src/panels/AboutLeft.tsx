@@ -31,9 +31,9 @@ function AboutLeft({ visible, onNavigate, onUntypeComplete }: PanelProps) {
       <p className="about-line">
         <TypedText
           segments={[
-            { text: "I'm currently studying at " },
+            { text: "Currently studying at " },
             { text: "UBC", className: "about-highlight about-highlight-clickable about-hl-ubc", onClick: () => onNavigate('experience') },
-            { text: ", and I work on " },
+            { text: ", where I work on " },
             { text: "fullstack", className: "about-highlight-subtle" },
             { text: " with an emphasis on the " },
             { text: "backend", className: "about-highlight-subtle" },
@@ -47,7 +47,7 @@ function AboutLeft({ visible, onNavigate, onUntypeComplete }: PanelProps) {
       <p className="about-line">
         <TypedText
           segments={[
-            { text: "I'm also interested in " },
+            { text: "Outside of work, I love " },
             { text: "blender", className: "about-highlight-subtle" },
             { text: ", the " },
             { text: "NBA", className: "about-highlight-subtle" },
