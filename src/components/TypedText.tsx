@@ -28,7 +28,7 @@ function renderSegments(segments: TextSegment[], start: number, end: number): Re
   return result
 }
 
-function TypedText({ text, segments, visible, speed, untypeSpeed = speed, onTyped, onUntyped, reserveSpace = false, untypeFrom = 'end', icon }: TypedTextProps) {
+function TypedText({ text, segments, visible, speed, untypeSpeed = speed, onTyped, onUntyped, reserveSpace = false, untypeFrom = 'end', icon, iconPosition = 'before' }: TypedTextProps) {
   const [length, setLength] = useState(0)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lengthRef = useRef(0)
@@ -92,19 +92,20 @@ function TypedText({ text, segments, visible, speed, untypeSpeed = speed, onType
 
   let displayedContent: React.ReactNode
   let showIcon = false
+  const iconAfter = iconPosition === 'after'
 
   if (deleteFromStart) {
     const peak = peakRef.current
     const removed = peak - length
-    showIcon = Boolean(icon) && removed < 1
-    const textStart = Math.max(0, removed - iconOffset)
+    showIcon = Boolean(icon) && (iconAfter ? length > 0 : removed < 1)
+    const textStart = Math.max(0, removed - (iconAfter ? 0 : iconOffset))
     const textPeak = peak - iconOffset
     displayedContent = segments
       ? renderSegments(segments, textStart, textPeak)
       : fullText.slice(textStart, textPeak)
   } else {
-    showIcon = Boolean(icon) && length >= 1
-    const textChars = Math.max(0, length - iconOffset)
+    showIcon = Boolean(icon) && (iconAfter ? length >= totalLength : length >= 1)
+    const textChars = iconAfter ? Math.min(length, fullText.length) : Math.max(0, length - iconOffset)
     displayedContent = segments
       ? renderSegments(segments, 0, textChars)
       : fullText.slice(0, textChars)
@@ -115,8 +116,9 @@ function TypedText({ text, segments, visible, speed, untypeSpeed = speed, onType
   const liveText = (
     <>
       {animating && deleteFromStart && <span className="cursor">_</span>}
-      {iconElement}
+      {!iconAfter && iconElement}
       {displayedContent}
+      {iconAfter && iconElement}
       {animating && !deleteFromStart && <span className="cursor">_</span>}
     </>
   )
@@ -134,8 +136,9 @@ function TypedText({ text, segments, visible, speed, untypeSpeed = speed, onType
   return (
     <span className="typed-reserve-wrap">
       <span className="typed-reserve-text">
-        {icon && <i className={`hn hn-${icon}`} />}
+        {icon && !iconAfter && <i className={`hn hn-${icon}`} />}
         {reserveContent}
+        {icon && iconAfter && <i className={`hn hn-${icon}`} />}
       </span>
       <span className="typed-live-text">{liveText}</span>
     </span>

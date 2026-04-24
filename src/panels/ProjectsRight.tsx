@@ -21,7 +21,7 @@ function ProjectsRight({ visible, onUntypeComplete, onProjectHover, activeProjec
   return (
     <div id="projects-panel" className="visible">
       <h1 className="panel-title">
-        <TypedText text="Projects" visible={visible} speed={35} onUntyped={onUntyped} untypeFrom="start" />
+        <TypedText text="Projects" icon="code" visible={visible} speed={35} onUntyped={onUntyped} untypeFrom="start" />
       </h1>
       <div className="project-list">
         {PROJECTS.map(project => (

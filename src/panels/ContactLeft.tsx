@@ -23,7 +23,7 @@ function ContactLeft({ visible, onUntypeComplete }: PanelProps) {
     <div id="contact-panel" className="visible">
       <div className="contact-main">
         <h1 className="contact-title">
-          <TypedText text="Find me here:" icon="location-pin" visible={visible} speed={35} reserveSpace={true} onUntyped={onUntyped} untypeFrom="start" />
+          <TypedText text="Contact Me" icon="envelope" visible={visible} speed={35} reserveSpace={true} onUntyped={onUntyped} untypeFrom="start" />
         </h1>
 
         <div className="contact-links-row">

@@ -13,7 +13,7 @@ import './App.css'
 import type { ViewName, PanelId, ViewConfig, ScreenPhase } from './types'
 
 const Scene = lazy(() => import('./components/Scene'))
-// const CameraInfoPanel = lazy(() => import('./CameraInfo').then(m => ({ default: m.CameraInfoPanel })))
+const CameraInfoPanel = lazy(() => import('./CameraInfo').then(m => ({ default: m.CameraInfoPanel })))
 
 function App() {
   const isMobile = useIsMobile()
@@ -314,7 +314,7 @@ function App() {
       <div id={isMobile ? 'mobile-app' : 'overlay'}>
         {!isMobile && freeCam && (
           <Suspense fallback={null}>
-            {/* <CameraInfoPanel /> */}
+            <CameraInfoPanel />
             <div className="freecam-hint">FREE CAM &mdash; Press Tab to return</div>
           </Suspense>
         )}

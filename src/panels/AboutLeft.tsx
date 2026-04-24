@@ -8,14 +8,20 @@ function AboutLeft({ visible, onNavigate, onUntypeComplete }: PanelProps) {
   return (
     <div id="about-panel" className="visible">
       <h1 className="about-title">
-        <TypedText text="Hi! I'm Yiming" visible={visible} speed={35} reserveSpace={true} onUntyped={onUntyped} />
+        <TypedText
+          segments={[
+            { text: "Hi! I'm " },
+            { text: "Yiming", className: "about-name" },
+          ]}
+          visible={visible} speed={35} reserveSpace={true} onUntyped={onUntyped}
+        />
       </h1>
       <p className="about-line">
         <TypedText
           segments={[
             { text: "I'm an incoming SDE intern at " },
             { text: "Botpress", className: "about-highlight about-highlight-clickable about-hl-botpress", onClick: () => onNavigate('experience') },
-            { text: ", and prev worked at " },
+            { text: ", and previously worked at " },
             { text: "Nokia", className: "about-highlight about-highlight-clickable about-hl-nokia", onClick: () => onNavigate('experience') },
             { text: "." },
           ]}
@@ -27,21 +33,21 @@ function AboutLeft({ visible, onNavigate, onUntypeComplete }: PanelProps) {
           segments={[
             { text: "I'm currently studying at " },
             { text: "UBC", className: "about-highlight about-highlight-clickable about-hl-ubc", onClick: () => onNavigate('experience') },
-            { text: ", and I'm interested in " },
-            { text: "agentic systems", className: "about-highlight-subtle" },
-            { text: ", " },
-            { text: "fullstack development", className: "about-highlight-subtle" },
+            { text: ", and I work on " },
+            { text: "fullstack", className: "about-highlight-subtle" },
+            { text: " with an emphasis on the " },
+            { text: "backend", className: "about-highlight-subtle" },
             { text: ", and " },
-            { text: "data science", className: "about-highlight-subtle" },
+            { text: "agentic systems", className: "about-highlight-subtle" },
             { text: "." },
           ]}
           visible={visible} speed={5} reserveSpace={true} onUntyped={onUntyped}
         />
       </p>
-      <p className="about-line about-line-short">
+      <p className="about-line">
         <TypedText
           segments={[
-            { text: "Also a big fan of " },
+            { text: "I'm also interested in " },
             { text: "blender", className: "about-highlight-subtle" },
             { text: ", the " },
             { text: "NBA", className: "about-highlight-subtle" },

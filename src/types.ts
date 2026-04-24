@@ -49,6 +49,7 @@ export interface TypedTextProps {
   reserveSpace?: boolean
   untypeFrom?: 'end' | 'start'
   icon?: string
+  iconPosition?: 'before' | 'after'
 }
 
 export interface ScreenMeshContextValue {

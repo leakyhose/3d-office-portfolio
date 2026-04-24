@@ -25,8 +25,8 @@ export const VIEWS: ViewsMap = {
     mobileOrder: ['right'],
   },
   about: {
-    position: [-0.45, 6.65, 4.09],
-    rotation: [-1.496, 1.363, 1.494],
+    position: [-0.26, 5.37, 3.56],
+    rotation: [2.232, 1.32, -2.247],
     pivotObject: 'Cup',
     left: 'about',
     right: null,
