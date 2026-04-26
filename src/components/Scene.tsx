@@ -255,7 +255,13 @@ function Scene({ onLoaded, freeCam, screenPhase, hoveredProject, introComplete, 
   const shadowSize = quality.shadowMapSize
   return (
     <ScreenMeshProvider>
-      <PerformanceMonitor onDecline={onPerfDecline} />
+      <PerformanceMonitor
+        ms={150}
+        iterations={5}
+        threshold={0.75}
+        bounds={(refresh) => [refresh * 0.85, refresh]}
+        onDecline={onPerfDecline}
+      />
       <color attach="background" args={['#1e1a15']} />
       <IntroFog />
       <hemisphereLight args={['#c4a878', '#0f0d0a', 0.2]} />

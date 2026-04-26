@@ -34,11 +34,11 @@ const PRESETS: Record<QualityLevel, QualitySettings> = {
   },
   high: {
     level: 'high',
-    dpr: [1, 2],
+    dpr: [1, 1.5],
     shadowMapSize: 2048,
     enableN8AO: true,
     enableBloom: true,
-    n8aoHalfRes: false,
+    n8aoHalfRes: true,
     n8aoQuality: 'medium',
   },
 }
