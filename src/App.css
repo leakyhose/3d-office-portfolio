@@ -82,9 +82,9 @@
   position: absolute;
   top: 0;
   left: 0;
-  width: min(60vw, 1020px);
+  width: min(66vw, 1150px);
   height: 100%;
-  padding: clamp(16px, 2vw, 30px) clamp(24px, 4.7vw, 72px);
+  padding: clamp(16px, 2vw, 30px) clamp(24px, 4.7vw, 72px) clamp(16px, 2vw, 30px) clamp(6px, 1.6vw, 24px);
   display: flex;
   flex-direction: column;
   font-family: 'VT323', monospace;
@@ -331,7 +331,7 @@
   margin: clamp(16px, 2.3vw, 36px) 0 0;
   font-size: clamp(22px, 2.6vw, 40px);
   line-height: 1.05;
-  max-width: 820px;
+  max-width: 980px;
 }
 
 .about-nav {
@@ -364,6 +364,8 @@
 .about-hl-nokia:hover    { color: #8dd0ff; }
 .about-hl-ubc            { color: #f5c45b; }
 .about-hl-ubc:hover      { color: #fad97a; }
+.about-hl-skills         { color: #6ee7b7; }
+.about-hl-skills:hover   { color: #9af0d1; }
 
 .about-highlight-subtle  {
   text-decoration: underline;
