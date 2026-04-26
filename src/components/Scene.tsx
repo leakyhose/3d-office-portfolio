@@ -8,6 +8,7 @@ import CameraAnimator from './camera/CameraAnimator'
 import IntroFog from './camera/IntroFog'
 import { CameraTracker } from '../CameraInfo'
 import CoffeeSteam from '../CoffeeSteam'
+import CatMeow from '../CatMeow'
 import ComputerScreenContent from '../ComputerScreenContent'
 import CRTLight from './CRTLight'
 import { ScreenMeshProvider, useScreenMesh } from './ScreenMeshContext'
@@ -278,6 +279,7 @@ function Scene({ onLoaded, freeCam, screenPhase, hoveredProject, introComplete, 
         <Environment preset="apartment" background={false} environmentIntensity={0.08} />
       </Suspense>
       <CoffeeSteam active={introComplete} />
+      <CatMeow />
       <ComputerScreenContent screenPhase={screenPhase} hoveredProject={hoveredProject} />
       <CRTLight />
       <Floor />
