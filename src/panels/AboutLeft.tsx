@@ -19,7 +19,7 @@ function AboutLeft({ visible, onNavigate, onUntypeComplete }: PanelProps) {
       <p className="about-line">
         <TypedText
           segments={[
-            { text: "I'm an incoming SDE intern at " },
+            { text: "I'm an SWE intern at " },
             { text: "Botpress", className: "about-highlight about-highlight-clickable about-hl-botpress", onClick: () => onNavigate('experience') },
             { text: ", and previously worked at " },
             { text: "Nokia", className: "about-highlight about-highlight-clickable about-hl-nokia", onClick: () => onNavigate('experience') },
