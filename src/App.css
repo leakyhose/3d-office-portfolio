@@ -578,6 +578,15 @@
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+/* ── Free-cam HUD fade ── */
+.freecam-ui {
+  transition: opacity 0.7s ease-out;
+}
+
+.freecam-ui.idle {
+  opacity: 0;
+}
+
 /* ── Free-cam hint ── */
 .freecam-hint {
   position: absolute;

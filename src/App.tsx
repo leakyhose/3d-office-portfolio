@@ -23,6 +23,7 @@ function App() {
   const [leftVisible, setLeftVisible] = useState(false)
   const [rightVisible, setRightVisible] = useState(false)
   const [freeCam, setFreeCam] = useState(false)
+  const [freeCamIdle, setFreeCamIdle] = useState(false)
   const [currentView, setCurrentView] = useState<ViewName>('home')
   const [showLoading, setShowLoading] = useState(true)
   const [bootPhase, setBootPhase] = useState<'off' | 'booting' | 'done'>('off')
@@ -167,6 +168,28 @@ function App() {
     const t = setTimeout(() => setKeyHintArmed(true), 800)
     return () => clearTimeout(t)
   }, [introComplete, isMobile])
+
+  // In free cam, fade the HUD (coords + hint) after 2s of inactivity so only
+  // the 3D scene shows. Any pointer/wheel/key/touch interaction brings it back.
+  useEffect(() => {
+    if (!freeCam) {
+      setFreeCamIdle(false)
+      return
+    }
+    let timer: ReturnType<typeof setTimeout>
+    const reset = () => {
+      setFreeCamIdle(false)
+      clearTimeout(timer)
+      timer = setTimeout(() => setFreeCamIdle(true), 2000)
+    }
+    const events: string[] = ['pointermove', 'pointerdown', 'wheel', 'keydown', 'touchstart', 'touchmove']
+    events.forEach((ev) => window.addEventListener(ev, reset, { passive: true }))
+    reset()
+    return () => {
+      clearTimeout(timer)
+      events.forEach((ev) => window.removeEventListener(ev, reset))
+    }
+  }, [freeCam])
 
   const onLoadingComplete = useCallback(() => {
     performance.mark('intro:loading-complete')
@@ -314,8 +337,10 @@ function App() {
       <div id={isMobile ? 'mobile-app' : 'overlay'}>
         {!isMobile && freeCam && (
           <Suspense fallback={null}>
-            <CameraInfoPanel />
-            <div className="freecam-hint">FREE CAM &mdash; Press Tab to return</div>
+            <div className={`freecam-ui${freeCamIdle ? ' idle' : ''}`}>
+              <CameraInfoPanel />
+              <div className="freecam-hint">FREE CAM &mdash; Press Tab to return</div>
+            </div>
           </Suspense>
         )}
         {LeftComponent && (
