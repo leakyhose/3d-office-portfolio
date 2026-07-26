@@ -21,7 +21,7 @@ function AboutLeft({ visible, onNavigate, onUntypeComplete }: PanelProps) {
           segments={[
             { text: "I'm an incoming SWE intern at " },
             { text: "Shopify", className: "about-highlight about-hl-shopify" },
-            { text: ", currently interning at " },
+            { text: ", currently at " },
             { text: "Botpress", className: "about-highlight about-highlight-clickable about-hl-botpress", onClick: () => onNavigate('experience') },
             { text: ", and previously worked at " },
             { text: "Nokia", className: "about-highlight about-highlight-clickable about-hl-nokia", onClick: () => onNavigate('experience') },
