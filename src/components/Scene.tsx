@@ -15,6 +15,7 @@ import { ScreenMeshProvider, useScreenMesh } from './ScreenMeshContext'
 import { useQuality } from '../hooks/useQualityTier'
 import { VIEWS, START_POSITION } from '../config/views'
 import { drawBlankScreen } from '../drawScreenTexture'
+import { warmVideos } from '../videoManager'
 import type { ScreenPhase } from '../types'
 import type { QualitySettings } from '../hooks/useQualityTier'
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
@@ -219,7 +220,7 @@ function Floor() {
 function Effects({ quality }: { quality: QualitySettings }) {
   if (quality.enableN8AO) {
     return (
-      <EffectComposer>
+      <EffectComposer multisampling={quality.multisampling}>
         <N8AO aoRadius={1.5} intensity={3} distanceFalloff={1} color="#2a2218" halfRes={quality.n8aoHalfRes} quality={quality.n8aoQuality} />
         {quality.enableBloom ? <Bloom luminanceThreshold={0.6} luminanceSmoothing={0.3} intensity={0.7} mipmapBlur /> : <></>}
         <Vignette offset={0.3} darkness={0.7} />
@@ -228,14 +229,14 @@ function Effects({ quality }: { quality: QualitySettings }) {
   }
   if (quality.enableBloom) {
     return (
-      <EffectComposer>
+      <EffectComposer multisampling={quality.multisampling}>
         <Bloom luminanceThreshold={0.6} luminanceSmoothing={0.3} intensity={0.7} mipmapBlur />
         <Vignette offset={0.3} darkness={0.7} />
       </EffectComposer>
     )
   }
   return (
-    <EffectComposer>
+    <EffectComposer multisampling={quality.multisampling}>
       <Vignette offset={0.3} darkness={0.7} />
     </EffectComposer>
   )
@@ -254,6 +255,20 @@ function Scene({ onLoaded, freeCam, screenPhase, hoveredProject, introComplete, 
   const controlsRef = useRef<OrbitControlsImpl>(null)
   const quality = useQuality()
   const shadowSize = quality.shadowMapSize
+  const gl = useThree((s) => s.gl)
+
+  // The shadow map is pinned (autoUpdate=false) after warmup. When a quality
+  // change resizes it, force one re-render or the new size never applies.
+  useEffect(() => {
+    gl.shadowMap.needsUpdate = true
+  }, [gl, shadowSize])
+
+  // Demo videos stay cold during the critical loading path; start buffering
+  // them once the intro is done and bandwidth is free.
+  useEffect(() => {
+    if (introComplete) warmVideos()
+  }, [introComplete])
+
   return (
     <ScreenMeshProvider>
       <PerformanceMonitor
@@ -276,7 +291,10 @@ function Scene({ onLoaded, freeCam, screenPhase, hoveredProject, introComplete, 
       <directionalLight color="#ffe8cc" intensity={0.03} position={[30, 20, -10]} />
       <Suspense fallback={null}>
         <OfficeModel onLoaded={onLoaded} />
-        <Environment preset="apartment" background={false} environmentIntensity={0.08} />
+        {/* Self-hosted copy of drei's "apartment" preset (lebombo_1k.hdr) —
+            the preset fetches from raw.githack.com at load time, which sat
+            on the critical path behind this Suspense boundary. */}
+        <Environment files="/lebombo_1k.hdr" background={false} environmentIntensity={0.08} />
       </Suspense>
       <CoffeeSteam active={introComplete} />
       <CatMeow />
@@ -293,7 +311,7 @@ function Scene({ onLoaded, freeCam, screenPhase, hoveredProject, introComplete, 
       />
       <CameraSetup controlsRef={controlsRef} />
       <CameraAnimator controlsRef={controlsRef} freeCam={freeCam} />
-      <CameraTracker />
+      {freeCam && <CameraTracker />}
     </ScreenMeshProvider>
   )
 }

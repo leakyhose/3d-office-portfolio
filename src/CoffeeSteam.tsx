@@ -109,10 +109,26 @@ export default memo(function CoffeeSteam({ active = true }: { active?: boolean }
     }
   }, [geometry, material])
 
+  const clearedRef = useRef(false)
+  const anyAliveRef = useRef(false)
+
   useFrame((_, rawDelta) => {
     if (!meshRef.current || !spawnCenter) return
     const delta = Math.min(rawDelta, 0.1)
     const mesh = meshRef.current
+
+    // Zero all matrices once — instances start as identity, which would
+    // render the whole pool as cubes at the origin.
+    if (!clearedRef.current) {
+      clearedRef.current = true
+      tmpMatrix.current.makeScale(0, 0, 0)
+      for (let i = 0; i < POOL_SIZE; i++) mesh.setMatrixAt(i, tmpMatrix.current)
+      mesh.instanceMatrix.needsUpdate = true
+    }
+
+    // Idle fast path: not spawning and nothing alive — matrices are already
+    // zeroed, so skip the loop and the per-frame instanceMatrix upload.
+    if (!active && !anyAliveRef.current) return
 
     if (active) {
       spawnAcc.current += delta * SPAWN_RATE
@@ -123,6 +139,7 @@ export default memo(function CoffeeSteam({ active = true }: { active?: boolean }
       }
     }
 
+    let anyAlive = false
     for (let i = 0; i < POOL_SIZE; i++) {
       const p = particles[i]
       if (!p.alive) {
@@ -130,6 +147,7 @@ export default memo(function CoffeeSteam({ active = true }: { active?: boolean }
         mesh.setMatrixAt(i, tmpMatrix.current)
         continue
       }
+      anyAlive = true
 
       p.age += delta
       if (p.age >= p.maxAge) {
@@ -156,6 +174,7 @@ export default memo(function CoffeeSteam({ active = true }: { active?: boolean }
       tmpMatrix.current.compose(p.position, tmpQuat.current, tmpScale.current)
       mesh.setMatrixAt(i, tmpMatrix.current)
     }
+    anyAliveRef.current = anyAlive
 
     mesh.instanceMatrix.needsUpdate = true
   })

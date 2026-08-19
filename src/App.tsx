@@ -323,9 +323,10 @@ function App() {
             camera={{ fov: 50 }}
             shadows
             dpr={effectiveQuality.dpr}
-            performance={{ min: 0.5 }}
             style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
-            gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 0.7 }}
+            // The EffectComposer in Scene renders into its own multisampled
+            // buffers, so MSAA on the default framebuffer would be paid twice.
+            gl={{ antialias: false, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 0.7 }}
           >
             <Suspense fallback={null}>
               <Scene onLoaded={onSceneLoaded} freeCam={freeCam} screenPhase={screenPhase} hoveredProject={hoveredProject} introComplete={introComplete} onPerfDecline={handlePerfDecline} />

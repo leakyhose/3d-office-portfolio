@@ -51,16 +51,16 @@ export default memo(function CatMeow() {
     const raycaster = new THREE.Raycaster()
     const ndc = new THREE.Vector2()
 
-    const hitsCat = (e: MouseEvent) => {
+    const hitsCat = (clientX: number, clientY: number) => {
       const rect = canvas.getBoundingClientRect()
-      ndc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1
-      ndc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1
+      ndc.x = ((clientX - rect.left) / rect.width) * 2 - 1
+      ndc.y = -((clientY - rect.top) / rect.height) * 2 + 1
       raycaster.setFromCamera(ndc, camera)
       return raycaster.intersectObject(catMesh, true).length > 0
     }
 
     const onClick = (e: MouseEvent) => {
-      if (e.button !== 0 || !hitsCat(e)) return
+      if (e.button !== 0 || !hitsCat(e.clientX, e.clientY)) return
       const prev = currentRef.current
       if (prev) {
         prev.pause()
@@ -72,12 +72,23 @@ export default memo(function CatMeow() {
       next.play().catch(() => {})
     }
 
-    const onMove = (e: PointerEvent) => {
-      if (hitsCat(e)) {
+    // Pointermove can fire far more often than frames render (high-polling
+    // mice). Coalesce to at most one hover raycast per animation frame.
+    let hoverRaf = 0
+    let lastX = 0
+    let lastY = 0
+    const checkHover = () => {
+      hoverRaf = 0
+      if (hitsCat(lastX, lastY)) {
         canvas.style.cursor = 'pointer'
       } else if (canvas.style.cursor === 'pointer') {
         canvas.style.cursor = ''
       }
+    }
+    const onMove = (e: PointerEvent) => {
+      lastX = e.clientX
+      lastY = e.clientY
+      if (!hoverRaf) hoverRaf = requestAnimationFrame(checkHover)
     }
 
     canvas.addEventListener('click', onClick)
@@ -85,6 +96,7 @@ export default memo(function CatMeow() {
     return () => {
       canvas.removeEventListener('click', onClick)
       canvas.removeEventListener('pointermove', onMove)
+      if (hoverRaf) cancelAnimationFrame(hoverRaf)
       canvas.style.cursor = ''
     }
   }, [catMesh, gl, camera, audios])

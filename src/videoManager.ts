@@ -7,7 +7,7 @@ interface VideoEntry {
 
 const videoMap = new Map<string, VideoEntry>()
 
-function preloadVideos() {
+function createVideos() {
   for (const project of PROJECTS) {
     if (videoMap.has(project.id)) continue
     const video = document.createElement('video')
@@ -15,7 +15,10 @@ function preloadVideos() {
     video.muted = true
     video.loop = true
     video.playsInline = true
-    video.preload = 'auto'
+    // Don't fetch anything yet — the videos total several MB and would
+    // compete with the GLB/HDR downloads on the critical loading path.
+    // warmVideos() flips them to full preload once the intro is done.
+    video.preload = 'none'
     video.style.display = 'none'
     document.body.appendChild(video)
     const entry: VideoEntry = { video, ready: false }
@@ -24,9 +27,20 @@ function preloadVideos() {
   }
 }
 
+let warmed = false
+
+export function warmVideos() {
+  if (warmed) return
+  warmed = true
+  for (const entry of videoMap.values()) {
+    entry.video.preload = 'auto'
+    entry.video.load()
+  }
+}
+
 export function getVideo(projectId: string): HTMLVideoElement | null {
   return videoMap.get(projectId)?.video ?? null
 }
 
-// Preload on module import
-preloadVideos()
+// Create elements on module import; actual downloads start via warmVideos()
+createVideos()

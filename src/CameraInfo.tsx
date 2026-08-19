@@ -1,5 +1,5 @@
 import { useFrame, useThree } from '@react-three/fiber'
-import { useRef, useState, useCallback } from 'react'
+import { useRef, useState, useCallback, useEffect } from 'react'
 import type { CameraInfoState } from './types'
 
 const round = (v: number, d = 2) => Number(v.toFixed(d))
@@ -33,7 +33,13 @@ import * as THREE from 'three'
 export function CameraInfoPanel() {
   const [info, setInfo] = useState<CameraInfoState>({})
   const [copied, setCopied] = useState(false)
-  _setInfoExternal = setInfo
+
+  useEffect(() => {
+    _setInfoExternal = setInfo
+    return () => {
+      if (_setInfoExternal === setInfo) _setInfoExternal = null
+    }
+  }, [])
 
   const posStr = `[${info.px}, ${info.py}, ${info.pz}]`
   const rotStr = `[${info.rx}, ${info.ry}, ${info.rz}]`

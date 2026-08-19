@@ -11,6 +11,7 @@ export interface QualitySettings {
   enableBloom: boolean
   n8aoHalfRes: boolean
   n8aoQuality: 'performance' | 'low' | 'medium' | 'high'
+  multisampling: number
 }
 
 const PRESETS: Record<QualityLevel, QualitySettings> = {
@@ -22,6 +23,7 @@ const PRESETS: Record<QualityLevel, QualitySettings> = {
     enableBloom: false,
     n8aoHalfRes: true,
     n8aoQuality: 'performance',
+    multisampling: 4,
   },
   medium: {
     level: 'medium',
@@ -31,6 +33,7 @@ const PRESETS: Record<QualityLevel, QualitySettings> = {
     enableBloom: true,
     n8aoHalfRes: true,
     n8aoQuality: 'low',
+    multisampling: 8,
   },
   high: {
     level: 'high',
@@ -40,6 +43,7 @@ const PRESETS: Record<QualityLevel, QualitySettings> = {
     enableBloom: true,
     n8aoHalfRes: true,
     n8aoQuality: 'medium',
+    multisampling: 8,
   },
 }
 
@@ -65,13 +69,27 @@ export function upgradeLevel(current: QualityLevel): QualityLevel {
 
 let _cachedTier: TierResult | null = null
 
+// detect-gpu fetches benchmark JSON from unpkg on every call; cache the
+// verdict so repeat visits skip the network round-trip entirely.
+const TIER_STORAGE_KEY = 'quality-tier-v1'
+
 export async function detectQualityLevel(): Promise<QualityLevel> {
+  try {
+    const stored = localStorage.getItem(TIER_STORAGE_KEY)
+    if (stored === 'low' || stored === 'medium' || stored === 'high') return stored
+  } catch {
+    // localStorage unavailable (private mode etc.) — fall through to detection
+  }
   try {
     _cachedTier = await getGPUTier()
     const tier = _cachedTier.tier
-    if (tier <= 1) return 'low'
-    if (tier === 2) return 'medium'
-    return 'high'
+    const level: QualityLevel = tier <= 1 ? 'low' : tier === 2 ? 'medium' : 'high'
+    try {
+      localStorage.setItem(TIER_STORAGE_KEY, level)
+    } catch {
+      // best-effort cache only
+    }
+    return level
   } catch {
     // If detection fails, default to medium as a safe middle ground
     return 'medium'
