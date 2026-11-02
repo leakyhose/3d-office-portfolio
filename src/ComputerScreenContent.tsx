@@ -33,6 +33,49 @@ function makeNoiseCanvas(w: number, h: number, grainSize: number) {
   return c
 }
 
+
+interface BootAssets {
+  cloudsReady: boolean
+  cloudsCanvas: HTMLCanvasElement
+  noiseFrames: HTMLCanvasElement[]
+  scanlineCanvas: HTMLCanvasElement
+  glowCanvas: HTMLCanvasElement
+  glowH: number
+}
+
+// Offscreen canvases for the boot animation. Built while the scene is still
+// loading (invisible) so the CPU work doesn't land on the start of the boot.
+function createBootAssets(texWidth: number, texHeight: number): BootAssets {
+  const assets = { cloudsReady: false } as BootAssets
+  const cloudsCanvas = drawCloudsScreen(texWidth, texHeight, () => {
+    assets.cloudsReady = true
+  })
+
+  const noiseW = 256
+  const noiseH = Math.round(noiseW * (texHeight / texWidth))
+  const noiseFrames = Array.from({ length: 2 }, () => makeNoiseCanvas(noiseW, noiseH, 2))
+
+  const scanlineCanvas = document.createElement('canvas')
+  scanlineCanvas.width = texWidth; scanlineCanvas.height = texHeight
+  const slCtx = scanlineCanvas.getContext('2d')!
+  slCtx.fillStyle = 'rgba(0, 0, 0, 0.12)'
+  for (let sy = 0; sy < texHeight; sy += 2) slCtx.fillRect(0, sy, texWidth, 1)
+
+  const glowH = 35
+  const glowCanvas = document.createElement('canvas')
+  glowCanvas.width = texWidth; glowCanvas.height = glowH * 2
+  const glCtx = glowCanvas.getContext('2d')!
+  const grad = glCtx.createLinearGradient(0, 0, 0, glowH * 2)
+  grad.addColorStop(0, 'rgba(150, 180, 255, 0)')
+  grad.addColorStop(0.4, 'rgba(150, 180, 255, 0.15)')
+  grad.addColorStop(0.5, 'rgba(200, 220, 255, 0.3)')
+  grad.addColorStop(0.6, 'rgba(150, 180, 255, 0.15)')
+  grad.addColorStop(1, 'rgba(150, 180, 255, 0)')
+  glCtx.fillStyle = grad
+  glCtx.fillRect(0, 0, texWidth, glowH * 2)
+  return Object.assign(assets, { cloudsCanvas, noiseFrames, scanlineCanvas, glowCanvas, glowH })
+}
+
 interface ComputerScreenContentProps {
   screenPhase?: ScreenPhase
   hoveredProject?: string | null
@@ -48,6 +91,12 @@ export default function ComputerScreenContent({ screenPhase = 'clouds', hoveredP
   // so the booting -> clouds phase change (which lands mid intro zoom, right
   // as the home panel types in) doesn't redraw + re-upload the same image.
   const bootEndedOnCloudsRef = useRef(false)
+  const bootAssetsRef = useRef<BootAssets | null>(null)
+
+  useEffect(() => {
+    if (!screenTexSize || bootAssetsRef.current) return
+    bootAssetsRef.current = createBootAssets(screenTexSize.width, screenTexSize.height)
+  }, [screenTexSize])
 
   useEffect(() => {
     if (screenPhase !== 'booting' || !screenCanvas || !screenTexture || !screenTexSize) return
@@ -57,33 +106,9 @@ export default function ComputerScreenContent({ screenPhase = 'clouds', hoveredP
     const ctx = screenCanvas.getContext('2d')!
     const texture = screenTexture
 
-    let cloudsReady = false
-    const cloudsCanvas = drawCloudsScreen(texWidth, texHeight, () => {
-      cloudsReady = true
-    })
-
-    const noiseW = 256
-    const noiseH = Math.round(noiseW * (texHeight / texWidth))
-    const noiseFrames = Array.from({ length: 2 }, () => makeNoiseCanvas(noiseW, noiseH, 2))
-
-    const scanlineCanvas = document.createElement('canvas')
-    scanlineCanvas.width = texWidth; scanlineCanvas.height = texHeight
-    const slCtx = scanlineCanvas.getContext('2d')!
-    slCtx.fillStyle = 'rgba(0, 0, 0, 0.12)'
-    for (let sy = 0; sy < texHeight; sy += 2) slCtx.fillRect(0, sy, texWidth, 1)
-
-    const glowH = 35
-    const glowCanvas = document.createElement('canvas')
-    glowCanvas.width = texWidth; glowCanvas.height = glowH * 2
-    const glCtx = glowCanvas.getContext('2d')!
-    const grad = glCtx.createLinearGradient(0, 0, 0, glowH * 2)
-    grad.addColorStop(0, 'rgba(150, 180, 255, 0)')
-    grad.addColorStop(0.4, 'rgba(150, 180, 255, 0.15)')
-    grad.addColorStop(0.5, 'rgba(200, 220, 255, 0.3)')
-    grad.addColorStop(0.6, 'rgba(150, 180, 255, 0.15)')
-    grad.addColorStop(1, 'rgba(150, 180, 255, 0)')
-    glCtx.fillStyle = grad
-    glCtx.fillRect(0, 0, texWidth, glowH * 2)
+    const boot = bootAssetsRef.current ?? createBootAssets(texWidth, texHeight)
+    bootAssetsRef.current = null
+    const { cloudsCanvas, noiseFrames, scanlineCanvas, glowCanvas, glowH } = boot
 
     const startTime = performance.now()
     let rafId: number
@@ -132,7 +157,7 @@ export default function ComputerScreenContent({ screenPhase = 'clouds', hoveredP
         const visibleH = Math.max(1, Math.round(eased * texHeight))
         const y = Math.round((texHeight - visibleH) / 2)
 
-        if (cloudsReady) {
+        if (boot.cloudsReady) {
           ctx.save()
           ctx.beginPath()
           ctx.rect(0, y, texWidth, visibleH)
@@ -167,7 +192,7 @@ export default function ComputerScreenContent({ screenPhase = 'clouds', hoveredP
       } else {
         const settleT = (t - 0.80) / 0.20
 
-        if (cloudsReady) {
+        if (boot.cloudsReady) {
           ctx.drawImage(cloudsCanvas, 0, 0, texWidth, texHeight)
         } else {
           ctx.fillStyle = '#008080'
@@ -184,7 +209,7 @@ export default function ComputerScreenContent({ screenPhase = 'clouds', hoveredP
       if (t < 1) {
         rafId = requestAnimationFrame(animate)
       } else {
-        bootEndedOnCloudsRef.current = cloudsReady
+        bootEndedOnCloudsRef.current = boot.cloudsReady
         performance.mark('intro:boot-anim-done')
       }
     }

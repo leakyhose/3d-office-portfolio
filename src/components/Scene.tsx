@@ -177,7 +177,11 @@ function Scene({ onReady, freeCam, screenPhase, hoveredProject, introComplete }:
   // Demo videos stay cold during the critical loading path; start buffering
   // them once the intro is done and bandwidth is free.
   useEffect(() => {
-    if (introComplete) warmVideos()
+    if (!introComplete) return
+    const ric = window.requestIdleCallback ?? ((cb: () => void) => window.setTimeout(cb, 500))
+    const cic = window.cancelIdleCallback ?? window.clearTimeout
+    const id = ric(() => warmVideos())
+    return () => cic(id)
   }, [introComplete])
 
   return (
