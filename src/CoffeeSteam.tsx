@@ -1,6 +1,6 @@
-import { useRef, useMemo, useEffect, memo } from 'react'
+import { use, useRef, useMemo, useEffect, memo } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { useGLTF } from '@react-three/drei'
+import { loadOffice } from './scene/office'
 import * as THREE from 'three'
 
 const POOL_SIZE = 40
@@ -23,6 +23,25 @@ interface SteamParticle {
   velocity: THREE.Vector3
   rotation: THREE.Euler
   rotationSpeed: THREE.Vector3
+}
+
+// The scene has no realtime lights any more (lighting is baked), so the steam
+// cubes use an unlit material with a cheap fixed-direction lambert term
+// (same key-light direction as the bake) to keep their faceted look.
+const KEY_DIR = new THREE.Vector3(14.2, 13.3, 12.3).normalize()
+function createSteamMaterial() {
+  const mat = new THREE.MeshBasicMaterial({ color: '#dddddd' })
+  mat.onBeforeCompile = (shader) => {
+    shader.uniforms.keyDir = { value: KEY_DIR }
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vSteamNormal;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSteamNormal = normalize(mat3(modelMatrix) * mat3(instanceMatrix) * normal);')
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform vec3 keyDir;\nvarying vec3 vSteamNormal;')
+      .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb *= 0.08 + 0.85 * max(dot(normalize(vSteamNormal), keyDir), 0.0) + 0.04 * (normalize(vSteamNormal).y * 0.5 + 0.5);')
+  }
+  mat.customProgramCacheKey = () => 'steam-lambert'
+  return mat
 }
 
 function rand(min: number, max: number) {
@@ -55,7 +74,7 @@ function initParticle(p: SteamParticle, center: THREE.Vector3, radius: number) {
 }
 
 export default memo(function CoffeeSteam({ active = true }: { active?: boolean }) {
-  const { scene } = useGLTF('/newcat.glb')
+  const { scene } = use(loadOffice())
   const meshRef = useRef<THREE.InstancedMesh>(null)
   const spawnAcc = useRef(0)
   const tmpMatrix = useRef(new THREE.Matrix4())
@@ -82,11 +101,7 @@ export default memo(function CoffeeSteam({ active = true }: { active?: boolean }
     const radius = Math.max(size.x, size.z) / 2 * 0.3
 
     const geo = new THREE.BoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE)
-    const mat = new THREE.MeshStandardMaterial({
-      color: '#dddddd',
-      roughness: 0.85,
-      metalness: 0.0,
-    })
+    const mat = createSteamMaterial()
 
     const parts: SteamParticle[] = Array.from({ length: POOL_SIZE }, () => ({
       age: 0,

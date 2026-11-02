@@ -1,8 +1,8 @@
 import { use, useLayoutEffect } from 'react'
 import { useThree } from '@react-three/fiber'
-import { useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
 import { drawExperiencePaper } from '../drawExperiencePaper'
+import { loadOffice } from '../scene/office'
 
 // Start drawing as soon as the Scene chunk loads, in parallel with the GLB.
 const paperCanvas = drawExperiencePaper(1448).catch(() => null)
@@ -26,7 +26,7 @@ function findPaperMesh(root: THREE.Object3D): THREE.Mesh | null {
  */
 export default function ExperiencePaper() {
   const canvas = use(paperCanvas)
-  const { scene } = useGLTF('/newcat.glb')
+  const { scene } = use(loadOffice())
   const gl = useThree((s) => s.gl)
 
   useLayoutEffect(() => {

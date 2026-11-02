@@ -4,6 +4,38 @@
   position: relative;
 }
 
+/* 3D canvas wrapper: stays transparent (the #1e1a15 backdrop shows) until the
+   scene's first frame is compiled and drawn, then fades in. */
+.stage {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 450ms ease-out;
+}
+.stage.visible {
+  opacity: 1;
+}
+
+/* Replaces the postprocessing Vignette (offset 0.3, darkness 0.7): same
+   smoothstep falloff, converted to an sRGB-space black overlay. Costs no
+   shader compile and no extra full-screen pass. */
+.vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse farthest-corner at 50% 50%,
+    rgba(0, 0, 0, 0) 34%,
+    rgba(0, 0, 0, 0.008) 40%,
+    rgba(0, 0, 0, 0.05) 50%,
+    rgba(0, 0, 0, 0.125) 60%,
+    rgba(0, 0, 0, 0.228) 70%,
+    rgba(0, 0, 0, 0.357) 80%,
+    rgba(0, 0, 0, 0.512) 90%,
+    rgba(0, 0, 0, 0.695) 100%
+  );
+}
+
 #overlay {
   position: absolute;
   top: 0;

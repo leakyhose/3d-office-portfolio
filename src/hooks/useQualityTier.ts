@@ -1,97 +1,76 @@
-import { createContext, useContext } from 'react'
-import { getGPUTier, type TierResult } from 'detect-gpu'
+import { useEffect, useRef } from 'react'
+import { useFrame, useThree } from '@react-three/fiber'
 
-export type QualityLevel = 'low' | 'medium' | 'high'
+// With lighting baked into lightmaps the per-frame cost is a few dozen cheap
+// draw calls, so the only quality knob left is the render resolution (DPR).
+//
+// Initial guess is a local heuristic (no network: detect-gpu used to fetch its
+// benchmark tables from unpkg on first visit). After the intro, AdaptiveDpr
+// watches real frame times and steps the DPR down if the device can't keep up.
+// It never steps down while the camera is mid-flight or during the intro, so
+// a resolution change can't land on top of an animation.
 
-export interface QualitySettings {
-  level: QualityLevel
-  dpr: [number, number]
-  shadowMapSize: number
-  enableN8AO: boolean
-  enableBloom: boolean
-  n8aoHalfRes: boolean
-  n8aoQuality: 'performance' | 'low' | 'medium' | 'high'
-  multisampling: number
+// Never go below 1: with the baked scene the GPU fill cost at DPR 1 is tiny, so
+// a slow frame there is CPU-bound and a blurrier image wouldn't help.
+const MIN_DPR = 1
+
+export function initialDpr(): number {
+  if (typeof window === 'undefined') return 1
+  const native = window.devicePixelRatio || 1
+  const nav = navigator as Navigator & { deviceMemory?: number }
+  const cores = nav.hardwareConcurrency || 4
+  const memory = nav.deviceMemory ?? 8
+  const weak = cores <= 4 || memory <= 4
+  const cap = weak ? 1 : 1.5
+  return Math.min(native, cap)
 }
 
-const PRESETS: Record<QualityLevel, QualitySettings> = {
-  low: {
-    level: 'low',
-    dpr: [1, 1],
-    shadowMapSize: 1024,
-    enableN8AO: false,
-    enableBloom: false,
-    n8aoHalfRes: true,
-    n8aoQuality: 'performance',
-    multisampling: 4,
-  },
-  medium: {
-    level: 'medium',
-    dpr: [1, 1.5],
-    shadowMapSize: 2048,
-    enableN8AO: false,
-    enableBloom: true,
-    n8aoHalfRes: true,
-    n8aoQuality: 'low',
-    multisampling: 8,
-  },
-  high: {
-    level: 'high',
-    dpr: [1, 1.5],
-    shadowMapSize: 2048,
-    enableN8AO: true,
-    enableBloom: true,
-    n8aoHalfRes: true,
-    n8aoQuality: 'medium',
-    multisampling: 8,
-  },
+interface AdaptiveDprProps {
+  enabled: boolean
+  isBusy: () => boolean
 }
 
-export const QualityContext = createContext<QualitySettings>(PRESETS.high)
+const WINDOW = 90 // frames per verdict
+const SLOW_FRACTION = 0.5 // more than half the frames slower than budget -> step down
 
-export function useQuality() {
-  return useContext(QualityContext)
-}
+export function AdaptiveDpr({ enabled, isBusy }: AdaptiveDprProps) {
+  const setDpr = useThree((s) => s.setDpr)
+  const dpr = useThree((s) => s.viewport.dpr)
+  const samples = useRef<number[]>([])
+  const budget = useRef(1000 / 60)
+  const cooldown = useRef(0)
 
-export function getPreset(level: QualityLevel): QualitySettings {
-  return PRESETS[level]
-}
-
-export function downgradeLevel(current: QualityLevel): QualityLevel {
-  if (current === 'high') return 'medium'
-  return 'low'
-}
-
-export function upgradeLevel(current: QualityLevel): QualityLevel {
-  if (current === 'low') return 'medium'
-  return 'high'
-}
-
-let _cachedTier: TierResult | null = null
-
-// detect-gpu fetches benchmark JSON from unpkg on every call; cache the
-// verdict so repeat visits skip the network round-trip entirely.
-const TIER_STORAGE_KEY = 'quality-tier-v1'
-
-export async function detectQualityLevel(): Promise<QualityLevel> {
-  try {
-    const stored = localStorage.getItem(TIER_STORAGE_KEY)
-    if (stored === 'low' || stored === 'medium' || stored === 'high') return stored
-  } catch {
-    // localStorage unavailable (private mode etc.) — fall through to detection
-  }
-  try {
-    _cachedTier = await getGPUTier()
-    const tier = _cachedTier.tier
-    const level: QualityLevel = tier <= 1 ? 'low' : tier === 2 ? 'medium' : 'high'
-    try {
-      localStorage.setItem(TIER_STORAGE_KEY, level)
-    } catch {
-      // best-effort cache only
+  // Estimate the display refresh interval once (fast frames while idle).
+  useEffect(() => {
+    let raf = 0
+    let last = 0
+    const deltas: number[] = []
+    const tick = (t: number) => {
+      if (last) deltas.push(t - last)
+      last = t
+      if (deltas.length < 30) raf = requestAnimationFrame(tick)
+      else {
+        deltas.sort((a, b) => a - b)
+        budget.current = Math.max(1000 / 144, Math.min(1000 / 30, deltas[Math.floor(deltas.length * 0.25)]))
+      }
     }
-    return level
-  } catch {
-    // If detection fails, default to medium as a safe middle ground
-    return 'medium'
-  }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [])
+
+  useFrame((_, delta) => {
+    if (!enabled || document.hidden) return
+    if (cooldown.current > 0) { cooldown.current--; return }
+    if (isBusy()) { samples.current.length = 0; return }
+    samples.current.push(delta * 1000)
+    if (samples.current.length < WINDOW) return
+    const slow = samples.current.filter((ms) => ms > budget.current * 1.35).length
+    samples.current.length = 0
+    if (slow / WINDOW > SLOW_FRACTION && dpr > MIN_DPR + 0.01) {
+      setDpr(Math.max(MIN_DPR, Math.round((dpr - 0.25) * 100) / 100))
+      cooldown.current = 60
+    }
+  })
+
+  return null
 }

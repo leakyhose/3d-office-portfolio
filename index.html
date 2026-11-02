@@ -5,6 +5,12 @@
     <link rel="icon" type="image/x-icon" href="/windows-95-desktop/My Computer.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Yiming Su</title>
+    <!-- First paint = the 3D scene's backdrop colour (desktop) so there's no
+         flash before the CSS bundle and the canvas arrive. -->
+    <style>
+      html, body { margin: 0; background: #1e1a15; }
+      @media (max-width: 768px) { html, body { background: #3d352e; } }
+    </style>
   </head>
   <body>
     <div id="root"></div>

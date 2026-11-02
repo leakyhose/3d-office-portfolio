@@ -1,23 +1,33 @@
-import { Canvas } from '@react-three/fiber'
 import { lazy, Suspense, useEffect, useRef, useState, useCallback } from 'react'
-import * as THREE from 'three'
 import '@fontsource/vt323'
 import '@hackernoon/pixel-icon-library/fonts/iconfont.css'
 import { VIEWS } from './config/views'
-import { navigateToView, triggerIntroZoom, enterFreeCam, setOnNavigationComplete, clearOnNavigationComplete, setOnIntroPreComplete, clearOnIntroPreComplete } from './components/camera/bridge'
-import LoadingScreen from './components/LoadingScreen'
+import { navigateToView, jumpToView, triggerIntroZoom, enterFreeCam, setOnNavigationComplete, clearOnNavigationComplete, setOnIntroPreComplete, clearOnIntroPreComplete } from './components/camera/bridge'
 import PANELS from './panels'
-import { QualityContext, detectQualityLevel, getPreset, downgradeLevel, type QualitySettings } from './hooks/useQualityTier'
-import useIsMobile from './hooks/useIsMobile'
+import useIsMobile, { isMobileViewport } from './hooks/useIsMobile'
 import './App.css'
 import type { ViewName, PanelId, ViewConfig, ScreenPhase } from './types'
 
-const Scene = lazy(() => import('./components/Scene'))
+// The 3D stage (three.js, R3F, the GLB) is a separate chunk. On desktop its
+// download starts as soon as this module runs, in parallel with React's first
+// render of the HTML overlay; mobile never loads it.
+const loadStage = () => import('./components/Stage')
+const stageChunk = isMobileViewport() ? null : loadStage()
+const Stage = lazy(() => stageChunk ?? loadStage())
 const CameraInfoPanel = lazy(() => import('./CameraInfo').then(m => ({ default: m.CameraInfoPanel })))
+
+// The canvas fades in over STAGE_FADE_MS once its first frame is ready
+// (keep in sync with .stage in App.css), then the screen boots.
+const STAGE_FADE_MS = 450
+const BOOT_MS = 400
+// If the 3D scene isn't ready by then (slow network / slow device), show the
+// home panel over the backdrop instead of keeping the visitor waiting; the
+// scene then fades in behind it at the current view, without the intro zoom.
+const PANEL_FALLBACK_MS = 2500
 
 function App() {
   const isMobile = useIsMobile()
-  const [sceneLoaded, setSceneLoaded] = useState(false)
+  const [stageVisible, setStageVisible] = useState(false)
   const [leftPanel, setLeftPanel] = useState<PanelId | null>(null)
   const [rightPanel, setRightPanel] = useState<PanelId | null>('home')
   const [leftVisible, setLeftVisible] = useState(false)
@@ -25,33 +35,9 @@ function App() {
   const [freeCam, setFreeCam] = useState(false)
   const [freeCamIdle, setFreeCamIdle] = useState(false)
   const [currentView, setCurrentView] = useState<ViewName>('home')
-  const [showLoading, setShowLoading] = useState(true)
   const [bootPhase, setBootPhase] = useState<'off' | 'booting' | 'done'>('off')
   const [landedView, setLandedView] = useState<ViewName>('home')
   const [hoveredProject, setHoveredProject] = useState<string | null>(null)
-  const [quality, setQuality] = useState<QualitySettings>(getPreset('high'))
-
-  // Detect GPU tier on mount and set quality accordingly
-  useEffect(() => {
-    if (isMobile) return
-    detectQualityLevel().then((level) => {
-      setQuality(getPreset(level))
-    })
-  }, [isMobile])
-
-  // On mobile, no scene to load — mark ready immediately
-  useEffect(() => {
-    if (isMobile) setSceneLoaded(true)
-  }, [isMobile])
-
-  const handlePerfDecline = useCallback(() => {
-    if (!introCompleteRef.current) return
-    setQuality((prev) => {
-      const next = downgradeLevel(prev.level)
-      if (next === prev.level) return prev
-      return getPreset(next)
-    })
-  }, [])
 
   const pendingTarget = useRef<ViewConfig | null>(null)
   const leftDone = useRef(true)
@@ -72,8 +58,9 @@ function App() {
   const isFreeCam = useRef(false)
   const introZoomRef = useRef(false)
   const introCompleteRef = useRef(false)
-
-  const onSceneLoaded = useCallback(() => setSceneLoaded(true), [])
+  const stageReadyRef = useRef(false)
+  const panelFallbackRef = useRef(false)
+  const introTimers = useRef<ReturnType<typeof setTimeout>[]>([])
 
   const swapPanels = useCallback((target: ViewConfig) => {
     if (swapTimer.current) clearTimeout(swapTimer.current)
@@ -133,7 +120,7 @@ function App() {
   }, [leftPanel, rightPanel, trySwap])
 
   const enterFreeCamMode = useCallback(() => {
-    if (navigatingRef.current || isFreeCam.current) return
+    if (navigatingRef.current || isFreeCam.current || !stageReadyRef.current) return
     savedStateRef.current = {
       leftPanel, rightPanel, leftVisible, rightVisible,
       viewName: currentViewRef.current,
@@ -191,22 +178,55 @@ function App() {
     }
   }, [freeCam])
 
-  const onLoadingComplete = useCallback(() => {
-    performance.mark('intro:loading-complete')
-    setShowLoading(false)
+  // Mobile: no 3D, panels straight away. Desktop: give the 3D scene a moment
+  // to arrive before falling back to showing the panels on their own.
+  useEffect(() => {
+    performance.mark('app:mounted')
     if (isMobile) {
+      // (if the window later grows to desktop size, the scene fades in behind
+      // the already visible panels instead of replaying the intro)
+      panelFallbackRef.current = true
       setRightVisible(true)
       setIntroComplete(true)
       return
     }
-    performance.mark('intro:boot-start')
-    setBootPhase('booting')
-    setTimeout(() => {
-      performance.mark('intro:zoom-trigger')
-      introZoomRef.current = true
-      triggerIntroZoom()
-    }, 400)
+    if (stageReadyRef.current) return
+    const t = setTimeout(() => {
+      if (stageReadyRef.current) return
+      performance.mark('app:panel-fallback')
+      panelFallbackRef.current = true
+      setRightVisible(true)
+    }, PANEL_FALLBACK_MS)
+    return () => clearTimeout(t)
   }, [isMobile])
+
+  useEffect(() => () => introTimers.current.forEach(clearTimeout), [])
+
+  // First 3D frame is compiled and drawn (still invisible): fade it in.
+  const onStageReady = useCallback(() => {
+    if (stageReadyRef.current) return
+    stageReadyRef.current = true
+    performance.mark('intro:loading-complete')
+    setStageVisible(true)
+    if (panelFallbackRef.current) {
+      // Panels are already up: place the camera at the current view and show
+      // the booted desktop on the monitor, no intro zoom.
+      jumpToView(currentViewRef.current)
+      setBootPhase('done')
+      setIntroComplete(true)
+      introCompleteRef.current = true
+      return
+    }
+    introTimers.current.push(setTimeout(() => {
+      performance.mark('intro:boot-start')
+      setBootPhase('booting')
+      introTimers.current.push(setTimeout(() => {
+        performance.mark('intro:zoom-trigger')
+        introZoomRef.current = true
+        triggerIntroZoom()
+      }, BOOT_MS))
+    }, STAGE_FADE_MS))
+  }, [])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -308,31 +328,22 @@ function App() {
     },
   } as const
 
-  // During the intro zoom, render at DPR=1 to cut fragment cost ~4x while
-  // keeping N8AO/Bloom/shadow-map settings identical to the final look — so
-  // nothing visually flips at intro end except the resolution uplift.
-  const effectiveQuality: QualitySettings = introComplete
-    ? quality
-    : { ...quality, dpr: [1, 1] }
-
   return (
     <div id="app">
       {!isMobile && (
-        <QualityContext.Provider value={effectiveQuality}>
-          <Canvas
-            camera={{ fov: 50 }}
-            shadows
-            dpr={effectiveQuality.dpr}
-            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
-            // The EffectComposer in Scene renders into its own multisampled
-            // buffers, so MSAA on the default framebuffer would be paid twice.
-            gl={{ antialias: false, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 0.7 }}
-          >
-            <Suspense fallback={null}>
-              <Scene onLoaded={onSceneLoaded} freeCam={freeCam} screenPhase={screenPhase} hoveredProject={hoveredProject} introComplete={introComplete} onPerfDecline={handlePerfDecline} />
-            </Suspense>
-          </Canvas>
-        </QualityContext.Provider>
+        <>
+          <Suspense fallback={null}>
+            <Stage
+              visible={stageVisible}
+              onReady={onStageReady}
+              freeCam={freeCam}
+              screenPhase={screenPhase}
+              hoveredProject={hoveredProject}
+              introComplete={introComplete}
+            />
+          </Suspense>
+          <div className="vignette" />
+        </>
       )}
 
       <div id={isMobile ? 'mobile-app' : 'overlay'}>
@@ -357,12 +368,6 @@ function App() {
           </div>
         )}
       </div>
-      {showLoading && (
-        <LoadingScreen
-          loaded={sceneLoaded}
-          onComplete={onLoadingComplete}
-        />
-      )}
     </div>
   )
 }

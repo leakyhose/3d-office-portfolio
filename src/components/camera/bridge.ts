@@ -44,6 +44,11 @@ export function positionAtScreen() {
   if (_computeCloseup) _computeCloseup()
 }
 
+/** Snap the camera to a view (next frame) without the fly-to animation. */
+export function jumpToView(viewName: ViewName) {
+  if (_navigateTo) _navigateTo(viewName, 1e-3)
+}
+
 export function triggerIntroZoom() {
   if (_navigateTo) _navigateTo('home', INTRO_ZOOM_DURATION, true)
 }

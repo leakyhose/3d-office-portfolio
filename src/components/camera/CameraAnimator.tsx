@@ -5,7 +5,7 @@ import { VIEWS, ANIM_DURATION } from '../../config/views'
 import { setNavigateTo, clearNavigateTo, setFreeCamHandler, clearFreeCamHandler, setComputeCloseup, clearComputeCloseup, fireNavigationComplete, fireIntroPreComplete, setCameraAnimatingQuery, clearCameraAnimatingQuery } from './bridge'
 import { useScreenMesh } from '../ScreenMeshContext'
 import type { ViewName } from '../../types'
-import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
+import type { CameraRig } from './rig'
 
 const REF_ASPECT = 16 / 9
 const ANCHOR_VIEWS = new Set<string>(['projects'])
@@ -83,7 +83,7 @@ function computeOyLimits(offset: THREE.Vector3, right: THREE.Vector3, minPolar: 
 }
 
 interface CameraAnimatorProps {
-  controlsRef: React.RefObject<OrbitControlsImpl | null>
+  controlsRef: React.RefObject<CameraRig | null>
   freeCam: boolean
 }
 

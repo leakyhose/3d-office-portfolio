@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, memo } from 'react'
+import { use, useEffect, useMemo, useRef, memo } from 'react'
 import { useThree } from '@react-three/fiber'
-import { useGLTF } from '@react-three/drei'
+import { loadOffice } from './scene/office'
 import * as THREE from 'three'
 
 const CAT_MATERIAL_HINT = 'WhiteFur'
@@ -13,7 +13,7 @@ const CAT_SOUNDS = [
 ]
 
 export default memo(function CatMeow() {
-  const { scene } = useGLTF('/newcat.glb')
+  const { scene } = use(loadOffice())
   const gl = useThree((s) => s.gl)
   const camera = useThree((s) => s.camera)
 
@@ -32,15 +32,15 @@ export default memo(function CatMeow() {
     })
     if (!found) {
       console.warn(`CatMeow: cat mesh not found. Meshes in scene:`, allMeshNames)
-    } else {
-      console.log(`CatMeow: matched cat mesh "${(found as THREE.Mesh).name}"`)
     }
     return found
   }, [scene])
 
   const audios = useMemo(() => CAT_SOUNDS.map((src) => {
-    const a = new Audio(src)
-    a.preload = 'auto'
+    // Fetched on first hover over the cat, not on the critical loading path.
+    const a = new Audio()
+    a.preload = 'none'
+    a.dataset.src = src
     return a
   }), [])
   const currentRef = useRef<HTMLAudioElement | null>(null)
@@ -67,6 +67,7 @@ export default memo(function CatMeow() {
         prev.currentTime = 0
       }
       const next = audios[Math.floor(Math.random() * audios.length)]
+      if (!next.src && next.dataset.src) next.src = next.dataset.src
       currentRef.current = next
       next.currentTime = 0
       next.play().catch(() => {})
@@ -81,6 +82,9 @@ export default memo(function CatMeow() {
       hoverRaf = 0
       if (hitsCat(lastX, lastY)) {
         canvas.style.cursor = 'pointer'
+        for (const a of audios) {
+          if (!a.src && a.dataset.src) { a.src = a.dataset.src; a.preload = 'auto' }
+        }
       } else if (canvas.style.cursor === 'pointer') {
         canvas.style.cursor = ''
       }
