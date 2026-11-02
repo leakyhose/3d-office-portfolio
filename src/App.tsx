@@ -277,7 +277,9 @@ function App() {
     const preHandler = () => {
       if (!introZoomRef.current) return
       performance.mark('intro:right-visible')
-      setBootPhase('done')
+      // Only the panel here: flipping bootPhase re-renders the whole 3D tree
+      // mid-flight, and the screen already shows the booted desktop. The
+      // navigation-complete handler below sets it once the camera has landed.
       setRightVisible(true)
     }
     setOnIntroPreComplete(preHandler)
