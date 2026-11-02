@@ -1,146 +1,246 @@
-import { useEffect, useRef, useState } from 'react'
-import type { TypedTextProps, TextSegment } from '../types'
+import { useContext, useEffect, useLayoutEffect, useRef } from 'react'
+import type { TypedTextProps } from '../types'
+import { UntypeTrackerContext } from './useUntypeTracker'
 
-function renderSegments(segments: TextSegment[], start: number, end: number): React.ReactNode[] {
-  const result: React.ReactNode[] = []
-  let pos = 0
-  for (let i = 0; i < segments.length; i++) {
-    const seg = segments[i]
-    const segEnd = pos + seg.text.length
-    if (segEnd <= start) { pos = segEnd; continue }
-    if (pos >= end) break
+/*
+ * Typewriter text with one consistent rule everywhere:
+ *
+ *   - The final text is always laid out in full; untyped characters are just
+ *     `visibility: hidden`. Nothing reflows or shifts while typing, whatever
+ *     the alignment (left, right, centered, wrapped).
+ *   - Characters appear left -> right (icon first) with a cursor riding the
+ *     leading edge, and erase right -> left back to the start.
+ *   - Progress is time based (elapsed / speed) on one shared rAF clock and is
+ *     written straight to the DOM, so many lines animate in lockstep without a
+ *     React render per character, independent of frame rate or timer clamping.
+ *   - Reversing mid-animation continues from the current character.
+ */
 
-    const sliceStart = Math.max(0, start - pos)
-    const sliceEnd = Math.min(seg.text.length, end - pos)
-    const slicedText = seg.text.slice(sliceStart, sliceEnd)
-
-    if (seg.className || seg.onClick) {
-      result.push(
-        <span key={i} className={seg.className} onClick={seg.onClick}>
-          {slicedText}
-        </span>
-      )
-    } else {
-      result.push(slicedText)
-    }
-    pos = segEnd
+// ── Shared animation clock ──
+type Tick = (now: number) => boolean
+const ticks = new Set<Tick>()
+let rafId = 0
+function frame() {
+  const now = performance.now()
+  for (const tick of ticks) {
+    if (!tick(now)) ticks.delete(tick)
   }
-  return result
+  rafId = ticks.size ? requestAnimationFrame(frame) : 0
+}
+function startTick(tick: Tick) {
+  ticks.add(tick)
+  if (!rafId) rafId = requestAnimationFrame(frame)
+}
+function stopTick(tick: Tick) {
+  ticks.delete(tick)
 }
 
-function TypedText({ text, segments, visible, speed, untypeSpeed = speed, onTyped, onUntyped, reserveSpace = false, untypeFrom = 'end', icon, iconPosition = 'before' }: TypedTextProps) {
-  const [length, setLength] = useState(0)
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const lengthRef = useRef(0)
-  const peakRef = useRef(0)
-  const prevVisibleRef = useRef(visible)
+const reducedMotion = typeof window !== 'undefined'
+  ? window.matchMedia('(prefers-reduced-motion: reduce)')
+  : null
 
-  const fullText = segments ? segments.map(s => s.text).join('') : text ?? ''
-  const iconOffset = icon ? 1 : 0
-  const totalLength = fullText.length + iconOffset
+// Scramble glyphs for the leading character. Letters only map to glyphs with
+// the same line-breaking class (and VT323 is monospace), so the scramble never
+// changes layout.
+const LETTER_GLYPHS = 'ABCDEFGHJKMNPQRSTUVWXYZabdeghkmnpqrsuvwxyz#@&*'
+const DIGIT_GLYPHS = '0123456789'
+function scramble(ch: string): string {
+  if (/[A-Za-z]/.test(ch)) return LETTER_GLYPHS[(Math.random() * LETTER_GLYPHS.length) | 0]
+  if (/[0-9]/.test(ch)) return DIGIT_GLYPHS[(Math.random() * DIGIT_GLYPHS.length) | 0]
+  return ch
+}
 
-  // Capture peak length when visible transitions to false
-  if (prevVisibleRef.current && !visible) {
-    peakRef.current = length
-  }
-  prevVisibleRef.current = visible
+interface SegNodes {
+  text: string
+  start: number
+  el: HTMLSpanElement
+  on: Text
+  off: HTMLSpanElement
+  offText: Text
+  sig: number
+}
 
-  useEffect(() => {
-    lengthRef.current = length
-  }, [length])
+type Phase = 'type' | 'erase' | 'idle'
 
-  useEffect(() => {
-    if (timeoutRef.current) clearTimeout(timeoutRef.current)
+function TypedText({ text, segments, visible, speed, untypeSpeed = speed, onTyped, onUntyped, icon, iconPosition = 'before' }: TypedTextProps) {
+  const tracker = useContext(UntypeTrackerContext)
 
-    const target = visible ? totalLength : 0
+  const segs = segments ?? [{ text: text ?? '' }]
+  const fullText = segs.map(s => s.text).join('')
+  const contentKey = segs.map(s => `${s.text}\u0000${s.className ?? ''}`).join('\u0001')
+  const iconAfter = iconPosition === 'after'
+  const textOffset = icon && !iconAfter ? 1 : 0
+  const total = fullText.length + (icon ? 1 : 0)
 
-    if (lengthRef.current === target) {
-      if (target === totalLength && onTyped) onTyped()
-      if (target === 0 && onUntyped) onUntyped()
-      return () => {}
+  const rootRef = useRef<HTMLSpanElement>(null)
+  const iconRef = useRef<HTMLElement>(null)
+  const segEls = useRef<(HTMLSpanElement | null)[]>([])
+  const nodes = useRef<SegNodes[]>([])
+  const edgeRef = useRef<HTMLSpanElement | null>(null)
+  const shownRef = useRef(0)
+  const emptyRef = useRef(true)
+  const idRef = useRef<object | null>(null)
+  const trackerRef = useRef(tracker)
+  const cbRef = useRef({ onTyped, onUntyped })
+  useLayoutEffect(() => {
+    cbRef.current = { onTyped, onUntyped }
+    trackerRef.current = tracker
+  })
+
+  // Paint `shown` cells (icon counts as one cell). The cell at the leading
+  // edge becomes the cursor: a scrambled glyph while typing, a bare cursor
+  // while erasing.
+  const paintRef = useRef<(shown: number, phase: Phase) => void>(() => {})
+  useLayoutEffect(() => {
+    const edgeIndexFor = (shown: number, phase: Phase) => {
+      if (phase === 'idle' || shown >= total) return -1
+      if (phase === 'erase' && shown === 0) return -1
+      const textIdx = shown - textOffset
+      return textIdx >= 0 && textIdx < fullText.length ? textIdx : -1
     }
-
-    const tick = () => {
-      const current = lengthRef.current
-      const dir = target > current ? 1 : -1
-      const next = current + dir
-
-      lengthRef.current = next
-      setLength(next)
-
-      if (next === target) {
-        timeoutRef.current = null
-        if (target === totalLength && onTyped) onTyped()
-        if (target === 0 && onUntyped) onUntyped()
-        return
+    paintRef.current = (shown, phase) => {
+      const root = rootRef.current
+      if (!root) return
+      const textShown = Math.min(Math.max(shown - textOffset, 0), fullText.length)
+      const edgeIdx = edgeIndexFor(shown, phase)
+      let edge = edgeRef.current
+      if (edgeIdx >= 0 && !edge) {
+        edge = edgeRef.current = document.createElement('span')
+        edge.appendChild(document.createTextNode(''))
       }
 
-      timeoutRef.current = setTimeout(tick, dir < 0 ? untypeSpeed : speed)
+      for (const seg of nodes.current) {
+        const local = Math.min(Math.max(textShown - seg.start, 0), seg.text.length)
+        const hasEdge = edgeIdx >= seg.start && edgeIdx < seg.start + seg.text.length
+        const sig = local * 2 + (hasEdge ? 1 : 0)
+        if (sig !== seg.sig) {
+          seg.sig = sig
+          seg.on.data = seg.text.slice(0, local)
+          if (hasEdge && edge) {
+            seg.el.insertBefore(edge, seg.off)
+            seg.offText.data = seg.text.slice(local + 1)
+          } else {
+            seg.offText.data = seg.text.slice(local)
+          }
+        }
+      }
+
+      if (edge) {
+        if (edgeIdx < 0) {
+          edge.remove()
+        } else {
+          const ch = fullText[edgeIdx]
+          edge.className = phase === 'erase' ? 'typed-edge typed-edge-erase' : 'typed-edge'
+          ;(edge.firstChild as Text).data = phase === 'type' ? scramble(ch) : ch
+        }
+      }
+
+      if (iconRef.current) {
+        const iconCell = iconAfter ? fullText.length : 0
+        iconRef.current.style.visibility = shown > iconCell ? '' : 'hidden'
+      }
+
+      const empty = shown === 0
+      root.classList.toggle('is-empty', empty)
+      root.classList.toggle('is-done', phase === 'idle' && shown === total)
+      shownRef.current = shown
+      if (empty !== emptyRef.current) {
+        emptyRef.current = empty
+        if (idRef.current) trackerRef.current?.report(idRef.current, empty)
+      }
     }
+  }, [fullText, total, textOffset, iconAfter])
 
-    timeoutRef.current = setTimeout(tick, speed)
+  // Build the per-segment DOM (typed text node + hidden remainder). React
+  // renders the segment spans empty and never touches their children.
+  useLayoutEffect(() => {
+    let start = 0
+    nodes.current = segs.map((seg, i) => {
+      const el = segEls.current[i]!
+      el.textContent = ''
+      const on = document.createTextNode('')
+      const off = document.createElement('span')
+      off.className = 'typed-off'
+      const offText = document.createTextNode(seg.text)
+      off.appendChild(offText)
+      el.append(on, off)
+      const n = { text: seg.text, start, el, on, off, offText, sig: -1 }
+      start += seg.text.length
+      return n
+    })
+    paintRef.current(Math.min(shownRef.current, total), 'idle')
+    // segs is derived from contentKey
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contentKey, total])
 
+  // Register with the panel's untype tracker.
+  useEffect(() => {
+    if (!tracker) return
+    const id = {}
+    idRef.current = id
+    tracker.register(id, emptyRef.current)
     return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+      idRef.current = null
+      tracker.unregister(id)
     }
-  }, [visible, fullText, speed, untypeSpeed, onTyped, onUntyped, totalLength])
+  }, [tracker])
 
-  const target = visible ? totalLength : 0
-  const animating = length !== target
-  const isUntyping = !visible && length > 0
-  const deleteFromStart = isUntyping && untypeFrom === 'start'
+  // Drive the animation toward the target. Progress restarts from the
+  // currently shown character count, so reversals never jump.
+  useEffect(() => {
+    const target = visible ? total : 0
+    // Hidden (erasing) text is never interactive.
+    rootRef.current?.classList.toggle('is-off', !visible)
+    const settle = () => {
+      paintRef.current(target, 'idle')
+      if (target === total) cbRef.current.onTyped?.()
+      if (target === 0) cbRef.current.onUntyped?.()
+    }
 
-  let displayedContent: React.ReactNode
-  let showIcon = false
-  const iconAfter = iconPosition === 'after'
+    const from = shownRef.current
+    const dir = target > from ? 1 : -1
+    const ms = dir > 0 ? speed : untypeSpeed
+    if (from === target || reducedMotion?.matches || !(ms > 0)) {
+      settle()
+      return
+    }
 
-  if (deleteFromStart) {
-    const peak = peakRef.current
-    const removed = peak - length
-    showIcon = Boolean(icon) && (iconAfter ? length > 0 : removed < 1)
-    const textStart = Math.max(0, removed - (iconAfter ? 0 : iconOffset))
-    const textPeak = peak - iconOffset
-    displayedContent = segments
-      ? renderSegments(segments, textStart, textPeak)
-      : fullText.slice(textStart, textPeak)
-  } else {
-    showIcon = Boolean(icon) && (iconAfter ? length >= totalLength : length >= 1)
-    const textChars = iconAfter ? Math.min(length, fullText.length) : Math.max(0, length - iconOffset)
-    displayedContent = segments
-      ? renderSegments(segments, 0, textChars)
-      : fullText.slice(0, textChars)
-  }
+    const t0 = performance.now()
+    const phase: Phase = dir > 0 ? 'type' : 'erase'
+    const tick: Tick = (now) => {
+      // One character per `ms`: typing reveals a char once its slot has
+      // elapsed, erasing removes one as each slot elapses.
+      const steps = Math.floor(Math.max(0, now - t0) / ms)
+      const shown = from + dir * steps
+      if (dir > 0 ? shown >= target : shown <= target) {
+        settle()
+        return false
+      }
+      paintRef.current(shown, phase)
+      return true
+    }
+    paintRef.current(from, phase)
+    startTick(tick)
+    return () => stopTick(tick)
+  }, [visible, total, speed, untypeSpeed, contentKey])
 
-  const iconElement = showIcon ? <i className={`hn hn-${icon}`} /> : null
-
-  const liveText = (
-    <>
-      {animating && deleteFromStart && <span className="cursor">_</span>}
-      {!iconAfter && iconElement}
-      {displayedContent}
-      {iconAfter && iconElement}
-      {animating && !deleteFromStart && <span className="cursor">_</span>}
-    </>
-  )
-
-  if (!reserveSpace) return liveText
-
-  const reserveContent = segments
-    ? segments.map((seg, i) =>
-        seg.className
-          ? <span key={i} className={seg.className}>{seg.text}</span>
-          : seg.text
-      )
-    : fullText
+  const iconEl = icon ? <i ref={iconRef} className={`hn hn-${icon}`} style={{ visibility: 'hidden' }} /> : null
 
   return (
-    <span className="typed-reserve-wrap">
-      <span className="typed-reserve-text">
-        {icon && !iconAfter && <i className={`hn hn-${icon}`} />}
-        {reserveContent}
-        {icon && iconAfter && <i className={`hn hn-${icon}`} />}
+    <span ref={rootRef} className="typed is-empty is-off">
+      {visible && <span className="typed-sr">{fullText}</span>}
+      <span className="typed-vis" aria-hidden="true">
+        {!iconAfter && iconEl}
+        {segs.map((seg, i) => (
+          <span
+            key={i}
+            ref={(el) => { segEls.current[i] = el }}
+            className={seg.className}
+            onClick={seg.onClick}
+          />
+        ))}
+        {iconAfter && iconEl}
       </span>
-      <span className="typed-live-text">{liveText}</span>
     </span>
   )
 }

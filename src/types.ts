@@ -42,12 +42,14 @@ export interface TypedTextProps {
   text?: string
   segments?: TextSegment[]
   visible: boolean
+  /** ms per character while typing */
   speed: number
+  /** ms per character while erasing (defaults to `speed`) */
   untypeSpeed?: number
+  /** fires each time the text finishes typing in */
   onTyped?: () => void
+  /** fires each time the text finishes erasing (panel completion is tracked automatically via UntypeTrackerContext) */
   onUntyped?: () => void
-  reserveSpace?: boolean
-  untypeFrom?: 'end' | 'start'
   icon?: string
   iconPosition?: 'before' | 'after'
 }
