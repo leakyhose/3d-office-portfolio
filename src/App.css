@@ -291,8 +291,8 @@
   color: #7be8a4;
 }
 
-.contact-pill .typed-live-text,
-.contact-pill .typed-reserve-text {
+.contact-pill > .typed {
+  display: block;
   font-size: clamp(18px, 2vw, 30px);
   text-decoration: underline;
   text-decoration-thickness: 2px;
@@ -407,20 +407,43 @@
   text-underline-offset: 0.15em;
 }
 
-.typed-reserve-wrap {
-  position: relative;
-  display: block;
-}
-
-.typed-reserve-text {
+/* ── Typed text (see TypedText.tsx) ──
+   The full text is always laid out; untyped characters are only hidden, so
+   lines never reflow while typing. The leading cell is the cursor. */
+.typed-off {
   visibility: hidden;
-  display: block;
 }
 
-.typed-live-text {
+.typed-edge {
+  color: #fff;
+  text-shadow: 0 0 0.3em rgba(255, 255, 255, 0.55);
+  box-shadow: inset 0 -0.09em #fff;
+}
+
+/* Erasing: the cell is already gone, only the cursor remains */
+.typed-edge-erase {
+  -webkit-text-fill-color: transparent;
+  text-shadow: none;
+}
+
+.typed-sr {
   position: absolute;
-  inset: 0;
-  display: block;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Nothing typed yet, or erasing -> not interactive */
+.typed:is(.is-empty, .is-off),
+.typed:is(.is-empty, .is-off) *,
+a:has(.typed:is(.is-empty, .is-off)),
+#name-title:has(.typed:is(.is-empty, .is-off)) {
+  pointer-events: none !important;
 }
 
 .about-nav a {
@@ -450,14 +473,6 @@
 
 .about-nav a:hover::before {
   opacity: 1;
-}
-
-.cursor {
-  animation: blink 0.5s step-end infinite;
-}
-
-@keyframes blink {
-  50% { opacity: 0; }
 }
 
 /* ── Pixel Icons ── */
@@ -704,6 +719,16 @@
   padding: clamp(10px, 1.5vw, 20px) 0;
 }
 
+.experience-logo,
+.experience-arrow-line {
+  transition: opacity 0.2s ease;
+}
+
+.experience-timeline.is-erasing .experience-logo,
+.experience-timeline.is-erasing .experience-arrow-line {
+  opacity: 0;
+}
+
 .experience-arrow-line {
   display: block;
   width: 2px;
@@ -917,8 +942,7 @@
     text-align: center;
   }
 
-  .contact-pill .typed-live-text,
-  .contact-pill .typed-reserve-text {
+  .contact-pill > .typed {
     font-size: clamp(15px, 3.8vw, 22px);
   }
 

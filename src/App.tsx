@@ -114,10 +114,13 @@ function App() {
     setLeftVisible(false)
     setRightVisible(false)
 
-    leftDone.current = !leftPanel
-    rightDone.current = !rightPanel
+    // A panel that is already hidden has either finished erasing (flag is
+    // already true) or will report when it does; resetting it would wait for
+    // a report that never comes (e.g. Esc pressed again after one side is done).
+    leftDone.current = !leftPanel || (!leftVisible && leftDone.current)
+    rightDone.current = !rightPanel || (!rightVisible && rightDone.current)
     trySwap()
-  }, [leftPanel, rightPanel, trySwap])
+  }, [leftPanel, rightPanel, leftVisible, rightVisible, trySwap])
 
   const enterFreeCamMode = useCallback(() => {
     if (navigatingRef.current || isFreeCam.current || !stageReadyRef.current) return
