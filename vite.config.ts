@@ -29,6 +29,8 @@ function preloadSceneAssets(): Plugin {
             as: 'fetch',
             crossorigin: '',
             media: '(min-width: 769px)',
+            // the overlay's JS/CSS/fonts go first on slow connections
+            fetchpriority: 'low',
           },
           injectTo: 'head' as const,
         }))]
