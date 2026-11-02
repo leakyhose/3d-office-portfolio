@@ -1,11 +1,15 @@
-import { use, useLayoutEffect } from 'react'
+import { useLayoutEffect } from 'react'
 import { useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { drawExperiencePaper } from '../drawExperiencePaper'
-import { loadOffice } from '../scene/office'
+import { getOfficeAssets } from '../scene/office'
 
 // Start drawing as soon as the Scene chunk loads, in parallel with the GLB.
-const paperCanvas = drawExperiencePaper(1448).catch(() => null)
+// Stage waits for paperCanvasReady before mounting the scene.
+let paperCanvas: HTMLCanvasElement | null = null
+export const paperCanvasReady: Promise<void> = drawExperiencePaper(1448)
+  .then((c) => { paperCanvas = c; performance.mark('stage:paper-drawn') })
+  .catch(() => {})
 
 function findPaperMesh(root: THREE.Object3D): THREE.Mesh | null {
   let found: THREE.Mesh | null = null
@@ -20,13 +24,13 @@ function findPaperMesh(root: THREE.Object3D): THREE.Mesh | null {
 
 /**
  * Replaces the paper's baked texture with the runtime-drawn sheet.
- * Must sit inside the same Suspense boundary as OfficeModel: it suspends
- * until the canvas is ready, and swaps the map in a layout effect so the
- * texture is in place (and uploaded) before OfficeModel's shader warmup.
+ * Mounted with OfficeModel once the GLB and the paper canvas are ready
+ * (Stage waits for both); swaps the map in a layout effect so the texture is
+ * in place (and uploaded) before the shader warmup.
  */
 export default function ExperiencePaper() {
-  const canvas = use(paperCanvas)
-  const { scene } = use(loadOffice())
+  const canvas = paperCanvas
+  const { scene } = getOfficeAssets()
   const gl = useThree((s) => s.gl)
 
   useLayoutEffect(() => {

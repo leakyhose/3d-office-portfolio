@@ -1,13 +1,17 @@
 import { Canvas } from '@react-three/fiber'
-import { Suspense } from 'react'
+import * as THREE from 'three'
+import { useEffect, useState } from 'react'
 import Scene from './Scene'
+import { paperCanvasReady } from './ExperiencePaper'
 import { loadOffice } from '../scene/office'
+import { prewarmPrograms } from '../scene/prewarm'
+import { INTRO_FOG } from './camera/IntroFog'
 import { initialDpr } from '../hooks/useQualityTier'
 import type { ScreenPhase } from '../types'
 
 // Start fetching the GLB + lightmaps the moment this chunk is evaluated
 // (index.html already preloads them, so this usually just picks them up).
-loadOffice()
+const assetsReady = Promise.all([loadOffice(), paperCanvasReady])
 performance.mark('stage:chunk-loaded')
 
 interface StageProps {
@@ -20,6 +24,15 @@ interface StageProps {
 }
 
 export default function Stage({ visible, onReady, ...sceneProps }: StageProps) {
+  // The canvas (and its WebGL context) is created right away, in parallel
+  // with the downloads; the scene mounts once everything it needs is loaded.
+  const [assetsLoaded, setAssetsLoaded] = useState(false)
+  useEffect(() => {
+    let alive = true
+    assetsReady.then(() => { if (alive) setAssetsLoaded(true) })
+    return () => { alive = false }
+  }, [])
+
   return (
     <div className={`stage${visible ? ' visible' : ''}`}>
       <Canvas
@@ -29,10 +42,18 @@ export default function Stage({ visible, onReady, ...sceneProps }: StageProps) {
         // so render flat (NoToneMapping) to keep the same colours.
         flat
         gl={{ antialias: true, powerPreference: 'high-performance' }}
+        // Shader error checking forces synchronous getShaderInfoLog/
+        // getProgramInfoLog round-trips to the GPU process for every program.
+        onCreated={({ gl, camera }) => {
+          gl.debug.checkShaderErrors = import.meta.env.DEV
+          // Synchronous GL queries block until the GPU process is idle, i.e.
+          // behind every shader being compiled. Ask (three caches it) before
+          // the prewarm starts so later callers (ExperiencePaper) don't stall.
+          gl.capabilities.getMaxAnisotropy()
+          prewarmPrograms(gl, camera, new THREE.Fog(...INTRO_FOG))
+        }}
       >
-        <Suspense fallback={null}>
-          <Scene onReady={onReady} {...sceneProps} />
-        </Suspense>
+        {assetsLoaded && <Scene onReady={onReady} {...sceneProps} />}
       </Canvas>
     </div>
   )

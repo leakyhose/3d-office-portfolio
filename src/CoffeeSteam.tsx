@@ -1,6 +1,6 @@
-import { use, useRef, useMemo, useEffect, memo } from 'react'
+import { useRef, useMemo, useEffect, memo } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { loadOffice } from './scene/office'
+import { getOfficeAssets } from './scene/office'
 import * as THREE from 'three'
 
 const POOL_SIZE = 40
@@ -29,7 +29,7 @@ interface SteamParticle {
 // cubes use an unlit material with a cheap fixed-direction lambert term
 // (same key-light direction as the bake) to keep their faceted look.
 const KEY_DIR = new THREE.Vector3(14.2, 13.3, 12.3).normalize()
-function createSteamMaterial() {
+export function createSteamMaterial() {
   const mat = new THREE.MeshBasicMaterial({ color: '#dddddd' })
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.keyDir = { value: KEY_DIR }
@@ -74,7 +74,7 @@ function initParticle(p: SteamParticle, center: THREE.Vector3, radius: number) {
 }
 
 export default memo(function CoffeeSteam({ active = true }: { active?: boolean }) {
-  const { scene } = use(loadOffice())
+  const { scene } = getOfficeAssets()
   const meshRef = useRef<THREE.InstancedMesh>(null)
   const spawnAcc = useRef(0)
   const tmpMatrix = useRef(new THREE.Matrix4())

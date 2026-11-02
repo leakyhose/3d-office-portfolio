@@ -47,6 +47,7 @@ function loadTexture(url: string): Promise<THREE.Texture> {
 }
 
 let promise: Promise<OfficeAssets> | null = null
+let loaded: OfficeAssets | null = null
 
 /** Starts (once) and returns the download + parse of everything the 3D scene needs. */
 export function loadOffice(): Promise<OfficeAssets> {
@@ -59,7 +60,20 @@ export function loadOffice(): Promise<OfficeAssets> {
     loadTexture(floorLightmapUrl),
   ]).then(([gltf, lightmap, floorLightmap]) => {
     floorLightmap.wrapS = floorLightmap.wrapT = THREE.ClampToEdgeWrapping
-    return { scene: gltf.scene, lightmap, floorLightmap }
+    performance.mark('stage:assets-loaded')
+    loaded = { scene: gltf.scene, lightmap, floorLightmap }
+    return loaded
   })
   return promise
+}
+
+/**
+ * The loaded assets, for components that only mount after loadOffice()
+ * resolved (Stage waits for it). Deliberately not React `use()`: suspending
+ * here would add React's Suspense reveal throttling (~300 ms per boundary)
+ * to the time-to-first-frame.
+ */
+export function getOfficeAssets(): OfficeAssets {
+  if (!loaded) throw new Error('getOfficeAssets() called before loadOffice() resolved')
+  return loaded
 }

@@ -1,6 +1,6 @@
-import { use, useEffect, useMemo, useRef, memo } from 'react'
+import { useEffect, useMemo, useRef, memo } from 'react'
 import { useThree } from '@react-three/fiber'
-import { loadOffice } from './scene/office'
+import { getOfficeAssets } from './scene/office'
 import * as THREE from 'three'
 
 const CAT_MATERIAL_HINT = 'WhiteFur'
@@ -13,7 +13,7 @@ const CAT_SOUNDS = [
 ]
 
 export default memo(function CatMeow() {
-  const { scene } = use(loadOffice())
+  const { scene } = getOfficeAssets()
   const gl = useThree((s) => s.gl)
   const camera = useThree((s) => s.camera)
 

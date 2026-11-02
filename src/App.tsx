@@ -11,9 +11,11 @@ import type { ViewName, PanelId, ViewConfig, ScreenPhase } from './types'
 // The 3D stage (three.js, R3F, the GLB) is a separate chunk. On desktop its
 // download starts as soon as this module runs, in parallel with React's first
 // render of the HTML overlay; mobile never loads it.
-const loadStage = () => import('./components/Stage')
-const stageChunk = isMobileViewport() ? null : loadStage()
-const Stage = lazy(() => stageChunk ?? loadStage())
+// Not React.lazy: a Suspense boundary adds ~300 ms reveal throttling.
+type StageComponent = typeof import('./components/Stage').default
+let stageChunk: Promise<StageComponent> | null = null
+const loadStage = () => (stageChunk ??= import('./components/Stage').then((m) => m.default))
+if (!isMobileViewport()) loadStage()
 const CameraInfoPanel = lazy(() => import('./CameraInfo').then(m => ({ default: m.CameraInfoPanel })))
 
 // The canvas fades in over STAGE_FADE_MS once its first frame is ready
@@ -28,6 +30,13 @@ const PANEL_FALLBACK_MS = 2500
 function App() {
   const isMobile = useIsMobile()
   const [stageVisible, setStageVisible] = useState(false)
+  const [Stage, setStage] = useState<StageComponent | null>(null)
+  useEffect(() => {
+    if (isMobile || Stage) return
+    let alive = true
+    loadStage().then((C) => { if (alive) setStage(() => C) })
+    return () => { alive = false }
+  }, [isMobile, Stage])
   const [leftPanel, setLeftPanel] = useState<PanelId | null>(null)
   const [rightPanel, setRightPanel] = useState<PanelId | null>('home')
   const [leftVisible, setLeftVisible] = useState(false)
@@ -335,7 +344,7 @@ function App() {
     <div id="app">
       {!isMobile && (
         <>
-          <Suspense fallback={null}>
+          {Stage && (
             <Stage
               visible={stageVisible}
               onReady={onStageReady}
@@ -344,7 +353,7 @@ function App() {
               hoveredProject={hoveredProject}
               introComplete={introComplete}
             />
-          </Suspense>
+          )}
           <div className="vignette" />
         </>
       )}

@@ -1,4 +1,4 @@
-import { use, useEffect, useLayoutEffect, useMemo, useRef, Suspense, memo } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, memo } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import CameraSetup from './camera/CameraSetup'
@@ -13,8 +13,9 @@ import ComputerScreenContent from '../ComputerScreenContent'
 import ExperiencePaper from './ExperiencePaper'
 import { ScreenMeshProvider, useScreenMesh } from './ScreenMeshContext'
 import { AdaptiveDpr } from '../hooks/useQualityTier'
-import { loadOffice, FLOOR_BAKE_SIZE, LIGHTMAP_INTENSITY } from '../scene/office'
+import { getOfficeAssets, FLOOR_BAKE_SIZE, LIGHTMAP_INTENSITY } from '../scene/office'
 import { applyBakedLighting } from '../scene/bakedMaterials'
+import { releasePrewarm } from '../scene/prewarm'
 import { drawBlankScreen } from '../drawScreenTexture'
 import { warmVideos } from '../videoManager'
 import type { ScreenPhase } from '../types'
@@ -23,7 +24,7 @@ const BACKGROUND = '#1e1a15'
 const prepared = new WeakSet<THREE.Object3D>()
 
 const OfficeModel = memo(function OfficeModel() {
-  const { scene, lightmap } = use(loadOffice())
+  const { scene, lightmap } = getOfficeAssets()
   const { setScreenSetup, setFullScene } = useScreenMesh()
 
   // Swap in the baked-lighting materials before the scene is first rendered.
@@ -79,7 +80,7 @@ const OfficeModel = memo(function OfficeModel() {
 })
 
 function Floor() {
-  const { floorLightmap } = use(loadOffice())
+  const { floorLightmap } = getOfficeAssets()
   const geometry = useMemo(() => {
     const geo = new THREE.PlaneGeometry(600, 600)
     geo.rotateX(-Math.PI / 2)
@@ -131,6 +132,8 @@ function Warmup({ onReady }: { onReady: () => void }) {
       gl.render(scene, camera)
       for (const o of culled) o.frustumCulled = true
       performance.mark('stage:first-frame')
+      releasePrewarm()
+      if (import.meta.env.DEV) console.debug(`[stage] ${gl.info.programs?.length} shader programs`)
       onReady()
     }
     run()
@@ -181,14 +184,14 @@ function Scene({ onReady, freeCam, screenPhase, hoveredProject, introComplete }:
     <ScreenMeshProvider>
       <color attach="background" args={[BACKGROUND]} />
       <IntroFog />
-      <Suspense fallback={null}>
-        <OfficeModel />
-        <ExperiencePaper />
-        <Floor />
-        <CoffeeSteam active={introComplete} />
-        <CatMeow />
-        <Warmup onReady={handleReady} />
-      </Suspense>
+      {/* Stage only mounts Scene once the GLB, lightmaps and paper canvas
+          are loaded, so nothing here suspends. */}
+      <OfficeModel />
+      <ExperiencePaper />
+      <Floor />
+      <CoffeeSteam active={introComplete} />
+      <CatMeow />
+      <Warmup onReady={handleReady} />
       <ComputerScreenContent screenPhase={screenPhase} hoveredProject={hoveredProject} />
       <CameraSetup controlsRef={controlsRef} />
       <CameraAnimator controlsRef={controlsRef} freeCam={freeCam} />
