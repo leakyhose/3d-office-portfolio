@@ -11,6 +11,7 @@ import CoffeeSteam from '../CoffeeSteam'
 import CatMeow from '../CatMeow'
 import ComputerScreenContent from '../ComputerScreenContent'
 import CRTLight from './CRTLight'
+import ExperiencePaper from './ExperiencePaper'
 import { ScreenMeshProvider, useScreenMesh } from './ScreenMeshContext'
 import { useQuality } from '../hooks/useQualityTier'
 import { VIEWS, START_POSITION } from '../config/views'
@@ -290,6 +291,7 @@ function Scene({ onLoaded, freeCam, screenPhase, hoveredProject, introComplete, 
       />
       <directionalLight color="#ffe8cc" intensity={0.03} position={[30, 20, -10]} />
       <Suspense fallback={null}>
+        <ExperiencePaper />
         <OfficeModel onLoaded={onLoaded} />
         {/* Self-hosted copy of drei's "apartment" preset (lebombo_1k.hdr) —
             the preset fetches from raw.githack.com at load time, which sat
