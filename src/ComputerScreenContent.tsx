@@ -44,6 +44,10 @@ export default function ComputerScreenContent({ screenPhase = 'clouds', hoveredP
   const switchAnimRef = useRef<number | null>(null)
   const videoRafRef = useRef<number | null>(null)
   const activeVideoRef = useRef<HTMLVideoElement | null>(null)
+  // Set when the boot animation's last frame was the finished clouds screen,
+  // so the booting -> clouds phase change (which lands mid intro zoom, right
+  // as the home panel types in) doesn't redraw + re-upload the same image.
+  const bootEndedOnCloudsRef = useRef(false)
 
   useEffect(() => {
     if (screenPhase !== 'booting' || !screenCanvas || !screenTexture || !screenTexSize) return
@@ -180,6 +184,7 @@ export default function ComputerScreenContent({ screenPhase = 'clouds', hoveredP
       if (t < 1) {
         rafId = requestAnimationFrame(animate)
       } else {
+        bootEndedOnCloudsRef.current = cloudsReady
         performance.mark('intro:boot-anim-done')
       }
     }
@@ -211,6 +216,8 @@ export default function ComputerScreenContent({ screenPhase = 'clouds', hoveredP
     const isSwitch = (prev === 'clouds' || prev === 'projects') &&
                      (screenPhase === 'clouds' || screenPhase === 'projects') &&
                      prev !== screenPhase
+
+    if (prev === 'booting' && screenPhase === 'clouds' && bootEndedOnCloudsRef.current) return
 
     if (!isSwitch) {
       const onLogoReady = () => {
