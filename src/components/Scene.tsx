@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, memo } from 'react'
-import { useFrame, useThree } from '@react-three/fiber'
+import { useFrame, useSceneAttach, useSceneObject, useThree } from '../three/fiber'
 import * as THREE from 'three'
 import CameraSetup from './camera/CameraSetup'
 import CameraAnimator from './camera/CameraAnimator'
@@ -79,12 +79,18 @@ const OfficeModel = memo(function OfficeModel() {
     }
   }, [scene, setScreenSetup, setFullScene])
 
-  return <primitive object={scene} />
+  useSceneObject(scene)
+  return null
 })
+
+function Background() {
+  useSceneAttach('background', useMemo(() => new THREE.Color(BACKGROUND), []))
+  return null
+}
 
 function Floor() {
   const { floorLightmap } = getOfficeAssets()
-  const geometry = useMemo(() => {
+  const mesh = useMemo(() => {
     const geo = new THREE.PlaneGeometry(600, 600)
     geo.rotateX(-Math.PI / 2)
     // Lightmap UVs: the baked FLOOR_BAKE_SIZE patch maps to [0,1]; the
@@ -96,14 +102,17 @@ function Floor() {
       uv1[i * 2 + 1] = (pos.getZ(i) - FLOOR_BAKE_CENTER[1]) / FLOOR_BAKE_SIZE + 0.5
     }
     geo.setAttribute('uv1', new THREE.BufferAttribute(uv1, 2))
-    return geo
-  }, [])
-  useEffect(() => () => geometry.dispose(), [geometry])
-  return (
-    <mesh geometry={geometry} position={[0, -0.01, 0]}>
-      <meshBasicMaterial color={BACKGROUND} lightMap={floorLightmap} lightMapIntensity={LIGHTMAP_INTENSITY} />
-    </mesh>
-  )
+    const material = new THREE.MeshBasicMaterial({ color: BACKGROUND, lightMap: floorLightmap, lightMapIntensity: LIGHTMAP_INTENSITY })
+    const m = new THREE.Mesh(geo, material)
+    m.position.set(0, -0.01, 0)
+    return m
+  }, [floorLightmap])
+  useEffect(() => () => {
+    mesh.geometry.dispose()
+    mesh.material.dispose()
+  }, [mesh])
+  useSceneObject(mesh)
+  return null
 }
 
 const FOV_SCALE = 1 / (2 * Math.tan(THREE.MathUtils.degToRad(50) / 2))
@@ -112,13 +121,19 @@ const FOV_SCALE = 1 / (2 * Math.tan(THREE.MathUtils.degToRad(50) / 2))
 function Ambience() {
   const geometry = useMemo(() => createAmbienceGeometry(), [])
   const material = useMemo(() => createAmbienceMaterial(), [])
+  const points = useMemo(() => {
+    const p = new THREE.Points(geometry, material)
+    p.frustumCulled = false
+    return p
+  }, [geometry, material])
   useEffect(() => () => { geometry.dispose(); material.dispose() }, [geometry, material])
+  useSceneObject(points)
   useFrame(({ clock, size, viewport }) => {
     sceneTime.value = clock.elapsedTime
     // world size -> pixels: drawing-buffer height / (2 tan(fov / 2))
     setAmbienceScale(material, size.height * viewport.dpr * FOV_SCALE)
   })
-  return <points geometry={geometry} material={material} frustumCulled={false} />
+  return null
 }
 
 /**
@@ -210,7 +225,7 @@ function Scene({ onReady, freeCam, screenPhase, hoveredProject, introComplete }:
 
   return (
     <ScreenMeshProvider>
-      <color attach="background" args={[BACKGROUND]} />
+      <Background />
       <IntroFog />
       {/* Stage only mounts Scene once the GLB, lightmaps and paper canvas
           are loaded, so nothing here suspends. */}

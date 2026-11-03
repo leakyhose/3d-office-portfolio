@@ -1,5 +1,5 @@
 import { useLayoutEffect } from 'react'
-import { useThree } from '@react-three/fiber'
+import { useThree } from '../three/fiber'
 import * as THREE from 'three'
 import { getPaperCanvas } from '../scene/paper'
 import { getOfficeAssets } from '../scene/office'

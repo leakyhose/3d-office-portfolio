@@ -1,5 +1,5 @@
 import { useRef, useMemo, useEffect, memo } from 'react'
-import { useFrame } from '@react-three/fiber'
+import { useFrame, useSceneObject } from './three/fiber'
 import { getOfficeAssets } from './scene/office'
 import { createSteamMaterial } from './scene/steam'
 import * as THREE from 'three'
@@ -84,7 +84,6 @@ function ageParticle(p: SteamParticle, delta: number): boolean {
 
 export default memo(function CoffeeSteam({ active = true }: { active?: boolean }) {
   const { scene } = getOfficeAssets()
-  const meshRef = useRef<THREE.InstancedMesh>(null)
   const spawnAcc = useRef(0)
   const tmpMatrix = useRef(new THREE.Matrix4())
   const tmpQuat = useRef(new THREE.Quaternion())
@@ -124,13 +123,21 @@ export default memo(function CoffeeSteam({ active = true }: { active?: boolean }
     }
   }, [geometry, material])
 
+  const mesh = useMemo(() => {
+    if (!geometry || !material) return null
+    const m = new THREE.InstancedMesh(geometry, material, POOL_SIZE)
+    m.frustumCulled = false
+    return m
+  }, [geometry, material])
+  useEffect(() => () => { mesh?.dispose() }, [mesh])
+  useSceneObject(mesh)
+
   const clearedRef = useRef(false)
   const anyAliveRef = useRef(false)
 
   useFrame((_, rawDelta) => {
-    if (!meshRef.current || !spawnCenter) return
+    if (!mesh || !spawnCenter) return
     const delta = Math.min(rawDelta, 0.1)
-    const mesh = meshRef.current
     const particles = (pool.current ??= createPool())
 
     // Zero all matrices once — instances start as identity, which would
@@ -189,13 +196,5 @@ export default memo(function CoffeeSteam({ active = true }: { active?: boolean }
     mesh.instanceMatrix.needsUpdate = true
   })
 
-  if (!spawnCenter) return null
-
-  return (
-    <instancedMesh
-      ref={meshRef}
-      args={[geometry!, material!, POOL_SIZE]}
-      frustumCulled={false}
-    />
-  )
+  return null
 })
