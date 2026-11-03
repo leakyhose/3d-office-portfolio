@@ -13,10 +13,7 @@
   "dependencies": {
     "@fontsource/vt323": "^5.2.7",
     "@hackernoon/pixel-icon-library": "^1.0.6",
-    "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.5.0",
-    "@react-three/postprocessing": "^3.0.4",
-    "detect-gpu": "^5.0.70",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "three": "^0.183.2"
