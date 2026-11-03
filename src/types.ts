@@ -31,6 +31,12 @@ export interface ViewConfig {
    * screens then dolly back at the same height (see framing.ts).
    */
   wideShift?: number
+  /**
+   * Wide layout, screens wider than 16:10: dolly in so the shot keeps the
+   * width it has at 16:10 instead of showing more at the sides (where the
+   * panel would reach past the even part of the wall).
+   */
+  keepWidth?: boolean
   left: PanelId | null
   right: PanelId | null
 }

@@ -19,6 +19,8 @@ import type { Subject } from '../../types'
  *    A view with a vertical lens shift (wideShift) keeps its camera height
  *    instead, so its bottom edge still clears whatever it was framed to
  *    clear, and the extra height goes to the top of the frame.
+ *  - Wide layout, wider than REF_ASPECT, keepWidth views: the same dolly,
+ *    forwards, so the shot keeps its REF_ASPECT width.
  *  - Stacked layout (portrait): the panel sits under the scene, so the
  *    subject's bounding box is fitted into the top region of the screen,
  *    centred horizontally.
@@ -50,6 +52,8 @@ export interface PoseSpec {
   stackedLook?: readonly [number, number, number]
   /** Wide layout: vertical lens shift (NDC), see ViewConfig.wideShift. */
   wideShift?: number
+  /** Wide layout: keep the 16:10 width on wider screens too (ViewConfig.keepWidth). */
+  keepWidth?: boolean
 }
 
 export interface FrameContext {
@@ -113,14 +117,14 @@ export function resolvePose(spec: PoseSpec, ctx: FrameContext): Pose {
 
   basis(spec.rotation)
   const shift = spec.wideShift ?? 0
-  if (aspect >= REF_ASPECT || !spec.subject) return poseFrom(authored, WIDE_FOV, shift)
+  if ((aspect >= REF_ASPECT && !spec.keepWidth) || !spec.subject) return poseFrom(authored, WIDE_FOV, shift)
 
   // Subject centre in camera space (right, up, depth).
   spec.subject.getCenter(_c)
   _d.subVectors(_c, authored)
   const ys = _d.dot(_v)
   const zs = _d.dot(_f)
-  if (zs <= 0.01) return poseFrom(authored, WIDE_FOV)
+  if (zs <= 0.01) return poseFrom(authored, WIDE_FOV, shift)
   // NDC x = x / (z tan A), NDC y = y / (z tan). Pushing the subject to depth
   // zs * k with k = REF / A keeps its NDC x (and its width on screen) as at
   // REF_ASPECT with the same x; scaling y by k keeps its NDC y too.
