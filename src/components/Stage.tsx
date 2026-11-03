@@ -35,7 +35,11 @@ export default memo(function Stage({ visible, onReady, ...sceneProps }: StagePro
   if (failure) throw failure
   useEffect(() => {
     let alive = true
-    assetsReady.then(() => { if (alive) setAssetsLoaded(true) })
+    // A failed download switches to the flat layout instead of leaving an empty backdrop.
+    assetsReady.then(
+      () => { if (alive) setAssetsLoaded(true) },
+      (e) => { if (alive) setFailure(e instanceof Error ? e : new Error(String(e))) },
+    )
     return () => { alive = false }
   }, [])
 

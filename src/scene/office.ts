@@ -31,12 +31,18 @@ export interface OfficeAssets {
 
 export const OFFICE_ASSET_URLS = [officeUrl, lightmapUrl, roomLightmapUrl, floorLightmapUrl]
 
-function loadTexture(url: string): Promise<THREE.Texture> {
-  // ImageBitmapLoader decodes off the main thread. glTF-style orientation
+async function loadTexture(url: string): Promise<THREE.Texture> {
+  // Not THREE.ImageBitmapLoader: it reads the body with res.blob(), and when
+  // that fetch picks up the index.html preload while it's still downloading
+  // (i.e. on any slow connection), Chrome fails the read with "Failed to
+  // fetch" as the preload completes, so the 3D scene never loaded on slow
+  // 4G. Reading it as an ArrayBuffer doesn't hit that.
+  const res = await fetch(url)
+  if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`)
+  const blob = new Blob([await res.arrayBuffer()], { type: res.headers.get('content-type') ?? '' })
+  // createImageBitmap decodes off the main thread. glTF-style orientation
   // (no flip) matches how the lightmaps were written.
-  const loader = new THREE.ImageBitmapLoader()
-  loader.setOptions({ imageOrientation: 'none', premultiplyAlpha: 'none', colorSpaceConversion: 'none' })
-  return loader.loadAsync(url).then((bitmap) => {
+  return createImageBitmap(blob, { imageOrientation: 'none', premultiplyAlpha: 'none', colorSpaceConversion: 'none' }).then((bitmap) => {
     const tex = new THREE.Texture(bitmap as unknown as HTMLImageElement)
     tex.flipY = false
     tex.colorSpace = THREE.SRGBColorSpace
