@@ -203,7 +203,7 @@ function Scene({ onReady, freeCam, screenPhase, hoveredProject, introComplete }:
     if (!introComplete) return
     const ric = window.requestIdleCallback ?? ((cb: () => void) => window.setTimeout(cb, 500))
     const cic = window.cancelIdleCallback ?? window.clearTimeout
-    const id = ric(() => warmVideos())
+    const id = ric(() => warmVideos(isCameraAnimating))
     return () => cic(id)
   }, [introComplete])
 

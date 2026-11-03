@@ -29,13 +29,27 @@ function createVideos() {
 
 let warmed = false
 
-export function warmVideos() {
+/**
+ * Start buffering the demo videos, one per idle period (each load() sets up a
+ * media player: ~15 ms of main-thread work), and never while `busy()`.
+ */
+export function warmVideos(busy: () => boolean = () => false) {
   if (warmed) return
   warmed = true
-  for (const entry of videoMap.values()) {
+  const ric = window.requestIdleCallback ?? ((cb: () => void) => window.setTimeout(cb, 300))
+  const queue = [...videoMap.values()]
+  const next = () => {
+    if (busy()) {
+      ric(next, { timeout: 2000 })
+      return
+    }
+    const entry = queue.shift()
+    if (!entry) return
     entry.video.preload = 'auto'
     entry.video.load()
+    ric(next, { timeout: 2000 })
   }
+  ric(next, { timeout: 2000 })
 }
 
 export function getVideo(projectId: string): HTMLVideoElement | null {
