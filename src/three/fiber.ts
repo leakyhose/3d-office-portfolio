@@ -63,7 +63,8 @@ export function createRoot(gl: WebGLRenderer, scene: Scene, camera: PerspectiveC
   const set = (partial: Partial<RootState>) => {
     const prev = state
     state = { ...state, ...partial }
-    if (state.size !== prev.size || state.viewport.dpr !== prev.viewport.dpr) resize(state)
+    // Only on a real change: setting the canvas size, even to the same value, clears it.
+    if (state.size.width !== prev.size.width || state.size.height !== prev.size.height || state.viewport.dpr !== prev.viewport.dpr) resize(state)
     listeners.forEach((l) => l())
   }
 
