@@ -24,7 +24,7 @@ function preloadSceneAssets(): Plugin {
         const files = Object.keys(ctx.bundle).filter((f) => patterns.some((re) => re.test(f)))
         const chunks = Object.keys(ctx.bundle).filter((f) => /(^|\/)(Stage|vendor-3d)-[^/]*\.js$/.test(f))
         const links = [
-          ...chunks.map((f) => ({ rel: 'modulepreload', href: `/${f}`, crossorigin: '' })),
+          ...chunks.map((f) => ({ rel: 'modulepreload', href: `/${f}`, crossorigin: '', fetchpriority: 'low' })),
           // the overlay's JS/CSS/fonts go first on slow connections
           ...files.map((f) => ({ rel: 'preload', href: `/${f}`, as: 'fetch', crossorigin: '', fetchpriority: 'low' })),
           // logos on the experience sheet: the sheet is drawn before the
