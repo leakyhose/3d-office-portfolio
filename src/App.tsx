@@ -389,7 +389,7 @@ function App() {
   ].filter(Boolean).join(' ')
 
   return (
-    <div id="app" className={appClass} style={{ '--scene-frac': sceneFraction } as React.CSSProperties}>
+    <div id="app" className={appClass}>
       {has3D && (
         <>
           <StageBoundary onError={failStage}>
@@ -416,7 +416,9 @@ function App() {
             </div>
           </Suspense>
         )}
-        <div className="panel-sheet">
+        {/* --scene-frac is set here, not on #app, and isn't inherited (App.css):
+            a view change then restyles the sheet alone, not every element. */}
+        <div className="panel-sheet" style={{ '--scene-frac': sceneFraction } as React.CSSProperties}>
           {LeftComponent && (
             <LeftComponent {...panelProps} visible={s.leftVisible} onUntypeComplete={onLeftUntypeComplete} />
           )}

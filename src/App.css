@@ -774,6 +774,14 @@ button:has(.typed:is(.is-empty, .is-off)) {
   --tabbar-h: clamp(56px, 7.5vw, 74px);
 }
 
+/* Only the sheet reads it (set inline on the sheet). Not inherited, so a
+   change doesn't restyle everything inside. */
+@property --scene-frac {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0;
+}
+
 .layout-stacked .panel-sheet,
 .layout-flat .panel-sheet {
   position: absolute;
