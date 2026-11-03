@@ -50,6 +50,29 @@ const reducedMotion = typeof window !== 'undefined'
   ? window.matchMedia('(prefers-reduced-motion: reduce)')
   : null
 
+// Anchor detection and line measurement read layout. Every TypedText whose
+// visibility changes in a commit (a whole panel mounting or erasing) queues
+// its resolve, and the queue runs once all effects are done: every DOM write
+// first, then every read, then the writes the reads decided. One layout for
+// the whole panel instead of one per line.
+interface Resolver {
+  prepare: () => void
+  measure: () => void
+  commit: () => void
+}
+const resolveQueue = new Set<Resolver>()
+function flushResolves() {
+  const queued = [...resolveQueue]
+  resolveQueue.clear()
+  for (const r of queued) r.prepare()
+  for (const r of queued) r.measure()
+  for (const r of queued) r.commit()
+}
+function queueResolve(r: Resolver) {
+  if (!resolveQueue.size) queueMicrotask(flushResolves)
+  resolveQueue.add(r)
+}
+
 // Measured line breaks are cached until something can re-wrap text.
 let layoutGen = 0
 if (typeof window !== 'undefined') {
@@ -139,24 +162,53 @@ function measureLines(runs: TextRun[], cells: Cell[]): Line[] {
   for (const run of runs) {
     for (let k = 0; k < run.node.length; k++) pos.push({ i: run.start + k, node: run.node, off: k })
   }
-  if (pos.length < 2) return single
+  const n = pos.length
+  if (n < 2) return single
   const range = document.createRange()
-  const rectAt = (p: { node: Text; off: number }) => {
-    range.setStart(p.node, p.off)
-    range.setEnd(p.node, p.off + 1)
+  const rectAt = (k: number) => {
+    range.setStart(pos[k].node, pos[k].off)
+    range.setEnd(pos[k].node, pos[k].off + 1)
     return range.getBoundingClientRect()
   }
-  const first = rectAt(pos[0])
-  const last = rectAt(pos[pos.length - 1])
-  if (!first.height || Math.abs(last.top - first.top) < first.height / 2) return single
+  // First char at or after k that has a box (collapsed spaces at a break have none).
+  const boxedFrom = (k: number) => {
+    for (; k < n; k++) {
+      const r = rectAt(k)
+      if (r.width || r.height) return { k, r }
+    }
+    return null
+  }
+  const first = boxedFrom(0)
+  if (!first || !first.r.height) return single
+  const last = rectAt(n - 1)
+  if (Math.abs(last.top - first.r.top) < first.r.height / 2) return single
 
+  // Line index never decreases along the text, so each break is found by
+  // binary search: a few rect reads per line instead of one per character.
   const breaks: number[] = []
-  let prev = first
-  for (let k = 1; k < pos.length; k++) {
-    const r = rectAt(pos[k])
-    if (!r.width && !r.height) continue
-    if (r.top > prev.top + prev.height / 2 && r.left < prev.left) breaks.push(pos[k].i)
-    prev = r
+  let lineTop = first.r.top
+  let h = first.r.height
+  let lo = first.k
+  for (;;) {
+    const below = (k: number) => {
+      const b = boxedFrom(k)
+      return b !== null && b.r.top > lineTop + h / 2
+    }
+    // the rest of the text is on this line
+    if (!below(n - 1)) break
+    let a = lo + 1
+    let b = n - 1
+    while (a < b) {
+      const mid = (a + b) >> 1
+      if (below(mid)) b = mid
+      else a = mid + 1
+    }
+    const next = boxedFrom(a)
+    if (!next || next.r.top <= lineTop + h / 2) break
+    breaks.push(pos[next.k].i)
+    lineTop = next.r.top
+    h = next.r.height || h
+    lo = next.k
   }
   const lines: Line[] = []
   let a = 0
@@ -314,7 +366,7 @@ function build(vis: HTMLElement, entries: (Entry | null)[], ctx: BuildCtx): { ed
 
 interface Impl {
   paint: (phase: Phase) => void
-  resolve: () => void
+  resolver: Resolver
 }
 
 function TypedText({ text, segments, visible, speed, untypeSpeed = speed, onTyped, onUntyped, icon, iconPosition = 'before', anchor }: TypedTextProps) {
@@ -390,29 +442,42 @@ function TypedText({ text, segments, visible, speed, untypeSpeed = speed, onType
 
     // Decide the anchor and, for right / center, the visual lines of the
     // natural layout (cached until resize / font load / content change).
-    const resolve = () => {
-      const root = rootRef.current
-      const vis = visRef.current
-      if (!root || !vis) return
-      const L = layoutRef.current
-      const a = anchor ?? detectAnchor(root)
-      L.anchor = a
-      if (root.dataset.anchor !== a) root.dataset.anchor = a
-      if (a === 'left') return
-      if (L.lines && L.gen === layoutGen && L.key === contentKey) return
-      if (!dom.runs) {
+    // Split in phases for the resolve queue (see flushResolves).
+    const resolver: Resolver = {
+      // writes: measuring needs the natural (unrotated) layout in the DOM
+      prepare: () => {
+        const vis = visRef.current
+        if (!vis || dom.runs) return
+        const L = layoutRef.current
+        if (anchor === 'left' || (L.lines && L.gen === layoutGen && L.key === contentKey)) return
         const st = stateRef.current
         const out = build(vis, naturalEntries(total, st.s, st.e, -1), { ...ctxBase, rotated: false, kind: 'type' })
         dom.runs = out.runs
         dom.edge = null
         dom.sig = ''
-      }
-      L.lines = measureLines(dom.runs, cells)
-      L.gen = layoutGen
-      L.key = contentKey
+      },
+      // reads only
+      measure: () => {
+        const root = rootRef.current
+        if (!root) return
+        const L = layoutRef.current
+        const a = anchor ?? detectAnchor(root)
+        L.anchor = a
+        if (a === 'left') return
+        if (L.lines && L.gen === layoutGen && L.key === contentKey) return
+        if (!dom.runs) return
+        L.lines = measureLines(dom.runs, cells)
+        L.gen = layoutGen
+        L.key = contentKey
+      },
+      commit: () => {
+        const root = rootRef.current
+        const a = layoutRef.current.anchor
+        if (root && root.dataset.anchor !== a) root.dataset.anchor = a
+      },
     }
 
-    implRef.current = { paint, resolve }
+    implRef.current = { paint, resolver }
   })
 
   // (Re)build when the content changes.
@@ -442,16 +507,18 @@ function TypedText({ text, segments, visible, speed, untypeSpeed = speed, onType
     rootRef.current?.classList.toggle('is-off', !visible)
     const impl = implRef.current
     if (!impl) return
-    // Reads only here (alignment + line measurement); all writes happen in
-    // the shared tick, so many lines starting together cause one layout.
-    impl.resolve()
+    // Alignment + line measurement run batched with every other line that
+    // changes in this commit (before the first tick); painting happens in
+    // the shared tick.
+    queueResolve(impl.resolver)
     const st = stateRef.current
     const s0 = st.s
     const e0 = st.e
     const typing = visible
     const steps = typing ? s0 + (total - e0) : e0 - s0
     const ms = typing ? speed : untypeSpeed
-    const fromLeft = layoutRef.current.anchor === 'right'
+    // decided by the resolve queue, which runs before the first tick
+    let fromLeft: boolean | null = null
 
     const settle = () => {
       st.s = 0
@@ -471,7 +538,7 @@ function TypedText({ text, segments, visible, speed, untypeSpeed = speed, onType
         const ds = Math.min(k, s0)
         st.s = s0 - ds
         st.e = Math.min(total, e0 + k - ds)
-      } else if (fromLeft) {
+      } else if ((fromLeft ??= layoutRef.current.anchor === 'right')) {
         st.s = Math.min(e0, s0 + k)
       } else {
         st.e = Math.max(s0, e0 - k)
