@@ -1,5 +1,5 @@
 import { Component, Suspense, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
-import { createRoot, extend, unmountComponentAtNode, type RenderProps, type ReconcilerRoot } from '@react-three/fiber'
+import { createRoot, extend, unmountComponentAtNode, type RenderProps, type ReconcilerRoot, type RootStore } from '@react-three/fiber'
 import { Color, Fog, InstancedMesh, Mesh, MeshBasicMaterial, Points } from 'three'
 
 /*
@@ -31,6 +31,7 @@ export function Canvas({ children, ...config }: CanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const root = useRef<ReconcilerRoot<HTMLCanvasElement> | null>(null)
+  const store = useRef<RootStore | null>(null)
   const [size, setSize] = useState<Size | null>(null)
   const [error, setError] = useState<unknown>(null)
   if (error) throw error
@@ -48,13 +49,17 @@ export function Canvas({ children, ...config }: CanvasProps) {
   }, [])
 
   // Like R3F's Canvas: (re)configure and render the 3D tree on every render.
+  // `dpr` is only the initial pixel ratio: re-passing it would undo every
+  // step AdaptiveDpr takes (setDpr) whenever Stage re-renders, e.g. on each
+  // navigation, so later configures keep the store's current value.
   useLayoutEffect(() => {
     const canvas = canvasRef.current
     if (!canvas || !size || size.width <= 0 || size.height <= 0) return
     root.current ??= createRoot(canvas)
     const r = root.current
-    r.configure({ ...config, size }).then(() => {
-      r.render(
+    const dpr = store.current?.getState().viewport.dpr ?? config.dpr
+    r.configure({ ...config, dpr, size }).then(() => {
+      store.current = r.render(
         <ErrorForwarder set={setError}>
           <Suspense fallback={null}>{children}</Suspense>
         </ErrorForwarder>,
