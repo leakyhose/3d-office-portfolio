@@ -75,9 +75,9 @@ interface BootAssets {
   glowH: number
 }
 
-// Offscreen canvases for the boot animation. Built in idle time between the
-// first 3D frame and the boot (the canvas fades in for 450 ms first), so the
-// CPU work lands neither on the scene's mount nor on the start of the boot.
+// Offscreen canvases for the boot animation. Built in idle time once the scene
+// has mounted (the boot starts after the 3D canvas's 450 ms fade-in), so the
+// CPU work lands neither in the scene's mount task nor on the start of the boot.
 function createBootAssets(texWidth: number, texHeight: number): BootAssets {
   const clouds = getScreen('clouds', texWidth, texHeight)
 
