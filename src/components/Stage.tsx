@@ -1,4 +1,4 @@
-import { Canvas } from '@react-three/fiber'
+import { Canvas } from './Canvas'
 import * as THREE from 'three'
 import { memo, useEffect, useState } from 'react'
 import Scene from './Scene'
