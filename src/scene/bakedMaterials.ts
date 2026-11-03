@@ -56,6 +56,11 @@ export function applyBakedLighting(root: THREE.Object3D, lightmap: THREE.Texture
         alphaTest: std.alphaTest,
         depthWrite: std.depthWrite,
         side: std.side,
+        // Transparent + double-sided would otherwise be drawn in two passes
+        // (back faces, then front), and three flags the material for a
+        // program re-check before each pass, every frame. The only such mesh
+        // is a flat decal (ubc-logo), where one pass looks the same.
+        forceSinglePass: true,
         lightMap: hasLightmapUv ? meshLightmap : null,
         lightMapIntensity: LIGHTMAP_INTENSITY,
       })

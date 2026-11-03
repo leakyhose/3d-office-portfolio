@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react'
 import '@fontsource/vt323'
-import '@hackernoon/pixel-icon-library/fonts/iconfont.css'
+import './iconfont.css'
 import { VIEWS } from './config/views'
 import { navigateToView, jumpToView, triggerIntroZoom, enterFreeCam, setOnNavigationComplete, clearOnNavigationComplete, setOnIntroPreComplete, clearOnIntroPreComplete } from './components/camera/bridge'
 import PANELS from './panels'

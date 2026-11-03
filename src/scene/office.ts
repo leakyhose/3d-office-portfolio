@@ -31,12 +31,18 @@ export interface OfficeAssets {
 
 export const OFFICE_ASSET_URLS = [officeUrl, lightmapUrl, roomLightmapUrl, floorLightmapUrl]
 
-function loadTexture(url: string): Promise<THREE.Texture> {
-  // ImageBitmapLoader decodes off the main thread. glTF-style orientation
+async function loadTexture(url: string): Promise<THREE.Texture> {
+  // Not THREE.ImageBitmapLoader: it reads the body with res.blob(), and when
+  // that fetch picks up the index.html preload while it's still downloading
+  // (i.e. on any slow connection), Chrome fails the read with "Failed to
+  // fetch" as the preload completes, so the 3D scene never loaded on slow
+  // 4G. Reading it as an ArrayBuffer doesn't hit that.
+  const res = await fetch(url)
+  if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`)
+  const blob = new Blob([await res.arrayBuffer()], { type: res.headers.get('content-type') ?? '' })
+  // createImageBitmap decodes off the main thread. glTF-style orientation
   // (no flip) matches how the lightmaps were written.
-  const loader = new THREE.ImageBitmapLoader()
-  loader.setOptions({ imageOrientation: 'none', premultiplyAlpha: 'none', colorSpaceConversion: 'none' })
-  return loader.loadAsync(url).then((bitmap) => {
+  return createImageBitmap(blob, { imageOrientation: 'none', premultiplyAlpha: 'none', colorSpaceConversion: 'none' }).then((bitmap) => {
     const tex = new THREE.Texture(bitmap as unknown as HTMLImageElement)
     tex.flipY = false
     tex.colorSpace = THREE.SRGBColorSpace
@@ -53,24 +59,31 @@ function loadTexture(url: string): Promise<THREE.Texture> {
 
 let promise: Promise<OfficeAssets> | null = null
 let loaded: OfficeAssets | null = null
+let lightmaps: Promise<THREE.Texture>[] = []
 
 /** Starts (once) and returns the download + parse of everything the 3D scene needs. */
 export function loadOffice(): Promise<OfficeAssets> {
   if (promise) return promise
   const gltfLoader = new GLTFLoader()
   gltfLoader.setMeshoptDecoder(MeshoptDecoder)
-  promise = Promise.all([
-    gltfLoader.loadAsync(officeUrl),
-    loadTexture(lightmapUrl),
-    loadTexture(roomLightmapUrl),
-    loadTexture(floorLightmapUrl),
-  ]).then(([gltf, lightmap, roomLightmap, floorLightmap]) => {
-    floorLightmap.wrapS = floorLightmap.wrapT = THREE.ClampToEdgeWrapping
+  lightmaps = [loadTexture(lightmapUrl), loadTexture(roomLightmapUrl), loadTexture(floorLightmapUrl)]
+  promise = Promise.all([gltfLoader.loadAsync(officeUrl), ...lightmaps]).then(([gltf, lightmap, roomLightmap, floorLightmap]) => {
     performance.mark('stage:assets-loaded')
     loaded = { scene: gltf.scene, lightmap, roomLightmap, floorLightmap }
     return loaded
   })
   return promise
+}
+
+/**
+ * Uploads each lightmap to the GPU as soon as it has decoded, instead of in
+ * the scene's first render. The 2048² atlas alone is a 16 MB upload (~15 ms,
+ * ~60 ms on a slow phone) that otherwise lands in the long task that mounts
+ * the scene; this way it usually runs while the rest is still downloading.
+ * (Lightmaps clamp at the edges: three's default wrap mode.)
+ */
+export function uploadLightmapsEarly(renderer: THREE.WebGLRenderer) {
+  for (const p of lightmaps) p.then((tex) => renderer.initTexture(tex), () => {})
 }
 
 /**

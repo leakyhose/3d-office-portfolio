@@ -1,9 +1,9 @@
-import { Canvas } from '@react-three/fiber'
+import { Canvas } from './Canvas'
 import * as THREE from 'three'
 import { memo, useEffect, useState } from 'react'
 import Scene from './Scene'
 import { paperCanvasReady } from '../scene/paper'
-import { loadOffice } from '../scene/office'
+import { loadOffice, uploadLightmapsEarly } from '../scene/office'
 import { prewarmPrograms } from '../scene/prewarm'
 import { INTRO_FOG } from '../config/views'
 import { initialDpr } from '../hooks/useQualityTier'
@@ -35,7 +35,11 @@ export default memo(function Stage({ visible, onReady, ...sceneProps }: StagePro
   if (failure) throw failure
   useEffect(() => {
     let alive = true
-    assetsReady.then(() => { if (alive) setAssetsLoaded(true) })
+    // A failed download switches to the flat layout instead of leaving an empty backdrop.
+    assetsReady.then(
+      () => { if (alive) setAssetsLoaded(true) },
+      (e) => { if (alive) setFailure(e instanceof Error ? e : new Error(String(e))) },
+    )
     return () => { alive = false }
   }, [])
 
@@ -64,6 +68,7 @@ export default memo(function Stage({ visible, onReady, ...sceneProps }: StagePro
           // the prewarm starts so later callers (ExperiencePaper) don't stall.
           gl.capabilities.getMaxAnisotropy()
           prewarmPrograms(gl, camera, new THREE.Fog(...INTRO_FOG))
+          uploadLightmapsEarly(gl)
         }}
       >
         {assetsLoaded && <Scene onReady={onReady} {...sceneProps} />}

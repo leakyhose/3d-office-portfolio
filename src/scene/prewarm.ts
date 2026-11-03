@@ -34,7 +34,7 @@ export function prewarmPrograms(gl: THREE.WebGLRenderer, camera: THREE.Camera, f
     // GLB materials with a base colour texture / plain colour, + transparent decal
     new THREE.MeshBasicMaterial({ map: tex(), lightMap, side: THREE.DoubleSide }),
     new THREE.MeshBasicMaterial({ lightMap, side: THREE.DoubleSide }),
-    new THREE.MeshBasicMaterial({ map: tex(), lightMap, side: THREE.DoubleSide, transparent: true }),
+    new THREE.MeshBasicMaterial({ map: tex(), lightMap, side: THREE.DoubleSide, transparent: true, forceSinglePass: true }),
     // experience paper (keeps MeshStandardMaterial)
     new THREE.MeshStandardMaterial({ map: tex(), lightMap, side: THREE.DoubleSide }),
   ]
