@@ -651,6 +651,17 @@ button:has(.typed:is(.is-empty, .is-off)) {
   opacity: 1;
 }
 
+/* Very short windows need every line for the panel itself. */
+@media (max-height: 520px) {
+  .key-hints {
+    display: none;
+  }
+
+  .layout-wide.has-key-hints .panel {
+    padding-bottom: var(--pad-y);
+  }
+}
+
 .key-hints kbd,
 .freecam-hud kbd {
   display: inline-block;
