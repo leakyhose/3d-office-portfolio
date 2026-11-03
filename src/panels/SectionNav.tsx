@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import TypedText from '../components/TypedText'
-import type { ViewName } from '../types'
+import type { NavEvent, ViewName } from '../types'
 
 export const SECTIONS: { view: ViewName; label: string; icon: string }[] = [
   { view: 'home', label: 'Home', icon: 'home' },
@@ -13,8 +13,8 @@ export const SECTIONS: { view: ViewName; label: string; icon: string }[] = [
 export const hrefFor = (view: ViewName) => `#${view}`
 
 /** Plain left click -> in-app navigation; modified clicks (new tab etc.) keep the browser default. */
-export function navClick(view: ViewName, onNavigate: (v: ViewName, e?: React.MouseEvent) => void) {
-  return (e: React.MouseEvent) => {
+export function navClick(view: ViewName, onNavigate: (v: ViewName, e?: NavEvent) => void) {
+  return (e: NavEvent) => {
     if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
     e.preventDefault()
     onNavigate(view, e)
@@ -27,7 +27,7 @@ interface NavLinkProps {
   icon: string
   visible: boolean
   speed: number
-  onNavigate: (v: ViewName, e?: React.MouseEvent) => void
+  onNavigate: (v: ViewName, e?: NavEvent) => void
 }
 
 export function NavLink({ view, label, icon, visible, speed, onNavigate }: NavLinkProps) {
@@ -41,7 +41,7 @@ export function NavLink({ view, label, icon, visible, speed, onNavigate }: NavLi
 interface SectionNavProps {
   current: ViewName
   visible: boolean
-  onNavigate: (v: ViewName, e?: React.MouseEvent) => void
+  onNavigate: (v: ViewName, e?: NavEvent) => void
   onHoverChange?: (hovering: boolean) => void
 }
 

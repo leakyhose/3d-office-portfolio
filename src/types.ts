@@ -1,5 +1,8 @@
 import type * as THREE from 'three'
 
+/** A click from React or from a native listener (typed text builds its links imperatively). */
+export type NavEvent = React.MouseEvent | MouseEvent
+
 export type ViewName = 'home' | 'about' | 'experience' | 'projects' | 'contact'
 
 export type PanelId = 'home' | 'about' | 'experience' | 'projects' | 'contact'
@@ -29,7 +32,7 @@ export type ViewsMap = Record<ViewName, ViewConfig>
 
 export interface PanelProps {
   visible: boolean
-  onNavigate: (viewName: ViewName, e?: React.MouseEvent) => void
+  onNavigate: (viewName: ViewName, e?: NavEvent) => void
   onUntypeComplete: () => void
   /** pointer is over the panel's section nav (see App: buffered screen phase) */
   onNavHoverChange?: (hovering: boolean) => void
@@ -44,8 +47,11 @@ export interface TextSegment {
   className?: string
   /** renders the segment as a link */
   href?: string
-  onClick?: (e: React.MouseEvent) => void
+  onClick?: (e: NavEvent) => void
 }
+
+/** Which edge a line of typed text grows from / stays flush to. */
+export type TypedAnchor = 'left' | 'right' | 'center'
 
 export interface TypedTextProps {
   text?: string
@@ -61,6 +67,15 @@ export interface TypedTextProps {
   onUntyped?: () => void
   icon?: string
   iconPosition?: 'before' | 'after'
+  /**
+   * Edge the visible text stays flush to while animating. Detected from the
+   * computed alignment of the line's container when omitted:
+   * - left: types left -> right in place, erases from the right
+   * - right: always flush right; each new char enters at the right edge
+   *   (line steps left), erases from the left
+   * - center: stays centered while growing / shrinking
+   */
+  anchor?: TypedAnchor
 }
 
 export interface ScreenMeshContextValue {

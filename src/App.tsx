@@ -8,7 +8,7 @@ import { SECTIONS, hrefFor, navClick } from './panels/SectionNav'
 import { canRender3D, StageBoundary } from './capabilities'
 import { useScreenLayout, useCanHover, stackedSceneFraction } from './layout'
 import './App.css'
-import type { ViewName, PanelId, ScreenPhase } from './types'
+import type { NavEvent, ViewName, PanelId, ScreenPhase } from './types'
 
 // The 3D stage (three.js, R3F, the GLB) is a separate chunk. Its download
 // starts as soon as this module runs, in parallel with React's first render
@@ -138,7 +138,7 @@ function App() {
     navigateToView(nav.current.view)
   }, [showPanels])
 
-  const navigate = useCallback((view: ViewName, opts: { history?: boolean; event?: React.MouseEvent } = {}) => {
+  const navigate = useCallback((view: ViewName, opts: { history?: boolean; event?: NavEvent } = {}) => {
     if (!interactiveRef.current) return
     if (isFreeCam.current) exitFreeCamMode()
     // Clicked during the tail of the intro zoom: settle the intro state now.
@@ -177,7 +177,7 @@ function App() {
     trySwap()
   }, [exitFreeCamMode, finishIntro, showPanels, trySwap])
 
-  const onNavigate = useCallback((view: ViewName, e?: React.MouseEvent) => navigate(view, { event: e }), [navigate])
+  const onNavigate = useCallback((view: ViewName, e?: NavEvent) => navigate(view, { event: e }), [navigate])
 
   // Keyboard navigation: move focus into the newly typed panel.
   useLayoutEffect(() => {
