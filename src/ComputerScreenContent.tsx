@@ -509,34 +509,39 @@ export default function ComputerScreenContent({ screenPhase = 'clouds', hoveredP
     const project = PROJECTS.find(p => p.id === hoveredProject)
     const title = project ? `${project.name}.exe` : 'Video'
 
+    // Redraw (and re-upload the screen) only when the video has a new frame
+    // to show, at most every 25 ms (the demos are 30 fps); without
+    // requestVideoFrameCallback, every 33 ms. Starts dirty so the window
+    // shows even if playback is refused.
+    let fresh = true
     let lastDrawTime = 0
+    let frameCb = 0
+    const rvfc = 'requestVideoFrameCallback' in video
+    const onVideoFrame = () => {
+      fresh = true
+      frameCb = video.requestVideoFrameCallback(onVideoFrame)
+    }
+    if (rvfc) frameCb = video.requestVideoFrameCallback(onVideoFrame)
 
     function drawFrame() {
-      const now = performance.now()
-      // Wait for any CRT switch animation to finish
-      if (switchAnimRef.current) {
-        videoRafRef.current = requestAnimationFrame(drawFrame)
-        return
-      }
-      // Skip the texImage2D upload while the camera is lerping — keeps the
-      // R3F frame budget free for the navigation animation. Loop resumes
-      // immediately once the camera settles.
-      if (isCameraAnimating()) {
-        videoRafRef.current = requestAnimationFrame(drawFrame)
-        return
-      }
-      if (now - lastDrawTime >= 33) {
-        lastDrawTime = now
-        drawVideoWindow(ctx, texWidth, texHeight, video!, title)
-        upload(texture)
-        shownRef.current = 'other'
-      }
       videoRafRef.current = requestAnimationFrame(drawFrame)
+      // Wait for any CRT switch animation to finish, and skip the upload
+      // while the camera is flying (keeps the frame budget for the flight);
+      // the latest frame is drawn as soon as it settles.
+      if (switchAnimRef.current || isCameraAnimating()) return
+      const now = performance.now()
+      if (rvfc ? !fresh || now - lastDrawTime < 25 : now - lastDrawTime < 33) return
+      fresh = false
+      lastDrawTime = now
+      drawVideoWindow(ctx, texWidth, texHeight, video!, title)
+      upload(texture)
+      shownRef.current = 'other'
     }
 
     videoRafRef.current = requestAnimationFrame(drawFrame)
 
     return () => {
+      if (rvfc) video.cancelVideoFrameCallback(frameCb)
       if (videoRafRef.current) {
         cancelAnimationFrame(videoRafRef.current)
         videoRafRef.current = null
