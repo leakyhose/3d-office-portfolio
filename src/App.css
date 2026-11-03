@@ -515,7 +515,12 @@ button:has(.typed:is(.is-empty, .is-off)) {
   flex-direction: column;
   padding: var(--pad-y) var(--pad-x);
   /* keeps text legible where it crosses lit parts of the desk */
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45), 0 0 0.6em rgba(20, 16, 12, 0.55);
+}
+
+.layout-wide .project-list {
+  gap: var(--gap-m);
+  margin-top: var(--gap-m);
 }
 
 .layout-wide .panel-left {
@@ -694,12 +699,13 @@ button:has(.typed:is(.is-empty, .is-off)) {
   --gap-s: 8px;
   --gap-m: clamp(14px, 3.4vw, 26px);
   --gap-l: clamp(18px, 4.6vw, 34px);
-  --fs-display: clamp(50px, 16vw, 104px);
-  --fs-title: clamp(36px, 10.5vw, 72px);
-  --fs-nav: clamp(24px, 6.6vw, 40px);
-  --fs-lead: clamp(19px, 5.1vw, 30px);
-  --fs-body: clamp(18px, 4.7vw, 27px);
-  --fs-small: clamp(15px, 3.9vw, 21px);
+  --fs-display: clamp(50px, 16vw, 128px);
+  --fs-title: clamp(36px, 10.5vw, 84px);
+  --fs-nav: clamp(24px, 6.6vw, 46px);
+  --fs-lead: clamp(19px, 5.1vw, 36px);
+  --fs-body: clamp(18px, 4.7vw, 32px);
+  --fs-small: clamp(15px, 3.9vw, 24px);
+  --tabbar-h: clamp(56px, 7.5vw, 74px);
 }
 
 .layout-stacked .panel-sheet,
@@ -846,13 +852,13 @@ button:has(.typed:is(.is-empty, .is-off)) {
   min-height: var(--tabbar-h);
   color: var(--muted);
   text-decoration: none;
-  font-size: 15px;
+  font-size: clamp(15px, 2.3vw, 21px);
   line-height: 1;
   -webkit-tap-highlight-color: transparent;
 }
 
 .tab .hn {
-  font-size: 22px;
+  font-size: 1.45em;
 }
 
 .tab[aria-current='page'] {

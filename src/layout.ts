@@ -31,9 +31,15 @@ const STACKED_SCENE: Record<ViewName, number> = {
   contact: 0.46,
 }
 
+/** Views where the 3D subject is the content; on wider portrait screens
+ *  (tablets) the text needs fewer lines, so these get a bit more scene. */
+const SUBJECT_LED = new Set<ViewName>(['home', 'experience', 'contact'])
+
 export function stackedSceneFraction(view: ViewName, width: number, height: number): number {
-  void width; void height
-  return STACKED_SCENE[view]
+  const base = STACKED_SCENE[view]
+  if (!SUBJECT_LED.has(view)) return base
+  const extra = Math.min(0.08, Math.max(0, (width / height - 0.5) * 0.3))
+  return base + extra
 }
 
 /** Where the subject may be placed (NDC), given the scene's share of the height. */
