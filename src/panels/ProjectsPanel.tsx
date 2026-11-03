@@ -12,7 +12,7 @@ const HIDDEN = { visibility: 'hidden' } as const
  * mouse, focused from the keyboard, or tapped (outside its links) on touch.
  * The name opens the live project, the GitHub mark opens the source.
  */
-function ProjectsPanel({ visible, onNavigate, onUntypeComplete, onNavHoverChange, onProjectSelect, activeProject, showSectionNav }: PanelProps) {
+function ProjectsPanel({ visible, onNavigate, onUntypeComplete, onProjectSelect, activeProject, showSectionNav }: PanelProps) {
   const tracker = useUntypeTracker(visible, onUntypeComplete)
   // The icons follow the name's typing so each header reads left -> right.
   // They always occupy their space (visibility only), so nothing shifts.
@@ -71,7 +71,7 @@ function ProjectsPanel({ visible, onNavigate, onUntypeComplete, onNavHoverChange
             )
           })}
         </ul>
-        {showSectionNav && <SectionNav current="projects" visible={visible} onNavigate={onNavigate} onHoverChange={onNavHoverChange} />}
+        {showSectionNav && <SectionNav current="projects" visible={visible} onNavigate={onNavigate} />}
       </section>
     </UntypeTrackerContext>
   )

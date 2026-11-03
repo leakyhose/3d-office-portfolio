@@ -34,8 +34,6 @@ export interface PanelProps {
   visible: boolean
   onNavigate: (viewName: ViewName, e?: NavEvent) => void
   onUntypeComplete: () => void
-  /** pointer is over the panel's section nav (see App: buffered screen phase) */
-  onNavHoverChange?: (hovering: boolean) => void
   /** render the panel's own section nav (wide layout) */
   showSectionNav?: boolean
   onProjectSelect?: (projectId: string | null) => void

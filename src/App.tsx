@@ -96,8 +96,6 @@ function App() {
   const stageReadyRef = useRef(false)
   const panelFallbackRef = useRef(false)
   const introTimers = useRef<ReturnType<typeof setTimeout>[]>([])
-  const navHovered = useRef(false)
-  const bufferedLandedView = useRef<ViewName | null>(null)
   const lastInput = useRef<'pointer' | 'key'>('key')
 
   const showPanels = useCallback(() => {
@@ -325,14 +323,6 @@ function App() {
     }
   }, [navigate, enterFreeCamMode, exitFreeCamMode])
 
-  const onNavHoverChange = useCallback((hovering: boolean) => {
-    navHovered.current = hovering
-    if (!hovering && bufferedLandedView.current !== null) {
-      setLandedView(bufferedLandedView.current)
-      bufferedLandedView.current = null
-    }
-  }, [])
-
   useEffect(() => {
     const preHandler = () => {
       if (!introZoomRef.current) return
@@ -357,11 +347,7 @@ function App() {
         try { performance.measure('intro:zoom-duration', 'intro:zoom-trigger', 'intro:anim-done') } catch { /* mark missing */ }
         try { performance.measure('intro:reveal-lead', 'intro:right-visible', 'intro:anim-done') } catch { /* mark missing */ }
       }
-      if (navHovered.current) {
-        bufferedLandedView.current = viewName
-      } else {
-        setLandedView(viewName)
-      }
+      setLandedView(viewName)
     }
     setOnNavigationComplete(handler)
     return () => clearOnNavigationComplete(handler)
@@ -378,7 +364,6 @@ function App() {
     // the wide layout has a section nav in each panel; the others a tab bar
     showSectionNav: mode === 'wide',
     onNavigate,
-    onNavHoverChange,
     onProjectSelect: setSelectedProject,
     activeProject: selectedProject,
   }

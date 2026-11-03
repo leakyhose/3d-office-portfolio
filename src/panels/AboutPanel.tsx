@@ -3,7 +3,7 @@ import useUntypeTracker, { UntypeTrackerContext } from '../components/useUntypeT
 import SectionNav, { hrefFor, navClick } from './SectionNav'
 import type { PanelProps, ViewName } from '../types'
 
-function AboutPanel({ visible, onNavigate, onUntypeComplete, onNavHoverChange, showSectionNav }: PanelProps) {
+function AboutPanel({ visible, onNavigate, onUntypeComplete, showSectionNav }: PanelProps) {
   const tracker = useUntypeTracker(visible, onUntypeComplete)
   // Inline cross-links to other sections
   const link = (text: string, view: ViewName, extra = '') => ({
@@ -73,7 +73,7 @@ function AboutPanel({ visible, onNavigate, onUntypeComplete, onNavHoverChange, s
             />
           </p>
         </div>
-        {showSectionNav && <SectionNav current="about" visible={visible} onNavigate={onNavigate} onHoverChange={onNavHoverChange} />}
+        {showSectionNav && <SectionNav current="about" visible={visible} onNavigate={onNavigate} />}
       </section>
     </UntypeTrackerContext>
   )
