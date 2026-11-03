@@ -189,7 +189,7 @@ def add_lights(model_path):
         aim = Vector((0.5, 4.0, 3.0))
         pos = aim + key_dir * dist
         kd = bpy.data.lights.new('__key', 'SPOT')
-        kd.energy = 2.8 * 4 * math.pi * dist * dist * float(os.environ.get('KEY_GAIN', '1'))
+        kd.energy = 2.8 * 4 * math.pi * dist * dist * float(os.environ.get('KEY_GAIN', '0.85'))
         kd.color = hex_lin('#ffe0a0')
         kd.spot_size = math.radians(float(os.environ.get('KEY_CONE', '55')))
         kd.spot_blend = float(os.environ.get('KEY_BLEND', '0.9'))
@@ -198,6 +198,42 @@ def add_lights(model_path):
         scene.collection.objects.link(ko)
         ko.location = t2b(pos)
         ko.rotation_euler = (t2b(aim) - t2b(pos)).normalized().to_track_quat('-Z', 'Y').to_euler()
+        # Wider, dimmer cones from the same lamp ("cone:gain,..."): a single
+        # spot's smoothstep reaches zero over a few degrees, which reads as a
+        # hard edge across the back wall once sRGB lifts the dim end. Stacked
+        # halos give the pool a long tail into the dark instead.
+        halos = os.environ.get('KEY_HALO', '75:0.12,100:0.06')
+        for i, spec in enumerate(h for h in halos.split(',') if h):
+            cone, gain = (float(x) for x in spec.split(':'))
+            hd = kd.copy()
+            hd.name = f'__key_halo{i}'
+            hd.energy = kd.energy * gain
+            hd.spot_size = math.radians(cone)
+            hd.spot_blend = 1.0
+            ho = bpy.data.objects.new(hd.name, hd)
+            scene.collection.objects.link(ho)
+            ho.location = ko.location
+            ho.rotation_euler = ko.rotation_euler
+        # The right wall sees the lamp almost edge-on, so where the halo
+        # crosses the back/right corner the wall turns dark in one step. A
+        # matching cone linked to the right wall only ("cone:gain") carries
+        # the falloff round the corner.
+        side = os.environ.get('KEY_SIDE', '100:0.24')
+        if side:
+            cone, gain = (float(x) for x in side.split(':'))
+            sd_ = kd.copy()
+            sd_.name = '__key_side'
+            sd_.energy = kd.energy * gain
+            sd_.spot_size = math.radians(cone)
+            sd_.spot_blend = 1.0
+            so_ = bpy.data.objects.new(sd_.name, sd_)
+            scene.collection.objects.link(so_)
+            so_.location = ko.location
+            so_.rotation_euler = ko.rotation_euler
+            recv = bpy.data.collections.new('__key_side_receivers')
+            for n in (ROOM_PREFIX + 'Right', ROOM_PREFIX + 'BaseRight'):
+                recv.objects.link(scene.objects[n])
+            so_.light_linking.receiver_collection = recv
     add_sun('__rim', (30, 20, -10), hex_lin('#ffe8cc'), 0.03, 3)
     moon = float(os.environ.get('MOON', '0.8'))
     if moon > 0:
