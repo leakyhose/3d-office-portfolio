@@ -8,58 +8,80 @@ export function drawBlankScreen(width = 1024, height = 768): HTMLCanvasElement {
   return canvas
 }
 
-// Preload assets
-const logoImg = new Image()
-const logoReady = new Promise<void>(resolve => {
-  logoImg.onload = () => resolve()
-  logoImg.onerror = () => resolve()
-})
-logoImg.src = '/windows_logo.svg'
+/*
+ * The clouds' images (70 KB) are requested on first use, when the scene
+ * mounts, i.e. once the GLB and lightmaps are in, so they never share
+ * bandwidth with what gates the first 3D frame (the monitor is black until the
+ * boot, ~0.5 s after it). The desktop's (3 KB of icons) are requested with
+ * this module, so a visit that opens on #projects has them by the first frame.
+ */
 
-const win95LogoImg = new Image()
-const win95LogoReady = new Promise<void>(resolve => {
-  win95LogoImg.onload = () => resolve()
-  win95LogoImg.onerror = () => resolve()
-})
-win95LogoImg.src = '/windows_95_logo_and_text.png'
+/** null if it failed to load (the screen is drawn without it). */
+type Picture = ImageBitmap | HTMLImageElement | null
 
-const cloudsImg = new Image()
-const cloudsReady = new Promise<void>(resolve => {
-  cloudsImg.onload = () => resolve()
-  cloudsImg.onerror = () => resolve()
-})
-cloudsImg.src = '/clouds_background.png'
+function loadImage(src: string): Promise<HTMLImageElement | null> {
+  const img = new Image()
+  return new Promise((resolve) => {
+    img.onload = () => resolve(img)
+    img.onerror = () => resolve(null)
+    img.src = src
+  })
+}
+
+/**
+ * Fetch + createImageBitmap: decoded off the main thread. Drawn from an <img>,
+ * the 640x480 clouds and 1280x825 logo were decoded synchronously by the
+ * clouds screen's pixelate pass (~15 ms of it at 4x CPU throttle).
+ */
+async function loadBitmap(src: string): Promise<Picture> {
+  try {
+    const res = await fetch(src)
+    if (!res.ok) return null
+    // arrayBuffer, not blob(): see loadTexture() in scene/office.ts
+    const blob = new Blob([await res.arrayBuffer()], { type: res.headers.get('content-type') ?? '' })
+    return await createImageBitmap(blob)
+  } catch {
+    // no createImageBitmap, or it can't decode the format
+    const img = await loadImage(src)
+    await img?.decode().catch(() => {})
+    return img
+  }
+}
+
+let cloudsAssets: Promise<[clouds: Picture, logo: Picture]> | null = null
+const loadCloudsAssets = () =>
+  (cloudsAssets ??= Promise.all([loadBitmap('/clouds_background.webp'), loadBitmap('/windows_95_logo_and_text.webp')]))
+
+// Desktop pictures (tiny .ico/.svg files, kept as <img> since createImageBitmap
+// can't decode an SVG blob). Set once loaded; drawn only if they loaded.
+let logoImg: HTMLImageElement | null = null
 
 interface DesktopIcon {
-  img: HTMLImageElement
-  ready: Promise<void>
+  img: HTMLImageElement | null
   label: string
+  file: string
 }
 
 const desktopIcons: DesktopIcon[] = [
-  { label: 'My Computer', img: new Image(), ready: null! },
-  { label: 'Network\nNeighborhood', img: new Image(), ready: null! },
-  { label: 'Documents', img: new Image(), ready: null! },
-  { label: 'Recycle Bin', img: new Image(), ready: null! },
+  { label: 'My Computer', img: null, file: 'My Computer.ico' },
+  { label: 'Network\nNeighborhood', img: null, file: 'Network Neighborhood.ico' },
+  { label: 'Documents', img: null, file: 'Documents Folder.ico' },
+  { label: 'Recycle Bin', img: null, file: 'Empty Recycle Bin.ico' },
 ]
 
-const iconFiles = [
-  'My Computer.ico',
-  'Network Neighborhood.ico',
-  'Documents Folder.ico',
-  'Empty Recycle Bin.ico',
-]
-
-for (let i = 0; i < desktopIcons.length; i++) {
-  const icon = desktopIcons[i]
-  icon.ready = new Promise<void>(resolve => {
-    icon.img.onload = () => resolve()
-    icon.img.onerror = () => resolve()
+let desktopAssets: Promise<void> | null = null
+function loadDesktopAssets(): Promise<void> {
+  desktopAssets ??= Promise.all([
+    loadImage('/windows_logo.svg').then((img) => { logoImg = img }),
+    ...desktopIcons.map((icon) => loadImage(`/windows-95-desktop/${icon.file}`).then((img) => { icon.img = img })),
+  ]).then(() => {
+    // the video windows' background is the desktop: redraw it with the icons
+    _bgCache = null
+    videoChromes.clear()
   })
-  icon.img.src = `/windows-95-desktop/${iconFiles[i]}`
+  return desktopAssets
 }
-
-const allIconsReady = Promise.all(desktopIcons.map(ic => ic.ready))
+loadDesktopAssets()
 
 function drawRaised(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, bg = '#C0C0C0') {
   ctx.fillStyle = bg
@@ -121,7 +143,7 @@ function drawTaskbar(ctx: CanvasRenderingContext2D, width: number, height: numbe
   ctx.textBaseline = 'middle'
   ctx.fillText(clockStr, trayX + trayW / 2, barY + barH / 2)
 
-  if (withStartLogo && logoImg.naturalWidth) {
+  if (withStartLogo && logoImg) {
     const btnLogoSize = Math.round(innerH * 0.7)
     const btnLogoX = pad + Math.round((innerH - btnLogoSize) / 2) + 4
     const btnLogoY = barY + pad + Math.round((innerH - btnLogoSize) / 2)
@@ -149,7 +171,7 @@ function drawDesktopIcons(ctx: CanvasRenderingContext2D, width: number, height: 
     const centerX = leftMargin + iconSize / 2
     const iconY = topMargin + i * verticalSpacing
 
-    if (icon.img.naturalWidth) {
+    if (icon.img) {
       ctx.imageSmoothingEnabled = false
       ctx.drawImage(icon.img, centerX - iconSize / 2, iconY, iconSize, iconSize)
       ctx.imageSmoothingEnabled = true
@@ -256,71 +278,43 @@ function applyCRTEffects(ctx: CanvasRenderingContext2D, width: number, height: n
   ctx.drawImage(getVignetteOverlay(width, height), 0, 0)
 }
 
-export function drawCloudsScreen(width = 1024, height = 768, onUpdate?: () => void): HTMLCanvasElement {
-  const canvas = document.createElement('canvas')
-  canvas.width = width
-  canvas.height = height
-  const ctx = canvas.getContext('2d')!
+function paintClouds(ctx: CanvasRenderingContext2D, width: number, height: number, [clouds, logo]: [Picture, Picture]) {
+  if (clouds) {
+    ctx.drawImage(clouds, 0, 0, width, height)
+  }
 
-  ctx.fillStyle = '#008080'
-  ctx.fillRect(0, 0, width, height)
+  if (logo) {
+    const logoAspect = logo.width / logo.height
+    const logoH = Math.round(height * 0.55)
+    const logoW = Math.round(logoH * logoAspect)
+    const logoX = (width - logoW) / 2
+    const logoY = (height - logoH) / 2
+    ctx.drawImage(logo, logoX, logoY, logoW, logoH)
+  }
 
-  Promise.all([cloudsReady, win95LogoReady]).then(() => {
-    if (cloudsImg.naturalWidth) {
-      ctx.drawImage(cloudsImg, 0, 0, width, height)
-    }
+  const labelSize = Math.round(height * 0.035)
+  ctx.font = `${labelSize}px "VT323", monospace`
+  ctx.fillStyle = '#fff'
+  ctx.textAlign = 'right'
+  ctx.textBaseline = 'top'
+  ctx.shadowColor = 'rgba(0,0,0,0.5)'
+  ctx.shadowBlur = 0
+  ctx.shadowOffsetX = 1
+  ctx.shadowOffsetY = 1
+  ctx.fillText('ysu.dev', width - Math.round(width * 0.03), Math.round(height * 0.03))
+  ctx.shadowColor = 'transparent'
+  ctx.shadowOffsetX = 0
+  ctx.shadowOffsetY = 0
 
-    if (win95LogoImg.naturalWidth) {
-      const logoAspect = win95LogoImg.naturalWidth / win95LogoImg.naturalHeight
-      const logoH = Math.round(height * 0.55)
-      const logoW = Math.round(logoH * logoAspect)
-      const logoX = (width - logoW) / 2
-      const logoY = (height - logoH) / 2
-      ctx.drawImage(win95LogoImg, logoX, logoY, logoW, logoH)
-    }
-
-    const labelSize = Math.round(height * 0.035)
-    ctx.font = `${labelSize}px "VT323", monospace`
-    ctx.fillStyle = '#fff'
-    ctx.textAlign = 'right'
-    ctx.textBaseline = 'top'
-    ctx.shadowColor = 'rgba(0,0,0,0.5)'
-    ctx.shadowBlur = 0
-    ctx.shadowOffsetX = 1
-    ctx.shadowOffsetY = 1
-    ctx.fillText('ysu.dev', width - Math.round(width * 0.03), Math.round(height * 0.03))
-    ctx.shadowColor = 'transparent'
-    ctx.shadowOffsetX = 0
-    ctx.shadowOffsetY = 0
-
-    pixelateCanvas(ctx, width, height)
-    applyCRTEffects(ctx, width, height)
-    onUpdate?.()
-  })
-
-  return canvas
+  pixelateCanvas(ctx, width, height)
+  applyCRTEffects(ctx, width, height)
 }
 
-export function drawDesktopScreen(width = 1024, height = 768, onUpdate?: () => void): HTMLCanvasElement {
-  const canvas = document.createElement('canvas')
-  canvas.width = width
-  canvas.height = height
-  const ctx = canvas.getContext('2d')!
-
-  ctx.fillStyle = '#008080'
-  ctx.fillRect(0, 0, width, height)
-
-  drawTaskbar(ctx, width, height)
-
-  Promise.all([logoReady, allIconsReady]).then(() => {
-    drawTaskbar(ctx, width, height, true)
-    drawDesktopIcons(ctx, width, height)
-    pixelateCanvas(ctx, width, height, 820)
-    applyCRTEffects(ctx, width, height)
-    onUpdate?.()
-  })
-
-  return canvas
+function paintDesktop(ctx: CanvasRenderingContext2D, width: number, height: number) {
+  drawTaskbar(ctx, width, height, true)
+  drawDesktopIcons(ctx, width, height)
+  pixelateCanvas(ctx, width, height, 820)
+  applyCRTEffects(ctx, width, height)
 }
 
 export type ScreenKind = 'clouds' | 'desktop'
@@ -332,27 +326,66 @@ export interface ScreenImage {
   whenReady: Promise<HTMLCanvasElement>
   /** taskbar clock it shows (desktop) */
   clock: string
+  /**
+   * Finish it now if it's only waiting for idle time (its images are in).
+   * Returns `ready`.
+   */
+  flush(): boolean
 }
 
+const ric = (cb: () => void) =>
+  window.requestIdleCallback ? window.requestIdleCallback(cb, { timeout: 300 }) : window.setTimeout(cb, 50)
+
 /*
- * The finished clouds / desktop screens, each drawn once (pixelate + CRT pass
- * is ~15 ms of canvas work) and reused by every switch. The desktop is redrawn
- * in the background when its taskbar clock is out of date (refreshScreen).
+ * The finished clouds / desktop screens, each drawn once and reused by every
+ * switch. The pixelate + CRT pass is ~10 ms of canvas work at 4x CPU
+ * throttle, so once a screen's images are in it's drawn in idle time, not in
+ * whatever task they arrived in (for the clouds: the scene's mount, right
+ * before the first 3D frame); flush() draws it on the spot when it's needed
+ * now. The desktop is redrawn in the background when its taskbar clock is out
+ * of date (refreshScreen).
  */
 const screens = new Map<string, ScreenImage>()
 
 function drawScreen(kind: ScreenKind, width: number, height: number): ScreenImage {
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d')!
+  // stand-in until it's drawn
+  ctx.fillStyle = '#008080'
+  ctx.fillRect(0, 0, width, height)
+  if (kind === 'desktop') drawTaskbar(ctx, width, height)
+
   let resolve!: (c: HTMLCanvasElement) => void
-  const image = {
+  let paint: (() => void) | null = null
+  const image: ScreenImage = {
+    canvas,
     ready: false,
     whenReady: new Promise<HTMLCanvasElement>((r) => { resolve = r }),
     clock: kind === 'desktop' ? clockLabel() : '',
-  } as ScreenImage
-  const draw = kind === 'desktop' ? drawDesktopScreen : drawCloudsScreen
-  image.canvas = draw(width, height, () => {
-    image.ready = true
-    resolve(image.canvas)
-  })
+    flush() {
+      if (paint) {
+        const p = paint
+        paint = null
+        p()
+        image.ready = true
+        resolve(canvas)
+      }
+      return image.ready
+    },
+  }
+  if (kind === 'desktop') {
+    loadDesktopAssets().then(() => {
+      paint = () => paintDesktop(ctx, width, height)
+      ric(image.flush)
+    })
+  } else {
+    loadCloudsAssets().then((pictures) => {
+      paint = () => paintClouds(ctx, width, height, pictures)
+      ric(image.flush)
+    })
+  }
   return image
 }
 
@@ -370,10 +403,16 @@ export function isScreenStale(image: ScreenImage): boolean {
   return image.clock !== '' && image.clock !== clockLabel()
 }
 
-/** Redraw a screen; the cached one is replaced once the new one is finished. */
+/**
+ * Redraw a screen (call it in idle time: it's drawn as soon as its images are
+ * in); the cached one is replaced once the new one is finished.
+ */
 export function refreshScreen(kind: ScreenKind, width: number, height: number): Promise<HTMLCanvasElement> {
   const key = `${kind}|${width}x${height}`
   const image = drawScreen(kind, width, height)
+  const assets = kind === 'desktop' ? loadDesktopAssets() : loadCloudsAssets()
+  // drawScreen's own then() (which sets up the paint) runs first
+  assets.then(() => image.flush())
   return image.whenReady.then((canvas) => {
     screens.set(key, image)
     return canvas
@@ -394,8 +433,8 @@ function getBootBg(width: number, height: number): HTMLCanvasElement {
   // Draw the full desktop: teal bg, taskbar, icons — same as drawDesktopScreen but synchronous snapshot
   ctx.fillStyle = '#008080'
   ctx.fillRect(0, 0, width, height)
-  drawTaskbar(ctx, width, height, logoImg.naturalWidth ? true : false)
-  if (desktopIcons.every(ic => ic.img.naturalWidth)) {
+  drawTaskbar(ctx, width, height, Boolean(logoImg))
+  if (desktopIcons.every(ic => ic.img)) {
     drawDesktopIcons(ctx, width, height)
   }
   pixelateCanvas(ctx, width, height, 820)
@@ -412,12 +451,6 @@ function getBootBg(width: number, height: number): HTMLCanvasElement {
   _bgCache = { canvas, w: width, h: height }
   return canvas
 }
-
-// Invalidate cache when assets finish loading so icons appear
-Promise.all([logoReady, allIconsReady]).then(() => {
-  _bgCache = null
-  videoChromes.clear()
-})
 
 // Cached static composite for the video window: boot background + window
 // chrome + scanlines + vignette, with the video content rectangle left
@@ -557,26 +590,36 @@ function videoChrome(width: number, height: number, windowTitle: string, videoAs
   return cache
 }
 
+/** The video's aspect ratio: its own once its metadata is in, else `expected`. */
+function aspectOf(video: HTMLVideoElement, expected: number) {
+  return video.videoWidth && video.videoHeight ? video.videoWidth / video.videoHeight : expected
+}
+
 /**
  * Build a video window's chrome ahead of its first frame (the first build
  * pixelates the desktop background and rasterizes the title: ~10 ms on a fast
- * machine). Call once the video's size is known.
+ * machine). `expectedAspect`: the video's, if its metadata isn't loaded yet.
  */
-export function prepareVideoWindow(width: number, height: number, video: HTMLVideoElement, windowTitle: string) {
-  if (video.videoWidth && video.videoHeight) videoChrome(width, height, windowTitle, video.videoWidth / video.videoHeight)
+export function prepareVideoWindow(width: number, height: number, video: HTMLVideoElement, windowTitle: string, expectedAspect = 0) {
+  const aspect = aspectOf(video, expectedAspect)
+  if (aspect) videoChrome(width, height, windowTitle, aspect)
 }
 
+/**
+ * The video in its window on the desktop. Before the video has a frame to
+ * show (not loaded yet: it starts loading when played), the window is drawn
+ * with an empty (black) picture, at `expectedAspect` if the video's own size
+ * isn't known yet either.
+ */
 export function drawVideoWindow(
   ctx: CanvasRenderingContext2D,
   width: number,
   height: number,
   video: HTMLVideoElement,
-  windowTitle: string
+  windowTitle: string,
+  expectedAspect = 0
 ) {
-  const videoAspect =
-    video.videoWidth && video.videoHeight
-      ? video.videoWidth / video.videoHeight
-      : 0
+  const videoAspect = aspectOf(video, expectedAspect)
   const cache = videoChrome(width, height, windowTitle, videoAspect)
 
   // Black backdrop for the area outside the chrome (composite has transparent
@@ -585,7 +628,8 @@ export function drawVideoWindow(
   ctx.fillStyle = '#000'
   ctx.fillRect(0, 0, width, height)
 
-  // Video first, in the same content rect the composite punched out.
+  // Video first, in the same content rect the composite punched out (draws
+  // nothing until the video has a frame).
   if (videoAspect > 0) {
     ctx.drawImage(
       video,
