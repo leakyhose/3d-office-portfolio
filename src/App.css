@@ -171,6 +171,18 @@ kbd {
   margin-top: var(--gap-l);
 }
 
+/* No one-word last lines in wrapped copy (TypedText keeps whatever
+   wrapping the full text gets, so this holds while it types too). The
+   project blurbs are a line or two: even lines read best there. */
+.body-text {
+  text-wrap: pretty;
+}
+
+.project-desc,
+.project-tech {
+  text-wrap: balance;
+}
+
 .body-text {
   font-size: var(--fs-lead);
   line-height: 1.12;
