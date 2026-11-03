@@ -83,6 +83,13 @@ function drawSunken(ctx: CanvasRenderingContext2D, x: number, y: number, w: numb
   ctx.fillRect(x + w - 2, y, 2, h)
 }
 
+function clockLabel(): string {
+  const now = new Date()
+  const h = now.getHours()
+  const m = now.getMinutes().toString().padStart(2, '0')
+  return `${h % 12 || 12}:${m} ${h >= 12 ? 'PM' : 'AM'}`
+}
+
 function drawTaskbar(ctx: CanvasRenderingContext2D, width: number, height: number, withStartLogo = false) {
   const barH = Math.round(height * 0.08)
   const barY = height - barH
@@ -106,12 +113,7 @@ function drawTaskbar(ctx: CanvasRenderingContext2D, width: number, height: numbe
   const trayX = width - pad - trayW
   drawSunken(ctx, trayX, barY + pad, trayW, innerH)
 
-  const now = new Date()
-  let h = now.getHours()
-  const m = now.getMinutes().toString().padStart(2, '0')
-  const ampm = h >= 12 ? 'PM' : 'AM'
-  h = h % 12 || 12
-  const clockStr = `${h}:${m} ${ampm}`
+  const clockStr = clockLabel()
   const clockFontSize = Math.round(innerH * 0.6)
   ctx.font = `${clockFontSize}px "VT323", monospace`
   ctx.fillStyle = '#000'
@@ -299,7 +301,7 @@ export function drawCloudsScreen(width = 1024, height = 768, onUpdate?: () => vo
   return canvas
 }
 
-export function drawBootScreen(width = 1024, height = 768, onUpdate?: () => void): HTMLCanvasElement {
+export function drawDesktopScreen(width = 1024, height = 768, onUpdate?: () => void): HTMLCanvasElement {
   const canvas = document.createElement('canvas')
   canvas.width = width
   canvas.height = height
@@ -321,9 +323,61 @@ export function drawBootScreen(width = 1024, height = 768, onUpdate?: () => void
   return canvas
 }
 
-export function drawTerminalScreen(width = 1024, height = 768, onUpdate?: () => void) {
-  const canvas = drawBootScreen(width, height, onUpdate)
-  return { canvas }
+export type ScreenKind = 'clouds' | 'desktop'
+
+export interface ScreenImage {
+  canvas: HTMLCanvasElement
+  /** fully drawn (its images had loaded) */
+  ready: boolean
+  whenReady: Promise<HTMLCanvasElement>
+  /** taskbar clock it shows (desktop) */
+  clock: string
+}
+
+/*
+ * The finished clouds / desktop screens, each drawn once (pixelate + CRT pass
+ * is ~15 ms of canvas work) and reused by every switch. The desktop is redrawn
+ * in the background when its taskbar clock is out of date (refreshScreen).
+ */
+const screens = new Map<string, ScreenImage>()
+
+function drawScreen(kind: ScreenKind, width: number, height: number): ScreenImage {
+  let resolve!: (c: HTMLCanvasElement) => void
+  const image = {
+    ready: false,
+    whenReady: new Promise<HTMLCanvasElement>((r) => { resolve = r }),
+    clock: kind === 'desktop' ? clockLabel() : '',
+  } as ScreenImage
+  const draw = kind === 'desktop' ? drawDesktopScreen : drawCloudsScreen
+  image.canvas = draw(width, height, () => {
+    image.ready = true
+    resolve(image.canvas)
+  })
+  return image
+}
+
+export function getScreen(kind: ScreenKind, width: number, height: number): ScreenImage {
+  const key = `${kind}|${width}x${height}`
+  let image = screens.get(key)
+  if (!image) {
+    image = drawScreen(kind, width, height)
+    screens.set(key, image)
+  }
+  return image
+}
+
+export function isScreenStale(image: ScreenImage): boolean {
+  return image.clock !== '' && image.clock !== clockLabel()
+}
+
+/** Redraw a screen; the cached one is replaced once the new one is finished. */
+export function refreshScreen(kind: ScreenKind, width: number, height: number): Promise<HTMLCanvasElement> {
+  const key = `${kind}|${width}x${height}`
+  const image = drawScreen(kind, width, height)
+  return image.whenReady.then((canvas) => {
+    screens.set(key, image)
+    return canvas
+  })
 }
 
 // Pre-rendered boot screen background cache (drawn once, reused every video frame)
@@ -337,7 +391,7 @@ function getBootBg(width: number, height: number): HTMLCanvasElement {
   canvas.height = height
   const ctx = canvas.getContext('2d')!
 
-  // Draw the full desktop: teal bg, taskbar, icons — same as drawBootScreen but synchronous snapshot
+  // Draw the full desktop: teal bg, taskbar, icons — same as drawDesktopScreen but synchronous snapshot
   ctx.fillStyle = '#008080'
   ctx.fillRect(0, 0, width, height)
   drawTaskbar(ctx, width, height, logoImg.naturalWidth ? true : false)
@@ -348,13 +402,11 @@ function getBootBg(width: number, height: number): HTMLCanvasElement {
   // Apply only the border + scanlines, NOT the vignette — vignette goes on top of everything at the end
   const borderW = Math.round(width * 0.03)
   const borderH = Math.round(height * 0.03)
-  const snapshot = ctx.getImageData(0, 0, width, height)
+  // drawImage copy, not getImageData: a readback would pin the canvas to the CPU
+  const tmp = getCrtTmp(width, height)
+  tmp.getContext('2d')!.drawImage(canvas, 0, 0)
   ctx.fillStyle = '#000000'
   ctx.fillRect(0, 0, width, height)
-  const tmp = document.createElement('canvas')
-  tmp.width = width
-  tmp.height = height
-  tmp.getContext('2d')!.putImageData(snapshot, 0, 0)
   ctx.drawImage(tmp, borderW, borderH, width - borderW * 2, height - borderH * 2)
 
   _bgCache = { canvas, w: width, h: height }

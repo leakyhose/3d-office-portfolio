@@ -1,14 +1,47 @@
 import { useEffect, useRef } from 'react'
-import { drawCloudsScreen, drawBootScreen, drawVideoWindow } from './drawScreenTexture'
+import { getScreen, isScreenStale, refreshScreen, drawVideoWindow, type ScreenKind } from './drawScreenTexture'
 import { useScreenMesh } from './components/ScreenMeshContext'
 import { getVideo } from './videoManager'
 import { PROJECTS } from './config/projects'
 import { isCameraAnimating } from './components/camera/bridge'
+import type { Texture } from 'three'
 import type { ScreenPhase } from './types'
 
 const BOOT_DURATION = 400
 
 const CRT_SWITCH_DURATION = 180
+
+/** Run `fn` when the main thread is idle and the camera is at rest. */
+function whenIdle(fn: () => void): () => void {
+  const ric = window.requestIdleCallback ?? ((cb: () => void) => window.setTimeout(cb, 200))
+  const cic = window.cancelIdleCallback ?? window.clearTimeout
+  let id = 0
+  const run = () => {
+    if (isCameraAnimating()) id = ric(run, { timeout: 1000 })
+    else fn()
+  }
+  id = ric(run, { timeout: 1000 })
+  return () => cic(id)
+}
+
+// The CRT switch's copy of the outgoing picture (reused, it's 3 MB).
+let snapshotCanvas: HTMLCanvasElement | null = null
+function snapshotOf(source: HTMLCanvasElement) {
+  snapshotCanvas ??= document.createElement('canvas')
+  if (snapshotCanvas.width !== source.width || snapshotCanvas.height !== source.height) {
+    snapshotCanvas.width = source.width
+    snapshotCanvas.height = source.height
+  }
+  snapshotCanvas.getContext('2d')!.drawImage(source, 0, 0)
+  return snapshotCanvas
+}
+
+/** Re-upload the screen canvas on the next render. */
+function upload(texture: Texture) {
+  texture.needsUpdate = true
+}
+
+const kindFor = (phase: ScreenPhase): ScreenKind => (phase === 'projects' ? 'desktop' : 'clouds')
 
 function makeNoiseCanvas(w: number, h: number, grainSize: number) {
   const c = document.createElement('canvas')
@@ -47,9 +80,10 @@ interface BootAssets {
 // loading (invisible) so the CPU work doesn't land on the start of the boot.
 function createBootAssets(texWidth: number, texHeight: number): BootAssets {
   const assets = { cloudsReady: false } as BootAssets
-  const cloudsCanvas = drawCloudsScreen(texWidth, texHeight, () => {
-    assets.cloudsReady = true
-  })
+  const clouds = getScreen('clouds', texWidth, texHeight)
+  const cloudsCanvas = clouds.canvas
+  assets.cloudsReady = clouds.ready
+  clouds.whenReady.then(() => { assets.cloudsReady = true })
 
   const noiseW = 256
   const noiseH = Math.round(noiseW * (texHeight / texWidth))
@@ -92,6 +126,9 @@ export default function ComputerScreenContent({ screenPhase = 'clouds', hoveredP
   // as the home panel types in) doesn't redraw + re-upload the same image.
   const bootEndedOnCloudsRef = useRef(false)
   const bootAssetsRef = useRef<BootAssets | null>(null)
+  // What the monitor currently shows, so a background redraw (the desktop's
+  // clock) never paints over a video or a switch.
+  const shownRef = useRef<ScreenKind | 'other'>('other')
 
   useEffect(() => {
     if (!screenTexSize || bootAssetsRef.current) return
@@ -204,12 +241,13 @@ export default function ComputerScreenContent({ screenPhase = 'clouds', hoveredP
         ctx.fillRect(0, 0, texWidth, texHeight)
       }
 
-      texture.needsUpdate = true
+      upload(texture)
 
       if (t < 1) {
         rafId = requestAnimationFrame(animate)
       } else {
         bootEndedOnCloudsRef.current = boot.cloudsReady
+        shownRef.current = boot.cloudsReady ? 'clouds' : 'other'
         performance.mark('intro:boot-anim-done')
       }
     }
@@ -244,32 +282,25 @@ export default function ComputerScreenContent({ screenPhase = 'clouds', hoveredP
 
     if (prev === 'booting' && screenPhase === 'clouds' && bootEndedOnCloudsRef.current) return
 
+    const kind = kindFor(screenPhase)
+    const dest = getScreen(kind, texWidth, texHeight)
+    let cancelled = false
+
     if (!isSwitch) {
-      const onLogoReady = () => {
-        const ctx2 = canvas.getContext('2d')!
-        ctx2.clearRect(0, 0, texWidth, texHeight)
-        ctx2.drawImage(newCanvas, 0, 0)
-        texture.needsUpdate = true
+      const show = () => {
+        ctx.clearRect(0, 0, texWidth, texHeight)
+        ctx.drawImage(dest.canvas, 0, 0)
+        upload(texture)
+        shownRef.current = dest.ready ? kind : 'other'
       }
-      const newCanvas = screenPhase === 'projects'
-        ? drawBootScreen(texWidth, texHeight, onLogoReady)
-        : drawCloudsScreen(texWidth, texHeight, onLogoReady)
-      ctx.clearRect(0, 0, texWidth, texHeight)
-      ctx.drawImage(newCanvas, 0, 0)
-      texture.needsUpdate = true
-      return
+      show()
+      if (!dest.ready) dest.whenReady.then(() => { if (!cancelled) show() })
+      return () => { cancelled = true }
     }
 
-    let destReady = false
-    const onDestReady = () => { destReady = true }
-    const destCanvas = screenPhase === 'projects'
-      ? drawBootScreen(texWidth, texHeight, onDestReady)
-      : drawCloudsScreen(texWidth, texHeight, onDestReady)
-
-    const snapshotCanvas = document.createElement('canvas')
-    snapshotCanvas.width = texWidth
-    snapshotCanvas.height = texHeight
-    snapshotCanvas.getContext('2d')!.drawImage(canvas, 0, 0)
+    const destCanvas = dest.canvas
+    const snapshot = snapshotOf(canvas)
+    shownRef.current = 'other'
 
     const startTime = performance.now()
     let lastDrawTime = 0
@@ -299,7 +330,7 @@ export default function ComputerScreenContent({ screenPhase = 'clouds', hoveredP
         ctx.beginPath()
         ctx.rect(0, y, texWidth, visibleH)
         ctx.clip()
-        ctx.drawImage(snapshotCanvas, 0, 0)
+        ctx.drawImage(snapshot, 0, 0)
         ctx.restore()
 
         const lineH = Math.max(1, 3 - collapseEased * 2)
@@ -314,7 +345,7 @@ export default function ComputerScreenContent({ screenPhase = 'clouds', hoveredP
         const visibleH = Math.max(1, Math.round(eased * texHeight))
         const y = Math.round((texHeight - visibleH) / 2)
 
-        if (destReady) {
+        if (dest.ready) {
           ctx.save()
           ctx.beginPath()
           ctx.rect(0, y, texWidth, visibleH)
@@ -339,7 +370,7 @@ export default function ComputerScreenContent({ screenPhase = 'clouds', hoveredP
         // Settle with subtle overshoot
         const settleT = (t - 0.65) / 0.35
 
-        if (destReady) {
+        if (dest.ready) {
           ctx.drawImage(destCanvas, 0, 0)
         }
 
@@ -348,29 +379,79 @@ export default function ComputerScreenContent({ screenPhase = 'clouds', hoveredP
         ctx.fillRect(0, 0, texWidth, texHeight)
       }
 
-      texture.needsUpdate = true
+      upload(texture)
 
       if (t < 1) {
         switchAnimRef.current = requestAnimationFrame(animate)
       } else {
         switchAnimRef.current = null
         ctx.clearRect(0, 0, texWidth, texHeight)
-        if (destReady) {
+        if (dest.ready) {
           ctx.drawImage(destCanvas, 0, 0)
+          shownRef.current = kind
+        } else {
+          dest.whenReady.then(() => {
+            if (cancelled) return
+            ctx.drawImage(destCanvas, 0, 0)
+            upload(texture)
+            shownRef.current = kind
+          })
         }
-        texture.needsUpdate = true
+        upload(texture)
       }
     }
 
     switchAnimRef.current = requestAnimationFrame(animate)
 
     return () => {
+      cancelled = true
       if (switchAnimRef.current) {
         cancelAnimationFrame(switchAnimRef.current)
         switchAnimRef.current = null
       }
     }
   }, [screenPhase, screenCanvas, screenTexture, screenTexSize])
+
+  // Once booted, draw the screen that isn't showing yet in the background,
+  // so a later switch only has to blit it.
+  const booted = screenPhase === 'clouds' || screenPhase === 'projects'
+  useEffect(() => {
+    if (!booted || !screenTexSize) return
+    const { width, height } = screenTexSize
+    return whenIdle(() => {
+      getScreen('desktop', width, height)
+      getScreen('clouds', width, height)
+    })
+  }, [booted, screenTexSize])
+
+  // Keep the desktop's taskbar clock current: redraw it in the background
+  // (never mid-flight) and show it if the desktop is still what's on screen.
+  const onDesktop = screenPhase === 'projects' && !hoveredProject
+  useEffect(() => {
+    if (!onDesktop || !screenCanvas || !screenTexture || !screenTexSize) return
+    const { width, height } = screenTexSize
+    let alive = true
+    let cancelIdle = () => {}
+    const check = () => {
+      if (!isScreenStale(getScreen('desktop', width, height))) return
+      cancelIdle()
+      cancelIdle = whenIdle(() => {
+        refreshScreen('desktop', width, height).then((fresh) => {
+          if (!alive || shownRef.current !== 'desktop' || switchAnimRef.current) return
+          const ctx = screenCanvas.getContext('2d')!
+          ctx.drawImage(fresh, 0, 0)
+          upload(screenTexture)
+        })
+      })
+    }
+    check()
+    const timer = setInterval(check, 15_000)
+    return () => {
+      alive = false
+      clearInterval(timer)
+      cancelIdle()
+    }
+  }, [onDesktop, screenCanvas, screenTexture, screenTexSize])
 
   // Video hover loop
   useEffect(() => {
@@ -420,7 +501,8 @@ export default function ComputerScreenContent({ screenPhase = 'clouds', hoveredP
       if (now - lastDrawTime >= 33) {
         lastDrawTime = now
         drawVideoWindow(ctx, texWidth, texHeight, video!, title)
-        texture.needsUpdate = true
+        upload(texture)
+        shownRef.current = 'other'
       }
       videoRafRef.current = requestAnimationFrame(drawFrame)
     }
