@@ -32,9 +32,8 @@
 
   --tabbar-h: 58px;
 
-  /* Section icons. Monochrome by default (they take the link colour); the
-     per-section colours from the earlier design are kept below, switch them
-     on with the .icons-color class on #app (see COLORED_ICONS in App.tsx). */
+  /* Section icons. Per-section colours come from .icons-color on #app (see
+     COLORED_ICONS in App.tsx); without it they take the link colour. */
   --icon-home: currentColor;
   --icon-about: currentColor;
   --icon-experience: currentColor;
@@ -55,6 +54,15 @@
 .nav-link .hn-trophy, .tab .hn-trophy { color: var(--icon-experience); }
 .nav-link .hn-code, .tab .hn-code { color: var(--icon-projects); }
 .nav-link .hn-envelope, .tab .hn-envelope { color: var(--icon-contact); }
+
+/* with colours on, panel titles take their section's colour and hovered
+   links brighten their icon */
+#app.icons-color .panel-title .hn-user { color: var(--icon-about); }
+#app.icons-color .panel-title .hn-trophy { color: var(--icon-experience); }
+#app.icons-color .panel-title .hn-code { color: var(--icon-projects); }
+#app.icons-color .panel-title .hn-envelope { color: var(--icon-contact); }
+#app.icons-color.can-hover .nav-link:hover .hn,
+#app.icons-color .nav-link:focus-visible .hn { filter: brightness(1.18); }
 
 #app {
   position: fixed;

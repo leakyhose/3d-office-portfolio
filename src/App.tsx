@@ -30,7 +30,7 @@ const BOOT_MS = 400
 // then fades in behind it at the current view, without the intro zoom.
 const PANEL_FALLBACK_MS = 2500
 // Per-section icon colours (see --icon-* in App.css); off = monochrome icons.
-const COLORED_ICONS = false
+const COLORED_ICONS = true
 
 function viewFromHash(): ViewName | null {
   const v = window.location.hash.slice(1)
