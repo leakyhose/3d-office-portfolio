@@ -23,7 +23,7 @@ function measure(el: HTMLElement): Size {
  * <Canvas> did (sRGB output, `flat` tone mapping, PerspectiveCamera at z = 5
  * looking at the origin), keeps them sized to the container and runs the
  * render loop (see three/fiber.ts). The children are plain React components;
- * they mount once the renderer exists.
+ * they mount once the renderer exists and onCreated has run.
  *
  * A renderer that can't be created (no WebGL context) is re-thrown during
  * render, into the nearest error boundary (<StageBoundary> -> flat layout).
@@ -40,10 +40,23 @@ export function Canvas({ children, ...config }: CanvasProps) {
     const container = containerRef.current!
     const canvas = canvasRef.current!
     let r: Root | null = null
+    let step = 0 // pending creation step
+    let resizeTimer = 0
+    let pending: Size | null = null
+    const valid = (s: Size) => s.width > 0 && s.height > 0 // 0 = not laid out yet (skipped, like R3F's Canvas)
+    const fail = (e: unknown) => setError(e instanceof Error ? e : new Error(String(e)))
 
-    const create = (size: Size) => {
+    // Set-up runs in two tasks of its own, as it did under R3F: creating the
+    // WebGL context, then onCreated (the shader prewarm) + mounting the
+    // children. Both are tens of ms on a slow CPU; in one task (or in the
+    // Stage mount's) they would make one long task instead of two shorter ones.
+    const create = () => {
+      step = 0
+      const size = pending ?? measure(container)
+      pending = null
+      if (!valid(size)) return // the ResizeObserver tries again
       try {
-        const { gl: createGl, camera: cameraProps, dpr, onCreated } = configRef.current
+        const { gl: createGl, camera: cameraProps, dpr } = configRef.current
         const gl = createGl({ canvas, powerPreference: 'high-performance', antialias: true, alpha: true })
         gl.outputColorSpace = SRGBColorSpace
         gl.toneMapping = NoToneMapping
@@ -51,41 +64,45 @@ export function Canvas({ children, ...config }: CanvasProps) {
         camera.position.z = 5
         camera.lookAt(0, 0, 0)
         r = createRoot(gl, new Scene(), camera, size, dpr)
-        onCreated?.(r.getState())
-        r.start()
-        setRoot(r)
+        step = window.setTimeout(activate)
       } catch (e) {
-        setError(e instanceof Error ? e : new Error(String(e)))
+        fail(e)
       }
     }
-
-    // Sizes of 0 (not laid out yet) are skipped, like R3F's Canvas did.
-    const initial = measure(container)
-    if (initial.width > 0 && initial.height > 0) create(initial)
+    const activate = () => {
+      step = 0
+      try {
+        configRef.current.onCreated?.(r!.getState())
+        r!.start()
+        setRoot(r)
+      } catch (e) {
+        fail(e)
+      }
+    }
+    step = window.setTimeout(create)
 
     // Resizing the canvas clears it. ResizeObserver callbacks run right
     // before a paint, so applying the size there would paint one blank
     // frame; apply it in a task after the paint instead (as R3F did, through
     // a React state update), so the next frame is drawn at the new size, with
     // the camera already re-framed by the components that read `size`.
-    let timer = 0
-    let pending: Size | null = null
-    const apply = () => {
-      timer = 0
-      const size = pending!
-      if (r) r.setSize(size)
-      else create(size)
+    const applySize = () => {
+      resizeTimer = 0
+      if (r && pending) r.setSize(pending)
+      pending = null
     }
     const ro = new ResizeObserver(() => {
       const size = measure(container)
-      if (size.width <= 0 || size.height <= 0) return
+      if (!valid(size)) return
       pending = size
-      timer ||= window.setTimeout(apply)
+      if (r) resizeTimer ||= window.setTimeout(applySize)
+      else step ||= window.setTimeout(create)
     })
     ro.observe(container)
     return () => {
       ro.disconnect()
-      clearTimeout(timer)
+      clearTimeout(step)
+      clearTimeout(resizeTimer)
       r?.destroy()
     }
   }, [])
