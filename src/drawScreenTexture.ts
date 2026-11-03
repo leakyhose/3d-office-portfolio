@@ -589,26 +589,36 @@ function videoChrome(width: number, height: number, windowTitle: string, videoAs
   return cache
 }
 
+/** The video's aspect ratio: its own once its metadata is in, else `expected`. */
+function aspectOf(video: HTMLVideoElement, expected: number) {
+  return video.videoWidth && video.videoHeight ? video.videoWidth / video.videoHeight : expected
+}
+
 /**
  * Build a video window's chrome ahead of its first frame (the first build
  * pixelates the desktop background and rasterizes the title: ~10 ms on a fast
- * machine). Call once the video's size is known.
+ * machine). `expectedAspect`: the video's, if its metadata isn't loaded yet.
  */
-export function prepareVideoWindow(width: number, height: number, video: HTMLVideoElement, windowTitle: string) {
-  if (video.videoWidth && video.videoHeight) videoChrome(width, height, windowTitle, video.videoWidth / video.videoHeight)
+export function prepareVideoWindow(width: number, height: number, video: HTMLVideoElement, windowTitle: string, expectedAspect = 0) {
+  const aspect = aspectOf(video, expectedAspect)
+  if (aspect) videoChrome(width, height, windowTitle, aspect)
 }
 
+/**
+ * The video in its window on the desktop. Before the video has a frame to
+ * show (not loaded yet: it starts loading when played), the window is drawn
+ * with an empty (black) picture, at `expectedAspect` if the video's own size
+ * isn't known yet either.
+ */
 export function drawVideoWindow(
   ctx: CanvasRenderingContext2D,
   width: number,
   height: number,
   video: HTMLVideoElement,
-  windowTitle: string
+  windowTitle: string,
+  expectedAspect = 0
 ) {
-  const videoAspect =
-    video.videoWidth && video.videoHeight
-      ? video.videoWidth / video.videoHeight
-      : 0
+  const videoAspect = aspectOf(video, expectedAspect)
   const cache = videoChrome(width, height, windowTitle, videoAspect)
 
   // Black backdrop for the area outside the chrome (composite has transparent
@@ -617,7 +627,8 @@ export function drawVideoWindow(
   ctx.fillStyle = '#000'
   ctx.fillRect(0, 0, width, height)
 
-  // Video first, in the same content rect the composite punched out.
+  // Video first, in the same content rect the composite punched out (draws
+  // nothing until the video has a frame).
   if (videoAspect > 0) {
     ctx.drawImage(
       video,

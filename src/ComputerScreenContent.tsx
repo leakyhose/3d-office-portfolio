@@ -427,14 +427,12 @@ export default function ComputerScreenContent({ screenPhase = 'clouds', hoveredP
   // Once booted, draw the screen that isn't showing yet in the background,
   // so a later switch only has to blit it; then, once the desktop (the video
   // windows' background) is drawn, each project's video window (one per idle
-  // period, once its video's size is known), so a hover never builds one in
-  // the middle of the screen switch.
+  // period), so a hover never builds one in the middle of the screen switch.
   const booted = screenPhase === 'clouds' || screenPhase === 'projects'
   useEffect(() => {
     if (!booted || !screenTexSize) return
     const { width, height } = screenTexSize
     let alive = true
-    const cleanups: (() => void)[] = []
     const jobs: (() => void)[] = [() => {
       getScreen('clouds', width, height)
       getScreen('desktop', width, height).whenReady.then(() => {
@@ -442,11 +440,8 @@ export default function ComputerScreenContent({ screenPhase = 'clouds', hoveredP
         for (const project of PROJECTS) {
           const video = getVideo(project.id)
           if (!video) continue
-          const prepare = () => prepareVideoWindow(width, height, video, `${project.name}.exe`)
-          if (video.videoWidth) { enqueue(prepare); continue }
-          const onMeta = () => enqueue(prepare)
-          video.addEventListener('loadedmetadata', onMeta, { once: true })
-          cleanups.push(() => video.removeEventListener('loadedmetadata', onMeta))
+          const [w, h] = project.demoSize
+          enqueue(() => prepareVideoWindow(width, height, video, `${project.name}.exe`, w / h))
         }
       })
     }]
@@ -464,7 +459,6 @@ export default function ComputerScreenContent({ screenPhase = 'clouds', hoveredP
     return () => {
       alive = false
       cancelIdle?.()
-      cleanups.forEach((c) => c())
     }
   }, [booted, screenTexSize])
 
@@ -535,6 +529,9 @@ export default function ComputerScreenContent({ screenPhase = 'clouds', hoveredP
 
     const project = PROJECTS.find(p => p.id === hoveredProject)
     const title = project ? `${project.name}.exe` : 'Video'
+    // The window shows at once, empty until the video's first frame (it may
+    // only start loading now, where the demos aren't prefetched).
+    const expectedAspect = project ? project.demoSize[0] / project.demoSize[1] : 0
 
     // Redraw (and re-upload the screen) only when the video has a new frame
     // to show, at most every 25 ms (the demos are 30 fps); without
@@ -560,7 +557,7 @@ export default function ComputerScreenContent({ screenPhase = 'clouds', hoveredP
       if (rvfc ? !fresh || now - lastDrawTime < 25 : now - lastDrawTime < 33) return
       fresh = false
       lastDrawTime = now
-      drawVideoWindow(ctx, texWidth, texHeight, video!, title)
+      drawVideoWindow(ctx, texWidth, texHeight, video!, title, expectedAspect)
       upload(texture)
       shownRef.current = 'other'
     }
