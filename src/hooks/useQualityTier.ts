@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { useFrame, useThree } from '@react-three/fiber'
+import { useFrame, useThree } from '../three/fiber'
 
 // With lighting baked into lightmaps the per-frame cost is a few dozen cheap
 // draw calls, so the only quality knob left is the render resolution (DPR).
