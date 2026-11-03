@@ -17,7 +17,7 @@ export const PROJECTS: ProjectData[] = [
     github: 'https://github.com/leakyhose/alternate-history',
     link: 'https://alternate-history-seven.vercel.app/',
     desc: 'Agentic alternate history simulator.',
-    tech: ['Python', 'Typescript', 'FastAPI', 'LangChain', 'LangGraph', 'Gemini API'],
+    tech: ['Python', 'TypeScript', 'FastAPI', 'LangChain', 'LangGraph', 'Gemini API'],
     demoVideo: '/demo-vid/divergence_demo.mp4',
   },
   {
@@ -27,7 +27,7 @@ export const PROJECTS: ProjectData[] = [
     github: 'https://github.com/leakyhose/racecard',
     link: 'https://racecard.io/',
     desc: 'Multiplayer trivia game with AI-generated questions.',
-    tech: ['Typescript', 'React', 'Socket.IO', 'AWS EC2', 'Docker', 'PostgreSQL', 'LangChain'],
+    tech: ['TypeScript', 'React', 'Socket.IO', 'AWS EC2', 'Docker', 'PostgreSQL', 'LangChain'],
     demoVideo: '/demo-vid/racecard_demo.mp4',
   },
   {

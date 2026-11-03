@@ -1,13 +1,14 @@
 import type { ViewName } from '../../types'
 import { INTRO_ZOOM_DURATION } from '../../config/views'
 
+// Plain module-level hooks between the HTML app and the camera code living
+// inside the R3F canvas (which may not be mounted yet, or at all).
+
 type NavigateToFn = (viewName: ViewName, dur?: number, isIntro?: boolean) => void
-type VoidFn = () => void
 type FreeCamHandlerFn = (entering: boolean) => void
 type NavigationCompleteFn = (viewName: ViewName) => void
 
 let _navigateTo: NavigateToFn | null = null
-let _computeCloseup: VoidFn | null = null
 let _freeCamHandler: FreeCamHandlerFn | null = null
 let _onNavigationComplete: NavigationCompleteFn | null = null
 let _onIntroPreComplete: NavigationCompleteFn | null = null
@@ -15,9 +16,6 @@ let _isCameraAnimating: (() => boolean) | null = null
 
 export function setNavigateTo(fn: NavigateToFn) { _navigateTo = fn }
 export function clearNavigateTo(fn: NavigateToFn) { if (_navigateTo === fn) _navigateTo = null }
-
-export function setComputeCloseup(fn: VoidFn) { _computeCloseup = fn }
-export function clearComputeCloseup(fn: VoidFn) { if (_computeCloseup === fn) _computeCloseup = null }
 
 export function setFreeCamHandler(fn: FreeCamHandlerFn) { _freeCamHandler = fn }
 export function clearFreeCamHandler(fn: FreeCamHandlerFn) { if (_freeCamHandler === fn) _freeCamHandler = null }
@@ -40,17 +38,14 @@ export function navigateToView(viewName: ViewName) {
   if (_navigateTo) _navigateTo(viewName)
 }
 
-export function positionAtScreen() {
-  if (_computeCloseup) _computeCloseup()
-}
-
 /** Snap the camera to a view (next frame) without the fly-to animation. */
 export function jumpToView(viewName: ViewName) {
   if (_navigateTo) _navigateTo(viewName, 1e-3)
 }
 
-export function triggerIntroZoom() {
-  if (_navigateTo) _navigateTo('home', INTRO_ZOOM_DURATION, true)
+/** The intro: fly from the monitor close-up to `viewName` (home unless deep-linked). */
+export function triggerIntroZoom(viewName: ViewName = 'home') {
+  if (_navigateTo) _navigateTo(viewName, INTRO_ZOOM_DURATION, true)
 }
 
 export function enterFreeCam() {

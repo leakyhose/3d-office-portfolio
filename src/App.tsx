@@ -1,21 +1,24 @@
-import { lazy, Suspense, useEffect, useRef, useState, useCallback } from 'react'
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, useCallback, useReducer } from 'react'
 import '@fontsource/vt323'
 import '@hackernoon/pixel-icon-library/fonts/iconfont.css'
 import { VIEWS } from './config/views'
 import { navigateToView, jumpToView, triggerIntroZoom, enterFreeCam, setOnNavigationComplete, clearOnNavigationComplete, setOnIntroPreComplete, clearOnIntroPreComplete } from './components/camera/bridge'
 import PANELS from './panels'
-import useIsMobile, { isMobileViewport } from './hooks/useIsMobile'
+import { SECTIONS, hrefFor, navClick } from './panels/SectionNav'
+import { canRender3D, StageBoundary } from './capabilities'
+import { useScreenLayout, useCanHover, stackedSceneFraction } from './layout'
 import './App.css'
-import type { ViewName, PanelId, ViewConfig, ScreenPhase } from './types'
+import type { ViewName, PanelId, ScreenPhase } from './types'
 
-// The 3D stage (three.js, R3F, the GLB) is a separate chunk. On desktop its
-// download starts as soon as this module runs, in parallel with React's first
-// render of the HTML overlay; mobile never loads it.
+// The 3D stage (three.js, R3F, the GLB) is a separate chunk. Its download
+// starts as soon as this module runs, in parallel with React's first render
+// of the HTML overlay. Devices that get the flat layout never load it.
 // Not React.lazy: a Suspense boundary adds ~300 ms reveal throttling.
 type StageComponent = typeof import('./components/Stage').default
+const SUPPORTS_3D = canRender3D()
 let stageChunk: Promise<StageComponent> | null = null
 const loadStage = () => (stageChunk ??= import('./components/Stage').then((m) => m.default))
-if (!isMobileViewport()) loadStage()
+if (SUPPORTS_3D) loadStage()
 const CameraInfoPanel = lazy(() => import('./CameraInfo').then(m => ({ default: m.CameraInfoPanel })))
 
 // The canvas fades in over STAGE_FADE_MS once its first frame is ready
@@ -23,153 +26,194 @@ const CameraInfoPanel = lazy(() => import('./CameraInfo').then(m => ({ default: 
 const STAGE_FADE_MS = 450
 const BOOT_MS = 400
 // If the 3D scene isn't ready by then (slow network / slow device), show the
-// home panel over the backdrop instead of keeping the visitor waiting; the
-// scene then fades in behind it at the current view, without the intro zoom.
+// panel over the backdrop instead of keeping the visitor waiting; the scene
+// then fades in behind it at the current view, without the intro zoom.
 const PANEL_FALLBACK_MS = 2500
+// Per-section icon colours (see --icon-* in App.css); off = monochrome icons.
+const COLORED_ICONS = false
+
+function viewFromHash(): ViewName | null {
+  const v = window.location.hash.slice(1)
+  return v in VIEWS ? (v as ViewName) : null
+}
+
+/*
+ * Navigation state lives in a ref (rendered via a version counter), so every
+ * handler, including the window keydown/popstate listeners, always sees the
+ * current panels. A view change: erase the visible panels (camera starts
+ * flying at once), then, when every mounted panel reports it has finished
+ * erasing, swap in the target view's panels and type them in.
+ */
+interface NavState {
+  view: ViewName
+  left: PanelId | null
+  right: PanelId | null
+  leftVisible: boolean
+  rightVisible: boolean
+}
 
 function App() {
-  const isMobile = useIsMobile()
-  const [stageVisible, setStageVisible] = useState(false)
+  const screen = useScreenLayout()
+  const canHover = useCanHover()
+  const [stageFailed, setStageFailed] = useState(false)
+  const has3D = SUPPORTS_3D && !stageFailed
+  const mode = has3D ? screen.kind : 'flat'
+
   const [Stage, setStage] = useState<StageComponent | null>(null)
   useEffect(() => {
-    if (isMobile || Stage) return
+    if (!has3D || Stage) return
     let alive = true
-    loadStage().then((C) => { if (alive) setStage(() => C) })
+    loadStage().then((C) => { if (alive) setStage(() => C) }, () => setStageFailed(true))
     return () => { alive = false }
-  }, [isMobile, Stage])
-  const [leftPanel, setLeftPanel] = useState<PanelId | null>(null)
-  const [rightPanel, setRightPanel] = useState<PanelId | null>('home')
-  const [leftVisible, setLeftVisible] = useState(false)
-  const [rightVisible, setRightVisible] = useState(false)
-  const [freeCam, setFreeCam] = useState(false)
-  const [freeCamIdle, setFreeCamIdle] = useState(false)
-  const [currentView, setCurrentView] = useState<ViewName>('home')
-  const [bootPhase, setBootPhase] = useState<'off' | 'booting' | 'done'>('off')
-  const [landedView, setLandedView] = useState<ViewName>('home')
-  const [hoveredProject, setHoveredProject] = useState<string | null>(null)
+  }, [has3D, Stage])
+  const [stageVisible, setStageVisible] = useState(false)
 
-  const pendingTarget = useRef<ViewConfig | null>(null)
+  const initialView = useRef<ViewName>(viewFromHash() ?? 'home').current
+  const nav = useRef<NavState>({
+    view: initialView,
+    left: VIEWS[initialView].left,
+    right: VIEWS[initialView].right,
+    leftVisible: false,
+    rightVisible: false,
+  })
+  const [, rerender] = useReducer((n: number) => n + 1, 0)
+  const pending = useRef<ViewName | null>(null)
   const leftDone = useRef(true)
   const rightDone = useRef(true)
-  const swapTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const navHovered = useRef(false)
-  const bufferedLandedView = useRef<ViewName | null>(null)
+  const focusPanelOnSwap = useRef(false)
 
-  const savedStateRef = useRef<{
-    leftPanel: PanelId | null
-    rightPanel: PanelId | null
-    leftVisible: boolean
-    rightVisible: boolean
-    viewName: ViewName
-  } | null>(null)
-  const currentViewRef = useRef<ViewName>('home')
-  const navigatingRef = useRef(false)
+  const [freeCam, setFreeCam] = useState(false)
+  const [freeCamIdle, setFreeCamIdle] = useState(false)
+  const [bootPhase, setBootPhase] = useState<'off' | 'booting' | 'done'>('off')
+  const [landedView, setLandedView] = useState<ViewName>(initialView)
+  const [selectedProject, setSelectedProject] = useState<string | null>(null)
+  const [introComplete, setIntroComplete] = useState(false)
+  const [interactive, setInteractive] = useState(false)
+
   const isFreeCam = useRef(false)
+  const interactiveRef = useRef(false)
   const introZoomRef = useRef(false)
-  const introCompleteRef = useRef(false)
   const stageReadyRef = useRef(false)
   const panelFallbackRef = useRef(false)
   const introTimers = useRef<ReturnType<typeof setTimeout>[]>([])
+  const navHovered = useRef(false)
+  const bufferedLandedView = useRef<ViewName | null>(null)
+  const lastInput = useRef<'pointer' | 'key'>('key')
 
-  const swapPanels = useCallback((target: ViewConfig) => {
-    if (swapTimer.current) clearTimeout(swapTimer.current)
-    const extraDelay = target.extraDelay ?? 0
-
-    const doSwap = () => {
-      setLeftPanel(target.left)
-      setRightPanel(target.right)
-      setLeftVisible(Boolean(target.left))
-      setRightVisible(Boolean(target.right))
-      swapTimer.current = null
-      navigatingRef.current = false
+  const showPanels = useCallback(() => {
+    const s = nav.current
+    s.leftVisible = Boolean(s.left)
+    s.rightVisible = Boolean(s.right)
+    if (!interactiveRef.current) {
+      interactiveRef.current = true
+      setInteractive(true)
     }
-
-    if (extraDelay > 0) {
-      swapTimer.current = setTimeout(doSwap, extraDelay)
-    } else {
-      doSwap()
-    }
+    rerender()
   }, [])
 
   const trySwap = useCallback(() => {
-    if (leftDone.current && rightDone.current && pendingTarget.current) {
-      const target = pendingTarget.current
-      pendingTarget.current = null
-      swapPanels(target)
-    }
-  }, [swapPanels])
+    const target = pending.current
+    if (!target || !leftDone.current || !rightDone.current) return
+    pending.current = null
+    const s = nav.current
+    s.left = VIEWS[target].left
+    s.right = VIEWS[target].right
+    showPanels()
+  }, [showPanels])
 
-  const onLeftUntypeComplete = useCallback(() => {
-    leftDone.current = true
-    trySwap()
-  }, [trySwap])
+  const onLeftUntypeComplete = useCallback(() => { leftDone.current = true; trySwap() }, [trySwap])
+  const onRightUntypeComplete = useCallback(() => { rightDone.current = true; trySwap() }, [trySwap])
 
-  const onRightUntypeComplete = useCallback(() => {
-    rightDone.current = true
-    trySwap()
-  }, [trySwap])
-
-  const navigateToSection = useCallback((viewName: ViewName) => {
-    if (swapTimer.current) {
-      clearTimeout(swapTimer.current)
-      swapTimer.current = null
-    }
-    pendingTarget.current = VIEWS[viewName]
-    currentViewRef.current = viewName
-    setCurrentView(viewName)
-    navigatingRef.current = true
-
-    navigateToView(viewName)
-    setLeftVisible(false)
-    setRightVisible(false)
-
-    // A panel that is already hidden has either finished erasing (flag is
-    // already true) or will report when it does; resetting it would wait for
-    // a report that never comes (e.g. Esc pressed again after one side is done).
-    leftDone.current = !leftPanel || (!leftVisible && leftDone.current)
-    rightDone.current = !rightPanel || (!rightVisible && rightDone.current)
-    trySwap()
-  }, [leftPanel, rightPanel, leftVisible, rightVisible, trySwap])
-
-  const enterFreeCamMode = useCallback(() => {
-    if (navigatingRef.current || isFreeCam.current || !stageReadyRef.current) return
-    savedStateRef.current = {
-      leftPanel, rightPanel, leftVisible, rightVisible,
-      viewName: currentViewRef.current,
-    }
-    setLeftVisible(false)
-    setRightVisible(false)
-    enterFreeCam()
-    isFreeCam.current = true
-    setFreeCam(true)
-  }, [leftPanel, rightPanel, leftVisible, rightVisible])
-
-  const exitFreeCamMode = useCallback(() => {
-    if (!isFreeCam.current || !savedStateRef.current) return
-    const saved = savedStateRef.current
-    savedStateRef.current = null
-    isFreeCam.current = false
-    setFreeCam(false)
-    setLeftPanel(saved.leftPanel)
-    setRightPanel(saved.rightPanel)
-    setLeftVisible(saved.leftVisible)
-    setRightVisible(saved.rightVisible)
-    navigateToView(saved.viewName)
+  const finishIntro = useCallback(() => {
+    introZoomRef.current = false
+    setBootPhase('done')
+    setIntroComplete(true)
   }, [])
 
-  const [introComplete, setIntroComplete] = useState(false)
+  const exitFreeCamMode = useCallback(() => {
+    if (!isFreeCam.current) return
+    isFreeCam.current = false
+    setFreeCam(false)
+    showPanels()
+    navigateToView(nav.current.view)
+  }, [showPanels])
+
+  const navigate = useCallback((view: ViewName, opts: { history?: boolean; event?: React.MouseEvent } = {}) => {
+    if (!interactiveRef.current) return
+    if (isFreeCam.current) exitFreeCamMode()
+    // Clicked during the tail of the intro zoom: settle the intro state now.
+    if (introZoomRef.current) finishIntro()
+    const s = nav.current
+    if (view === s.view) return
+
+    if (opts.history !== false) {
+      const url = view === 'home' ? window.location.pathname + window.location.search : hrefFor(view)
+      window.history.pushState(null, '', url)
+    }
+    // Mouse clicks shouldn't leave focus on a link that's about to be erased.
+    if (opts.event && opts.event.detail > 0) (opts.event.currentTarget as HTMLElement | null)?.blur?.()
+    focusPanelOnSwap.current = Boolean(opts.event && opts.event.detail === 0)
+
+    s.view = view
+    if (view !== 'projects') setSelectedProject(null)
+    navigateToView(view)
+
+    const target = VIEWS[view]
+    if (target.left === s.left && target.right === s.right) {
+      // Going back to the panels still on screen (e.g. A -> B -> A before the
+      // swap): just type them back in.
+      pending.current = null
+      showPanels()
+      return
+    }
+    pending.current = view
+    // A panel that is already hidden has either finished erasing (flag
+    // already true) or will report when it does.
+    leftDone.current = !s.left || (!s.leftVisible && leftDone.current)
+    rightDone.current = !s.right || (!s.rightVisible && rightDone.current)
+    s.leftVisible = false
+    s.rightVisible = false
+    rerender()
+    trySwap()
+  }, [exitFreeCamMode, finishIntro, showPanels, trySwap])
+
+  const onNavigate = useCallback((view: ViewName, e?: React.MouseEvent) => navigate(view, { event: e }), [navigate])
+
+  // Keyboard navigation: move focus into the newly typed panel.
+  useLayoutEffect(() => {
+    if (!focusPanelOnSwap.current || pending.current) return
+    const panel = document.querySelector<HTMLElement>('#overlay .panel')
+    if (panel) {
+      focusPanelOnSwap.current = false
+      panel.focus({ preventScroll: true })
+    }
+  })
+
+  const enterFreeCamMode = useCallback(() => {
+    if (!interactiveRef.current || introZoomRef.current || pending.current || isFreeCam.current || !stageReadyRef.current) return
+    isFreeCam.current = true
+    setFreeCam(true)
+    nav.current.leftVisible = false
+    nav.current.rightVisible = false
+    rerender()
+    enterFreeCam()
+  }, [])
+
+  // ── Key hints (desktop) ──
   const [keyHintArmed, setKeyHintArmed] = useState(false)
   const [keyHintDismissed, setKeyHintDismissed] = useState(false)
-  const showKeyHints = keyHintArmed && !keyHintDismissed && !freeCam && !isMobile
+  const keyboardScene = has3D && canHover
+  const showKeyHints = keyHintArmed && !keyHintDismissed && !freeCam && keyboardScene && mode === 'wide'
+  const keyboardSceneRef = useRef(keyboardScene)
+  useEffect(() => { keyboardSceneRef.current = keyboardScene }, [keyboardScene])
 
   useEffect(() => {
-    if (!introComplete || isMobile) return
+    if (!introComplete || !keyboardScene) return
     const t = setTimeout(() => setKeyHintArmed(true), 800)
     return () => clearTimeout(t)
-  }, [introComplete, isMobile])
+  }, [introComplete, keyboardScene])
 
-  // In free cam, fade the HUD (coords + hint) after 2s of inactivity so only
-  // the 3D scene shows. Any pointer/wheel/key/touch interaction brings it back.
+  // In free cam, fade the HUD after 2s of inactivity so only the scene shows.
   useEffect(() => {
     if (!freeCam) {
       setFreeCamIdle(false)
@@ -190,16 +234,16 @@ function App() {
     }
   }, [freeCam])
 
-  // Mobile: no 3D, panels straight away. Desktop: give the 3D scene a moment
-  // to arrive before falling back to showing the panels on their own.
+  // Flat layout (no 3D, or the stage failed): panels straight away.
   useEffect(() => {
     performance.mark('app:mounted')
-    if (isMobile) {
-      // (if the window later grows to desktop size, the scene fades in behind
-      // the already visible panels instead of replaying the intro)
+    if (!has3D) {
       panelFallbackRef.current = true
-      setRightVisible(true)
-      setIntroComplete(true)
+      introTimers.current.forEach(clearTimeout)
+      introZoomRef.current = false
+      if (isFreeCam.current) { isFreeCam.current = false; setFreeCam(false) }
+      showPanels()
+      finishIntro()
       return
     }
     if (stageReadyRef.current) return
@@ -207,10 +251,10 @@ function App() {
       if (stageReadyRef.current) return
       performance.mark('app:panel-fallback')
       panelFallbackRef.current = true
-      setRightVisible(true)
+      showPanels()
     }, PANEL_FALLBACK_MS)
     return () => clearTimeout(t)
-  }, [isMobile])
+  }, [has3D, showPanels, finishIntro])
 
   useEffect(() => () => introTimers.current.forEach(clearTimeout), [])
 
@@ -223,10 +267,8 @@ function App() {
     if (panelFallbackRef.current) {
       // Panels are already up: place the camera at the current view and show
       // the booted desktop on the monitor, no intro zoom.
-      jumpToView(currentViewRef.current)
-      setBootPhase('done')
-      setIntroComplete(true)
-      introCompleteRef.current = true
+      jumpToView(nav.current.view)
+      finishIntro()
       return
     }
     introTimers.current.push(setTimeout(() => {
@@ -235,35 +277,53 @@ function App() {
       introTimers.current.push(setTimeout(() => {
         performance.mark('intro:zoom-trigger')
         introZoomRef.current = true
-        triggerIntroZoom()
+        triggerIntroZoom(nav.current.view)
       }, BOOT_MS))
     }, STAGE_FADE_MS))
-  }, [])
+  }, [finishIntro])
 
+  // Window-level keys and history; handlers only read refs, so they're never stale.
   useEffect(() => {
+    const onPointer = () => { lastInput.current = 'pointer' }
     const onKeyDown = (event: KeyboardEvent) => {
-      setKeyHintDismissed(true)
-      if (event.key === 'Tab' && !isMobile) {
-        event.preventDefault()
-        if (!isFreeCam.current) {
-          enterFreeCamMode()
-        } else {
+      if (event.altKey || event.ctrlKey || event.metaKey) return
+      if (event.key === 'Tab') {
+        if (isFreeCam.current) {
+          event.preventDefault()
+          setKeyHintDismissed(true)
+          lastInput.current = 'key'
           exitFreeCamMode()
+          return
         }
+        // Tab is the free-cam key for mouse users; keyboard users keep normal
+        // focus navigation (free cam needs a mouse anyway).
+        if (keyboardSceneRef.current && lastInput.current === 'pointer' && !event.shiftKey) {
+          event.preventDefault()
+          setKeyHintDismissed(true)
+          enterFreeCamMode()
+          return
+        }
+        lastInput.current = 'key'
         return
       }
       if (event.key === 'Escape') {
-        if (!isMobile && isFreeCam.current) {
-          exitFreeCamMode()
-        } else {
-          navigateToSection('home')
-        }
-        return
+        setKeyHintDismissed(true)
+        if (isFreeCam.current) exitFreeCamMode()
+        else navigate('home')
       }
     }
+    const onPopState = () => navigate(viewFromHash() ?? 'home', { history: false })
+    window.addEventListener('pointermove', onPointer, { passive: true })
+    window.addEventListener('pointerdown', onPointer, { passive: true })
     window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [isMobile, navigateToSection, enterFreeCamMode, exitFreeCamMode])
+    window.addEventListener('popstate', onPopState)
+    return () => {
+      window.removeEventListener('pointermove', onPointer)
+      window.removeEventListener('pointerdown', onPointer)
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('popstate', onPopState)
+    }
+  }, [navigate, enterFreeCamMode, exitFreeCamMode])
 
   const onNavHoverChange = useCallback((hovering: boolean) => {
     navHovered.current = hovering
@@ -277,29 +337,25 @@ function App() {
     const preHandler = () => {
       if (!introZoomRef.current) return
       performance.mark('intro:right-visible')
-      // Only the panel here: flipping bootPhase re-renders the whole 3D tree
-      // mid-flight, and the screen already shows the booted desktop. The
-      // navigation-complete handler below sets it once the camera has landed.
-      setRightVisible(true)
+      // Only the panels here: flipping bootPhase re-renders the whole 3D tree
+      // mid-flight. The navigation-complete handler sets it once landed.
+      showPanels()
     }
     setOnIntroPreComplete(preHandler)
     return () => clearOnIntroPreComplete(preHandler)
-  }, [])
+  }, [showPanels])
 
   useEffect(() => {
     const handler = (viewName: ViewName) => {
       if (introZoomRef.current) {
-        introZoomRef.current = false
-        // Fallback: if pre-complete didn't fire (e.g., intro ran in one
-        // catastrophically slow frame), make sure the panel is shown.
-        setBootPhase('done')
-        setRightVisible(true)
+        // Fallback: if pre-complete didn't fire (e.g. the intro ran in one
+        // very slow frame), make sure the panels are shown.
+        if (!interactiveRef.current) showPanels()
+        finishIntro()
         performance.mark('intro:intro-complete')
-        try { performance.measure('intro:boot-duration', 'intro:boot-start', 'intro:boot-anim-done') } catch {}
-        try { performance.measure('intro:zoom-duration', 'intro:zoom-trigger', 'intro:anim-done') } catch {}
-        try { performance.measure('intro:reveal-lead', 'intro:right-visible', 'intro:anim-done') } catch {}
-        setIntroComplete(true)
-        introCompleteRef.current = true
+        try { performance.measure('intro:boot-duration', 'intro:boot-start', 'intro:boot-anim-done') } catch { /* mark missing */ }
+        try { performance.measure('intro:zoom-duration', 'intro:zoom-trigger', 'intro:anim-done') } catch { /* mark missing */ }
+        try { performance.measure('intro:reveal-lead', 'intro:right-visible', 'intro:anim-done') } catch { /* mark missing */ }
       }
       if (navHovered.current) {
         bufferedLandedView.current = viewName
@@ -309,76 +365,92 @@ function App() {
     }
     setOnNavigationComplete(handler)
     return () => clearOnNavigationComplete(handler)
-  }, [])
-
-  useEffect(() => {
-    return () => {
-      if (swapTimer.current) clearTimeout(swapTimer.current)
-    }
-  }, [])
+  }, [showPanels, finishIntro])
 
   const screenPhase: ScreenPhase = bootPhase !== 'done'
     ? bootPhase
-    : (landedView === 'projects' || hoveredProject ? 'projects' : 'clouds')
+    : (landedView === 'projects' || selectedProject ? 'projects' : 'clouds')
 
-  const LeftComponent = leftPanel ? PANELS[leftPanel] : null
-  const RightComponent = rightPanel ? PANELS[rightPanel] : null
-
-  void currentView
-
+  const s = nav.current
+  const LeftComponent = s.left ? PANELS[s.left] : null
+  const RightComponent = s.right ? PANELS[s.right] : null
   const panelProps = {
-    left: {
-      visible: leftVisible,
-      onNavigate: navigateToSection,
-      onUntypeComplete: onLeftUntypeComplete,
-      onHoverChange: onNavHoverChange,
-    },
-    right: {
-      visible: rightVisible,
-      onNavigate: navigateToSection,
-      onUntypeComplete: onRightUntypeComplete,
-      onProjectHover: setHoveredProject,
-      activeProject: hoveredProject,
-    },
-  } as const
+    // the wide layout has a section nav in each panel; the others a tab bar
+    showSectionNav: mode === 'wide',
+    onNavigate,
+    onNavHoverChange,
+    onProjectSelect: setSelectedProject,
+    activeProject: selectedProject,
+  }
+  // The view whose panels are (about to be) on screen drives the stacked layout split.
+  const sceneFraction = mode === 'stacked' ? stackedSceneFraction(s.view, screen.width, screen.height) : 0
+
+  const appClass = [
+    `layout-${mode}`,
+    `view-${s.view}`,
+    freeCam ? 'is-freecam' : '',
+    canHover ? 'can-hover' : 'is-touch',
+    keyboardScene && mode === 'wide' ? 'has-key-hints' : '',
+    COLORED_ICONS ? 'icons-color' : '',
+  ].filter(Boolean).join(' ')
 
   return (
-    <div id="app">
-      {!isMobile && (
+    <div id="app" className={appClass} style={{ '--scene-frac': sceneFraction } as React.CSSProperties}>
+      {has3D && (
         <>
-          {Stage && (
-            <Stage
-              visible={stageVisible}
-              onReady={onStageReady}
-              freeCam={freeCam}
-              screenPhase={screenPhase}
-              hoveredProject={hoveredProject}
-              introComplete={introComplete}
-            />
-          )}
+          <StageBoundary onError={() => setStageFailed(true)}>
+            {Stage && (
+              <Stage
+                visible={stageVisible}
+                onReady={onStageReady}
+                freeCam={freeCam}
+                screenPhase={screenPhase}
+                hoveredProject={selectedProject}
+                introComplete={introComplete}
+              />
+            )}
+          </StageBoundary>
           <div className="vignette" />
         </>
       )}
 
-      <div id={isMobile ? 'mobile-app' : 'overlay'}>
-        {!isMobile && freeCam && (
+      <div id="overlay">
+        {freeCam && (
           <Suspense fallback={null}>
             <div className={`freecam-ui${freeCamIdle ? ' idle' : ''}`}>
               <CameraInfoPanel />
-              <div className="freecam-hint">FREE CAM &mdash; Press Tab to return</div>
             </div>
           </Suspense>
         )}
-        {LeftComponent && (
-          <LeftComponent {...panelProps.left} />
+        <div className="panel-sheet">
+          {LeftComponent && (
+            <LeftComponent {...panelProps} visible={s.leftVisible} onUntypeComplete={onLeftUntypeComplete} />
+          )}
+          {RightComponent && (
+            <RightComponent {...panelProps} visible={s.rightVisible} onUntypeComplete={onRightUntypeComplete} />
+          )}
+        </div>
+        {/* Home's own menu is the navigation there; elsewhere the tab bar is. */}
+        {mode !== 'wide' && interactive && !freeCam && s.view !== 'home' && (
+          <nav className="tabbar" aria-label="Sections">
+            {SECTIONS.map((sec) => (
+              <a
+                key={sec.view}
+                href={hrefFor(sec.view)}
+                className="tab"
+                aria-current={sec.view === s.view ? 'page' : undefined}
+                onClick={navClick(sec.view, onNavigate)}
+              >
+                <i className={`hn hn-${sec.icon}`} aria-hidden="true" />
+                <span>{sec.label}</span>
+              </a>
+            ))}
+          </nav>
         )}
-        {RightComponent && (
-          <RightComponent {...panelProps.right} />
-        )}
-        {!isMobile && (
-          <div className={`key-hints${showKeyHints ? ' visible' : ''}`}>
-            <span><span className="key-hints-key">Tab</span>Free cam</span>
-            <span><span className="key-hints-key">Esc</span>Home</span>
+        {keyboardScene && mode === 'wide' && (
+          <div className={`key-hints${showKeyHints ? ' visible' : ''}`} aria-hidden="true">
+            <span><kbd>Tab</kbd>free cam</span>
+            <span><kbd>Esc</kbd>home</span>
           </div>
         )}
       </div>

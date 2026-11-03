@@ -53,7 +53,7 @@ function scramble(ch: string): string {
 interface SegNodes {
   text: string
   start: number
-  el: HTMLSpanElement
+  el: HTMLElement
   on: Text
   off: HTMLSpanElement
   offText: Text
@@ -74,7 +74,7 @@ function TypedText({ text, segments, visible, speed, untypeSpeed = speed, onType
 
   const rootRef = useRef<HTMLSpanElement>(null)
   const iconRef = useRef<HTMLElement>(null)
-  const segEls = useRef<(HTMLSpanElement | null)[]>([])
+  const segEls = useRef<(HTMLElement | null)[]>([])
   const nodes = useRef<SegNodes[]>([])
   const edgeRef = useRef<HTMLSpanElement | null>(null)
   const shownRef = useRef(0)
@@ -226,12 +226,25 @@ function TypedText({ text, segments, visible, speed, untypeSpeed = speed, onType
 
   const iconEl = icon ? <i ref={iconRef} className={`hn hn-${icon}`} style={{ visibility: 'hidden' }} /> : null
 
+  // Text with inline links stays in the accessibility tree (focusable links
+  // must not sit under aria-hidden); untyped characters are visibility:hidden,
+  // so assistive tech reads exactly what is on screen.
+  const hasLinks = segs.some((s) => s.href)
+
   return (
     <span ref={rootRef} className="typed is-empty is-off">
-      {visible && <span className="typed-sr">{fullText}</span>}
-      <span className="typed-vis" aria-hidden="true">
+      {visible && !hasLinks && <span className="typed-sr">{fullText}</span>}
+      <span className="typed-vis" aria-hidden={hasLinks ? undefined : true}>
         {!iconAfter && iconEl}
-        {segs.map((seg, i) => (
+        {segs.map((seg, i) => seg.href ? (
+          <a
+            key={i}
+            ref={(el) => { segEls.current[i] = el }}
+            className={seg.className}
+            href={seg.href}
+            onClick={seg.onClick}
+          />
+        ) : (
           <span
             key={i}
             ref={(el) => { segEls.current[i] = el }}

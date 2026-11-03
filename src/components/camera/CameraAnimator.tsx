@@ -1,18 +1,24 @@
 import { useThree, useFrame } from '@react-three/fiber'
 import { useEffect, useRef, useCallback } from 'react'
 import * as THREE from 'three'
-import { VIEWS, ANIM_DURATION } from '../../config/views'
-import { setNavigateTo, clearNavigateTo, setFreeCamHandler, clearFreeCamHandler, setComputeCloseup, clearComputeCloseup, fireNavigationComplete, fireIntroPreComplete, setCameraAnimatingQuery, clearCameraAnimatingQuery } from './bridge'
+import { VIEWS, ANIM_DURATION, START_POSITION, START_ROTATION, START_SUBJECT } from '../../config/views'
+import { setNavigateTo, clearNavigateTo, setFreeCamHandler, clearFreeCamHandler, fireNavigationComplete, fireIntroPreComplete, setCameraAnimatingQuery, clearCameraAnimatingQuery } from './bridge'
 import { useScreenMesh } from '../ScreenMeshContext'
-import type { ViewName } from '../../types'
+import { resolvePose, subjectBox, REF_ASPECT, type Pose } from './framing'
+import { layoutKindFor, stackedRegion, stackedSceneFraction, FULL_REGION, reducedMotionQuery, type LayoutKind } from '../../layout'
+import type { ViewName, Subject } from '../../types'
 import type { CameraRig } from './rig'
 
-const REF_ASPECT = 16 / 9
-const ANCHOR_VIEWS = new Set<string>(['projects'])
+/** 'start' = the intro pose in front of the booting monitor. */
+type Shot = ViewName | 'start'
 
-function computeAnchorGoal(viewName: string, aspect: number) {
-  if (!ANCHOR_VIEWS.has(viewName)) return 0
-  return 1 - REF_ASPECT / aspect
+// The projects shot slides the image sideways on screens wider than 16:9
+// (lens shift via setViewOffset) so the monitor stays clear of the panel.
+// Below 16:10 the framing dolly takes over, so the shift is held there.
+const ANCHOR_ASPECT = 16 / 9
+function computeAnchorGoal(shot: Shot, aspect: number, kind: LayoutKind) {
+  if (shot !== 'projects' || kind !== 'wide') return 0
+  return 1 - ANCHOR_ASPECT / Math.max(aspect, REF_ASPECT)
 }
 
 export function easeOut(t: number) {
@@ -25,7 +31,7 @@ export function easeInOut(t: number) {
     : 1 - Math.pow(-2 * t + 2, 4) / 2
 }
 
-export function computeTarget(position: [number, number, number], rotation: [number, number, number], dist = 20) {
+export function computeTarget(position: readonly [number, number, number], rotation: readonly [number, number, number], dist = 20) {
   const euler = new THREE.Euler(...rotation)
   const dir = new THREE.Vector3(0, 0, -1).applyEuler(euler)
   return new THREE.Vector3(...position).add(dir.multiplyScalar(dist))
@@ -34,10 +40,7 @@ export function computeTarget(position: [number, number, number], rotation: [num
 const _box = new THREE.Box3()
 const _center = new THREE.Vector3()
 function getPivotCenter(root: THREE.Object3D, name: string) {
-  let obj: THREE.Object3D | null = null
-  root.traverse((child) => {
-    if (!obj && child.name === name) obj = child
-  })
+  const obj = root.getObjectByName(name)
   if (!obj) return null
   _box.setFromObject(obj)
   _box.getCenter(_center)
@@ -82,24 +85,34 @@ function computeOyLimits(offset: THREE.Vector3, right: THREE.Vector3, minPolar: 
   return { min: oyMin, max: oyMax }
 }
 
+const INTRO_PRE_COMPLETE_T = 0.65
+const ROTATE_SPEED = 0.003
+const BASE_RANGE = 0.45
+const MIN_POLAR = 0.15
+const MAX_POLAR = Math.PI - 0.15
+
 interface CameraAnimatorProps {
   controlsRef: React.RefObject<CameraRig | null>
   freeCam: boolean
 }
 
 function CameraAnimator({ controlsRef, freeCam }: CameraAnimatorProps) {
-  const { camera, scene, gl } = useThree()
-  const { screenMesh: ctxScreenMesh, fullScene } = useScreenMesh()
+  const { camera, gl } = useThree()
+  const size = useThree((s) => s.size)
+  const { fullScene } = useScreenMesh()
   const animating = useRef(false)
   const introAnim = useRef(false)
   const startPos = useRef(new THREE.Vector3())
   const startTarget = useRef(new THREE.Vector3())
   const goalPos = useRef(new THREE.Vector3())
   const goalTarget = useRef(new THREE.Vector3())
+  const startFov = useRef(50)
+  const goalFov = useRef(50)
   const elapsed = useRef(0)
   const duration = useRef(ANIM_DURATION)
 
-  const currentViewName = useRef<ViewName>('home')
+  const currentShot = useRef<Shot>('start')
+  const layoutKind = useRef<LayoutKind | null>(null)
   const pivotPoint = useRef(new THREE.Vector3())
   const restPos = useRef(new THREE.Vector3())
   const restTarget = useRef(new THREE.Vector3())
@@ -109,6 +122,10 @@ function CameraAnimator({ controlsRef, freeCam }: CameraAnimatorProps) {
   const anchorOx = useRef(0)
   const startAnchorOx = useRef(0)
   const goalAnchorOx = useRef(0)
+  // vertical lens shift (stacked layout), NDC
+  const shiftY = useRef(0)
+  const startShiftY = useRef(0)
+  const goalShiftY = useRef(0)
   const dragging = useRef(false)
   const panning = useRef(false)
   const lastPointer = useRef({ x: 0, y: 0 })
@@ -119,30 +136,86 @@ function CameraAnimator({ controlsRef, freeCam }: CameraAnimatorProps) {
 
   const introPreCompleteFired = useRef(false)
   const introFirstFrame = useRef(false)
-  const INTRO_PRE_COMPLETE_T = 0.65
-  const rangeRef = useRef(0.45)
-  const ROTATE_SPEED = 0.003
-  const BASE_RANGE = 0.45
-
-  const MIN_POLAR = 0.15
-  const MAX_POLAR = Math.PI - 0.15
+  const rangeRef = useRef(BASE_RANGE)
   const oyLimits = useRef({ min: -Infinity, max: Infinity })
+
+  // World boxes of the shots' subjects (the scene is static).
+  const boxCache = useRef(new Map<Subject, THREE.Box3 | null>())
+  const boxFor = useCallback((subject: Subject) => {
+    if (!fullScene) return null
+    if (!boxCache.current.has(subject)) boxCache.current.set(subject, subjectBox(fullScene, subject))
+    return boxCache.current.get(subject)!
+  }, [fullScene])
+  useEffect(() => { boxCache.current.clear() }, [fullScene])
+
+  /** Where the camera goes for a shot at the current canvas size. */
+  const poseFor = useCallback((shot: Shot): Pose => {
+    const w = gl.domElement.clientWidth || window.innerWidth
+    const h = gl.domElement.clientHeight || window.innerHeight
+    const kind = layoutKindFor(w, h)
+    const aspect = w / h
+    if (shot === 'start') {
+      return resolvePose(
+        { position: START_POSITION, rotation: START_ROTATION, subject: boxFor(START_SUBJECT) },
+        { aspect, kind, region: FULL_REGION },
+      )
+    }
+    const view = VIEWS[shot]
+    return resolvePose(
+      { position: view.position, rotation: view.rotation, stackedLook: view.stackedLook, subject: boxFor(view.subject) },
+      { aspect, kind, region: stackedRegion(stackedSceneFraction(shot, w, h), h) },
+    )
+  }, [gl, boxFor])
+
+  const setFov = useCallback((fov: number) => {
+    const pcam = camera as THREE.PerspectiveCamera
+    if (Math.abs(pcam.fov - fov) > 1e-4) {
+      pcam.fov = fov
+      pcam.updateProjectionMatrix()
+    }
+  }, [camera])
+
+  /** Settle at the current shot: remember the rest pose for drag-orbit. */
+  const captureRest = useCallback(() => {
+    const rig = controlsRef.current
+    if (!rig) return
+    restPos.current.copy(camera.position)
+    restTarget.current.copy(rig.target)
+    restRight.current.set(1, 0, 0).applyQuaternion(camera.quaternion).normalize()
+    restQuat.current.copy(camera.quaternion)
+
+    const shot = currentShot.current
+    const view = shot === 'start' ? null : VIEWS[shot]
+    const pivot = view && fullScene && getPivotCenter(fullScene, view.pivotObject)
+    pivotPoint.current.copy(pivot || rig.target)
+
+    rangeRef.current = BASE_RANGE
+    dragOffset.current = { x: 0, y: 0 }
+    const restOff = new THREE.Vector3().subVectors(restPos.current, pivotPoint.current)
+    oyLimits.current = computeOyLimits(restOff, restRight.current, MIN_POLAR, MAX_POLAR)
+  }, [camera, controlsRef, fullScene])
 
   const navigateTo = useCallback((viewName: ViewName, dur?: number, isIntro?: boolean) => {
     const view = VIEWS[viewName]
     if (!view || !controlsRef.current) return
+    const pose = poseFor(viewName)
     startPos.current.copy(camera.position)
     startTarget.current.copy(controlsRef.current.target)
-    goalPos.current.set(...view.position)
-    goalTarget.current.copy(computeTarget(view.position, view.rotation))
+    startFov.current = (camera as THREE.PerspectiveCamera).fov
+    goalPos.current.copy(pose.position)
+    goalTarget.current.copy(pose.target)
+    goalFov.current = pose.fov
+    startShiftY.current = shiftY.current
+    goalShiftY.current = pose.shiftY
 
-    currentViewName.current = viewName
+    currentShot.current = viewName
     elapsed.current = 0
-    duration.current = dur || ANIM_DURATION
+    // Reduced motion: cut instead of flying.
+    duration.current = reducedMotionQuery?.matches ? 1e-3 : (dur || ANIM_DURATION)
 
     startAnchorOx.current = anchorOx.current
-    const aspect = gl.domElement.clientWidth / gl.domElement.clientHeight
-    goalAnchorOx.current = computeAnchorGoal(viewName, aspect)
+    const w = gl.domElement.clientWidth, h = gl.domElement.clientHeight
+    goalAnchorOx.current = computeAnchorGoal(viewName, w / h, layoutKindFor(w, h))
 
     animating.current = true
     introAnim.current = Boolean(isIntro)
@@ -151,40 +224,43 @@ function CameraAnimator({ controlsRef, freeCam }: CameraAnimatorProps) {
     ready.current = false
     dragOffset.current = { x: 0, y: 0 }
     if (isIntro) performance.mark('intro:anim-start')
-  }, [controlsRef, camera, scene, gl])
+  }, [controlsRef, camera, gl, poseFor])
 
   useEffect(() => {
     setNavigateTo(navigateTo)
     return () => clearNavigateTo(navigateTo)
   }, [navigateTo])
 
-  const computeScreenCloseup = useCallback(() => {
-    if (!controlsRef.current || !ctxScreenMesh) return
-
-    ctxScreenMesh.updateWorldMatrix(true, false)
-    const box = new THREE.Box3().setFromObject(ctxScreenMesh)
-    const center = box.getCenter(new THREE.Vector3())
-    const size = box.getSize(new THREE.Vector3())
-
-    const normal = new THREE.Vector3(0, 0, 1).transformDirection(ctxScreenMesh.matrixWorld).normalize()
-
-    const homePos = new THREE.Vector3(...VIEWS.home.position)
-    if (homePos.clone().sub(center).dot(normal) < 0) normal.negate()
-
-    const fovRad = THREE.MathUtils.degToRad((camera as THREE.PerspectiveCamera).fov)
-    const dist = (size.y / 2) / Math.tan(fovRad / 2) * 0.6
-
-    const closeupPos = center.clone().add(normal.clone().multiplyScalar(dist))
-    camera.position.copy(closeupPos)
-    camera.lookAt(center)
-    controlsRef.current.target.copy(center)
-    controlsRef.current.update()
-  }, [ctxScreenMesh, camera, controlsRef])
-
+  // Re-frame whenever the canvas size (or the scene) changes: before the
+  // intro, hold the start pose; mid-flight, retarget the flight; at rest,
+  // snap to the new framing (or fly there if the layout switched between
+  // wide and stacked). Free cam keeps whatever the visitor set up.
   useEffect(() => {
-    setComputeCloseup(computeScreenCloseup)
-    return () => clearComputeCloseup(computeScreenCloseup)
-  }, [computeScreenCloseup])
+    const rig = controlsRef.current
+    if (!rig || freeCamRef.current) return
+    const kind = layoutKindFor(size.width, size.height)
+    const kindChanged = layoutKind.current !== null && layoutKind.current !== kind
+    layoutKind.current = kind
+    const shot = currentShot.current
+    const pose = poseFor(shot)
+    if (animating.current) {
+      goalPos.current.copy(pose.position)
+      goalTarget.current.copy(pose.target)
+      goalFov.current = pose.fov
+      goalShiftY.current = pose.shiftY
+      return
+    }
+    if (shot !== 'start' && kindChanged && ready.current) {
+      navigateTo(shot, 0.8)
+      return
+    }
+    camera.position.copy(pose.position)
+    rig.target.copy(pose.target)
+    setFov(pose.fov)
+    shiftY.current = goalShiftY.current = pose.shiftY
+    rig.update()
+    if (shot !== 'start' && ready.current) captureRest()
+  }, [size.width, size.height, poseFor, navigateTo, captureRest, camera, controlsRef, setFov])
 
   const handleFreeCam = useCallback((entering: boolean) => {
     if (entering) {
@@ -202,8 +278,8 @@ function CameraAnimator({ controlsRef, freeCam }: CameraAnimatorProps) {
       rangeRef.current = 100
       dragOffset.current = { x: 0, y: 0 }
 
-      const _restOff = new THREE.Vector3().subVectors(restPos.current, pivotPoint.current)
-      oyLimits.current = computeOyLimits(_restOff, restRight.current, MIN_POLAR, MAX_POLAR)
+      const restOff = new THREE.Vector3().subVectors(restPos.current, pivotPoint.current)
+      oyLimits.current = computeOyLimits(restOff, restRight.current, MIN_POLAR, MAX_POLAR)
 
       ready.current = true
     }
@@ -231,44 +307,28 @@ function CameraAnimator({ controlsRef, freeCam }: CameraAnimatorProps) {
     const eased = introAnim.current ? easeInOut(t) : easeOut(t)
     camera.position.lerpVectors(startPos.current, goalPos.current, eased)
     controlsRef.current.target.lerpVectors(startTarget.current, goalTarget.current, eased)
+    setFov(startFov.current + (goalFov.current - startFov.current) * eased)
     const anchorEased = goalAnchorOx.current === 0 ? easeOut(t) : easeInOut(t)
     anchorOx.current = startAnchorOx.current + (goalAnchorOx.current - startAnchorOx.current) * anchorEased
+    shiftY.current = startShiftY.current + (goalShiftY.current - startShiftY.current) * eased
     controlsRef.current.update()
     if (introAnim.current && !introPreCompleteFired.current && t >= INTRO_PRE_COMPLETE_T) {
       introPreCompleteFired.current = true
       performance.mark('intro:pre-complete')
-      fireIntroPreComplete(currentViewName.current)
+      if (currentShot.current !== 'start') fireIntroPreComplete(currentShot.current)
     }
     if (t >= 1) {
       const wasIntro = introAnim.current
       animating.current = false
       introAnim.current = false
       anchorOx.current = goalAnchorOx.current
-
-      restPos.current.copy(camera.position)
-      restTarget.current.copy(controlsRef.current.target)
-      restRight.current.set(1, 0, 0).applyQuaternion(camera.quaternion).normalize()
-      restQuat.current.copy(camera.quaternion)
-
-      const view = VIEWS[currentViewName.current]
-      const pivot = view?.pivotObject && fullScene && getPivotCenter(fullScene, view.pivotObject)
-      if (pivot) {
-        pivotPoint.current.copy(pivot)
-      } else {
-        pivotPoint.current.copy(controlsRef.current.target)
-      }
-
-      rangeRef.current = BASE_RANGE
-
-      dragOffset.current = { x: 0, y: 0 }
-
-      const _restOff = new THREE.Vector3().subVectors(restPos.current, pivotPoint.current)
-      oyLimits.current = computeOyLimits(_restOff, restRight.current, MIN_POLAR, MAX_POLAR)
-
+      shiftY.current = goalShiftY.current
+      captureRest()
       ready.current = true
 
       if (wasIntro) performance.mark('intro:anim-done')
-      fireNavigationComplete(currentViewName.current)
+      const shot = currentShot.current
+      if (shot !== 'start') fireNavigationComplete(shot)
     }
   })
 
@@ -343,20 +403,22 @@ function CameraAnimator({ controlsRef, freeCam }: CameraAnimatorProps) {
     canvas.addEventListener('pointerdown', onPointerDown)
     window.addEventListener('pointermove', onPointerMove)
     window.addEventListener('pointerup', onPointerUp)
+    window.addEventListener('pointercancel', onPointerUp)
     canvas.addEventListener('wheel', onWheel, { passive: false })
     return () => {
       canvas.removeEventListener('pointerdown', onPointerDown)
       window.removeEventListener('pointermove', onPointerMove)
       window.removeEventListener('pointerup', onPointerUp)
+      window.removeEventListener('pointercancel', onPointerUp)
       canvas.removeEventListener('wheel', onWheel)
     }
   }, [gl, camera])
 
-  const _axis = new THREE.Vector3()
-  const _quat = new THREE.Quaternion()
-  const _quatV = new THREE.Quaternion()
-  const _quatCombined = new THREE.Quaternion()
-  const _offset = new THREE.Vector3()
+  const _axis = useRef(new THREE.Vector3()).current
+  const _quat = useRef(new THREE.Quaternion()).current
+  const _quatV = useRef(new THREE.Quaternion()).current
+  const _quatCombined = useRef(new THREE.Quaternion()).current
+  const _offset = useRef(new THREE.Vector3()).current
   useFrame(() => {
     if (animating.current || !ready.current) return
 
@@ -412,9 +474,9 @@ function CameraAnimator({ controlsRef, freeCam }: CameraAnimatorProps) {
   }, 1)
 
   useFrame((state, delta) => {
+    const { width, height } = state.size
     if (!animating.current && ready.current) {
-      const aspect = state.size.width / state.size.height
-      const goal = computeAnchorGoal(currentViewName.current, aspect)
+      const goal = computeAnchorGoal(currentShot.current, width / height, layoutKindFor(width, height))
       if (Math.abs(anchorOx.current - goal) > 1e-5) {
         anchorOx.current = THREE.MathUtils.damp(anchorOx.current, goal, 3, delta)
         if (Math.abs(anchorOx.current - goal) < 1e-5) anchorOx.current = goal
@@ -423,18 +485,19 @@ function CameraAnimator({ controlsRef, freeCam }: CameraAnimatorProps) {
 
     const pcam = camera as THREE.PerspectiveCamera
     const anchor = anchorOx.current
-    const W = state.size.width
-    const H = state.size.height
+    const shift = shiftY.current
 
-    if (Math.abs(anchor) < 1e-6) {
+    if (Math.abs(anchor) < 1e-6 && Math.abs(shift) < 1e-6) {
       if (pcam.view?.enabled) pcam.clearViewOffset()
       return
     }
 
-    const offsetX = (anchor / 2) * W
+    // Lens shift: render a window of the full image moved by the offsets.
+    const offsetX = (anchor / 2) * width
+    const offsetY = (shift / 2) * height
     const v = pcam.view
-    if (!v?.enabled || v.offsetX !== offsetX || v.fullWidth !== W || v.fullHeight !== H) {
-      pcam.setViewOffset(W, H, offsetX, 0, W, H)
+    if (!v?.enabled || v.offsetX !== offsetX || v.offsetY !== offsetY || v.fullWidth !== width || v.fullHeight !== height) {
+      pcam.setViewOffset(width, height, offsetX, offsetY, width, height)
     }
   }, 2)
 
