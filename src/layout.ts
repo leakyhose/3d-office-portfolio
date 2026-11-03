@@ -35,11 +35,33 @@ const STACKED_SCENE: Record<ViewName, number> = {
  *  (tablets) the text needs fewer lines, so these get a bit more scene. */
 const SUBJECT_LED = new Set<ViewName>(['home', 'experience', 'contact'])
 
+/**
+ * Tablet portrait (width >= TABLET_MIN_W): the panel type has reached its cap,
+ * so each panel is about this tall (px, top padding to last line) whatever
+ * the screen. The scene gives up enough height for it to clear the tab bar's
+ * fade, so it fits without scrolling. Home has no tab bar and always fits.
+ */
+const TABLET_MIN_W = 600
+const TABLET_PANEL_PX: Partial<Record<ViewName, number>> = {
+  about: 450,
+  experience: 485,
+  projects: 552,
+  contact: 385,
+}
+/** Never shrink the scene below this share, even if the panel then scrolls. */
+const MIN_SCENE = 0.34
+
 export function stackedSceneFraction(view: ViewName, width: number, height: number): number {
-  const base = STACKED_SCENE[view]
-  if (!SUBJECT_LED.has(view)) return base
-  const extra = Math.min(0.08, Math.max(0, (width / height - 0.5) * 0.3))
-  return base + extra
+  let frac = STACKED_SCENE[view]
+  if (SUBJECT_LED.has(view)) frac += Math.min(0.08, Math.max(0, (width / height - 0.5) * 0.3))
+  const panel = TABLET_PANEL_PX[view]
+  if (width >= TABLET_MIN_W && panel) {
+    // mirrors --tabbar-h (clamp(56px, 7.5vw, 74px)); + the 40px fade above it, + 8px air
+    const tabbar = Math.min(74, Math.max(56, 0.075 * width))
+    const room = 1 - (panel + tabbar + 48) / height
+    frac = Math.max(Math.min(frac, MIN_SCENE), Math.min(frac, room))
+  }
+  return frac
 }
 
 /** Where the subject may be placed (NDC), given the scene's share of the height. */

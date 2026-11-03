@@ -762,8 +762,9 @@ button:has(.typed:is(.is-empty, .is-off)) {
 .layout-flat {
   --pad-x: clamp(20px, 6vw, 56px);
   --gap-s: 8px;
-  --gap-m: clamp(14px, 3.4vw, 26px);
-  --gap-l: clamp(18px, 4.6vw, 34px);
+  /* capped low enough that tablets (type at its cap) keep the panels compact */
+  --gap-m: clamp(14px, 3.4vw, 20px);
+  --gap-l: clamp(18px, 4.6vw, 26px);
   --fs-display: clamp(50px, 16vw, 128px);
   --fs-title: clamp(36px, 10.5vw, 84px);
   --fs-nav: clamp(24px, 6.6vw, 46px);
