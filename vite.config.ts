@@ -8,7 +8,7 @@ import react from '@vitejs/plugin-react'
 // visitors who get the flat layout (no WebGL2, Data Saver, very low-end, ?2d)
 // don't download the 3D assets at all.
 function preloadSceneAssets(): Plugin {
-  const patterns = [/office.*\.glb$/, /office-lightmap.*\.webp$/, /floor-lightmap.*\.webp$/]
+  const patterns = [/office.*\.glb$/, /(office|room|floor)-lightmap.*\.webp$/]
   return {
     name: 'preload-scene-assets',
     apply: 'build',

@@ -4,10 +4,12 @@ import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.j
 import officeUrl from '../assets/office.glb?url'
 import lightmapUrl from '../assets/office-lightmap.webp?url'
 import floorLightmapUrl from '../assets/floor-lightmap.webp?url'
+import roomLightmapUrl from '../assets/room-lightmap.webp?url'
 
-// Lighting is baked offline (Blender/Cycles, see scripts/bake/) into two
-// lightmaps: one atlas for every mesh in the GLB (UV set TEXCOORD_1) and one
-// for the floor patch under the desk. The encoded value is
+// Lighting is baked offline (Blender/Cycles, see scripts/bake/) into three
+// lightmaps (UV set TEXCOORD_1): one atlas for the desk model's meshes, one
+// for the room around it (Room_* meshes: walls, window, rug) and one for the
+// floor patch inside the room. The encoded value is
 // (diffuse irradiance / PI) / LIGHTMAP_SCALE in sRGB, so the runtime factor
 // that reproduces Cycles' result with three's lightMap math
 // (albedo * texel * intensity / PI) is PI * LIGHTMAP_SCALE.
@@ -15,16 +17,19 @@ export const LIGHTMAP_SCALE = 1.5
 export const LIGHTMAP_INTENSITY = Math.PI * LIGHTMAP_SCALE
 
 // The floor lightmap covers a FLOOR_BAKE_SIZE square (world units) centred on
-// the origin; outside it the clamped edge texels (fully lit floor) continue.
-export const FLOOR_BAKE_SIZE = 40
+// FLOOR_BAKE_CENTER (x, z); outside it the clamped edge texels continue.
+// Keep in sync with scripts/bake/bake.py.
+export const FLOOR_BAKE_SIZE = 36
+export const FLOOR_BAKE_CENTER: [number, number] = [5, 12]
 
 export interface OfficeAssets {
   scene: THREE.Group
   lightmap: THREE.Texture
+  roomLightmap: THREE.Texture
   floorLightmap: THREE.Texture
 }
 
-export const OFFICE_ASSET_URLS = [officeUrl, lightmapUrl, floorLightmapUrl]
+export const OFFICE_ASSET_URLS = [officeUrl, lightmapUrl, roomLightmapUrl, floorLightmapUrl]
 
 function loadTexture(url: string): Promise<THREE.Texture> {
   // ImageBitmapLoader decodes off the main thread. glTF-style orientation
@@ -57,11 +62,12 @@ export function loadOffice(): Promise<OfficeAssets> {
   promise = Promise.all([
     gltfLoader.loadAsync(officeUrl),
     loadTexture(lightmapUrl),
+    loadTexture(roomLightmapUrl),
     loadTexture(floorLightmapUrl),
-  ]).then(([gltf, lightmap, floorLightmap]) => {
+  ]).then(([gltf, lightmap, roomLightmap, floorLightmap]) => {
     floorLightmap.wrapS = floorLightmap.wrapT = THREE.ClampToEdgeWrapping
     performance.mark('stage:assets-loaded')
-    loaded = { scene: gltf.scene, lightmap, floorLightmap }
+    loaded = { scene: gltf.scene, lightmap, roomLightmap, floorLightmap }
     return loaded
   })
   return promise

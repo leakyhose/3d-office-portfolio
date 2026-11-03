@@ -23,3 +23,6 @@ dist-ssr
 *.sln
 *.sw?
 .claude
+
+# Blender bake scripts
+__pycache__/
