@@ -9,11 +9,11 @@ export function drawBlankScreen(width = 1024, height = 768): HTMLCanvasElement {
 }
 
 /*
- * The screens' images are requested on first use, not when this module loads
- * (with the 3D chunk): the clouds when the scene mounts, i.e. once the GLB and
- * lightmaps are in, so they never share bandwidth with what gates the first 3D
- * frame (the monitor is black until the boot, ~0.5 s after it); the desktop's
- * once the screen has booted.
+ * The clouds' images (70 KB) are requested on first use, when the scene
+ * mounts, i.e. once the GLB and lightmaps are in, so they never share
+ * bandwidth with what gates the first 3D frame (the monitor is black until the
+ * boot, ~0.5 s after it). The desktop's (3 KB of icons) are requested with
+ * this module, so a visit that opens on #projects has them by the first frame.
  */
 
 /** null if it failed to load (the screen is drawn without it). */
@@ -81,6 +81,7 @@ function loadDesktopAssets(): Promise<void> {
   })
   return desktopAssets
 }
+loadDesktopAssets()
 
 function drawRaised(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, bg = '#C0C0C0') {
   ctx.fillStyle = bg
