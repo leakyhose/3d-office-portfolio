@@ -1,16 +1,7 @@
-import { createContext, useContext, useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo } from 'react'
+import { ScreenMeshContext } from './screenMesh'
 import type * as THREE from 'three'
 import type { ScreenMeshContextValue } from '../types'
-
-const ScreenMeshContext = createContext<ScreenMeshContextValue>({
-  screenMesh: null,
-  screenCanvas: null,
-  screenTexture: null,
-  screenTexSize: null,
-  fullScene: null,
-  setScreenSetup: () => {},
-  setFullScene: () => {},
-})
 
 interface ScreenSetup {
   mesh: THREE.Mesh
@@ -52,8 +43,4 @@ export function ScreenMeshProvider({ children }: { children: React.ReactNode }) 
       {children}
     </ScreenMeshContext.Provider>
   )
-}
-
-export function useScreenMesh() {
-  return useContext(ScreenMeshContext)
 }

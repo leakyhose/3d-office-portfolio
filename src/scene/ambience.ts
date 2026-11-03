@@ -121,3 +121,8 @@ export function createAmbienceGeometry() {
   geo.setAttribute('aColor', new THREE.Float32BufferAttribute(col, 3))
   return geo
 }
+
+/** Point size scale: world size -> drawing-buffer pixels. */
+export function setAmbienceScale(material: THREE.ShaderMaterial, pixelsPerUnit: number) {
+  material.uniforms.uScale.value = pixelsPerUnit
+}

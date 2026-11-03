@@ -1,7 +1,7 @@
 import { useThree } from '@react-three/fiber'
 import { useEffect } from 'react'
 import { START_POSITION, START_ROTATION } from '../../config/views'
-import { computeTarget } from './CameraAnimator'
+import { computeTarget } from './motion'
 import type { CameraRig } from './rig'
 
 interface CameraSetupProps {

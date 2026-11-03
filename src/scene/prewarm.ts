@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { createSteamMaterial } from '../CoffeeSteam'
+import { createSteamMaterial } from './steam'
 import { createCrtMaterial } from './crtMaterial'
 import { createAmbienceGeometry, createAmbienceMaterial } from './ambience'
 

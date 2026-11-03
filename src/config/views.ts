@@ -12,6 +12,9 @@ export const START_POSITION: [number, number, number] = [-0.18, 7.28, 3.85]
 export const START_ROTATION: [number, number, number] = [-0.154, -0.026, -0.004]
 export const START_SUBJECT: Subject = { names: ['ComputerScreen'], pad: 0.02 }
 
+/** Fog during the intro (colour, near, far); lifts as the camera pulls back. */
+export const INTRO_FOG: [string, number, number] = ['#1e1a15', 20, 65]
+
 export const ANIM_DURATION = 1.5
 export const INTRO_ZOOM_DURATION = 3.0
 

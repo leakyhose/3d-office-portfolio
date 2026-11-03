@@ -1,6 +1,7 @@
 import TypedText from '../components/TypedText'
 import useUntypeTracker, { UntypeTrackerContext } from '../components/useUntypeTracker'
-import SectionNav, { hrefFor, navClick } from './SectionNav'
+import SectionNav from './SectionNav'
+import { hrefFor, navClick } from './sections'
 import type { PanelProps, ViewName } from '../types'
 
 function AboutPanel({ visible, onNavigate, onUntypeComplete, showSectionNav }: PanelProps) {

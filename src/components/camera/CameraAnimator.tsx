@@ -3,7 +3,8 @@ import { useEffect, useRef, useCallback } from 'react'
 import * as THREE from 'three'
 import { VIEWS, ANIM_DURATION, START_POSITION, START_ROTATION, START_SUBJECT } from '../../config/views'
 import { setNavigateTo, clearNavigateTo, setFreeCamHandler, clearFreeCamHandler, fireNavigationComplete, fireIntroPreComplete, setCameraAnimatingQuery, clearCameraAnimatingQuery } from './bridge'
-import { useScreenMesh } from '../ScreenMeshContext'
+import { useScreenMesh } from '../screenMesh'
+import { easeInOut, easeOut } from './motion'
 import { resolvePose, subjectBox, REF_ASPECT, type Pose } from './framing'
 import { layoutKindFor, stackedRegion, stackedSceneFraction, FULL_REGION, reducedMotionQuery, type LayoutKind } from '../../layout'
 import type { ViewName, Subject } from '../../types'
@@ -21,20 +22,12 @@ function computeAnchorGoal(shot: Shot, aspect: number, kind: LayoutKind) {
   return 1 - ANCHOR_ASPECT / Math.max(aspect, REF_ASPECT)
 }
 
-export function easeOut(t: number) {
-  return 1 - Math.pow(1 - t, 4)
-}
-
-export function easeInOut(t: number) {
-  return t < 0.5
-    ? 8 * t * t * t * t
-    : 1 - Math.pow(-2 * t + 2, 4) / 2
-}
-
-export function computeTarget(position: readonly [number, number, number], rotation: readonly [number, number, number], dist = 20) {
-  const euler = new THREE.Euler(...rotation)
-  const dir = new THREE.Vector3(0, 0, -1).applyEuler(euler)
-  return new THREE.Vector3(...position).add(dir.multiplyScalar(dist))
+function applyFov(camera: THREE.Camera, fov: number) {
+  const pcam = camera as THREE.PerspectiveCamera
+  if (Math.abs(pcam.fov - fov) > 1e-4) {
+    pcam.fov = fov
+    pcam.updateProjectionMatrix()
+  }
 }
 
 const _box = new THREE.Box3()
@@ -173,13 +166,7 @@ function CameraAnimator({ controlsRef, freeCam }: CameraAnimatorProps) {
     )
   }, [viewSize, boxFor])
 
-  const setFov = useCallback((fov: number) => {
-    const pcam = camera as THREE.PerspectiveCamera
-    if (Math.abs(pcam.fov - fov) > 1e-4) {
-      pcam.fov = fov
-      pcam.updateProjectionMatrix()
-    }
-  }, [camera])
+  const setFov = useCallback((fov: number) => applyFov(camera, fov), [camera])
 
   /** Settle at the current shot: remember the rest pose for drag-orbit. */
   const captureRest = useCallback(() => {

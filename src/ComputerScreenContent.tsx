@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { getScreen, isScreenStale, refreshScreen, drawVideoWindow, type ScreenKind } from './drawScreenTexture'
-import { useScreenMesh } from './components/ScreenMeshContext'
+import { useScreenMesh } from './components/screenMesh'
 import { getVideo } from './videoManager'
 import { PROJECTS } from './config/projects'
 import { isCameraAnimating } from './components/camera/bridge'

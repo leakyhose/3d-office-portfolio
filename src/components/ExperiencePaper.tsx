@@ -1,15 +1,9 @@
 import { useLayoutEffect } from 'react'
 import { useThree } from '@react-three/fiber'
 import * as THREE from 'three'
-import { drawExperiencePaper } from '../drawExperiencePaper'
+import { getPaperCanvas } from '../scene/paper'
 import { getOfficeAssets } from '../scene/office'
 
-// Start drawing as soon as the Scene chunk loads, in parallel with the GLB.
-// Stage waits for paperCanvasReady before mounting the scene.
-let paperCanvas: HTMLCanvasElement | null = null
-export const paperCanvasReady: Promise<void> = drawExperiencePaper(1448)
-  .then((c) => { paperCanvas = c; performance.mark('stage:paper-drawn') })
-  .catch(() => {})
 
 function findPaperMesh(root: THREE.Object3D): THREE.Mesh | null {
   let found: THREE.Mesh | null = null
@@ -29,7 +23,7 @@ function findPaperMesh(root: THREE.Object3D): THREE.Mesh | null {
  * in place (and uploaded) before the shader warmup.
  */
 export default function ExperiencePaper() {
-  const canvas = paperCanvas
+  const canvas = getPaperCanvas()
   const { scene } = getOfficeAssets()
   const gl = useThree((s) => s.gl)
 

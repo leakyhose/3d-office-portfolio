@@ -11,13 +11,14 @@ import CoffeeSteam from '../CoffeeSteam'
 import CatMeow from '../CatMeow'
 import ComputerScreenContent from '../ComputerScreenContent'
 import ExperiencePaper from './ExperiencePaper'
-import { ScreenMeshProvider, useScreenMesh } from './ScreenMeshContext'
+import { ScreenMeshProvider } from './ScreenMeshContext'
+import { useScreenMesh } from './screenMesh'
 import { AdaptiveDpr } from '../hooks/useQualityTier'
 import { getOfficeAssets, FLOOR_BAKE_SIZE, FLOOR_BAKE_CENTER, LIGHTMAP_INTENSITY } from '../scene/office'
 import { applyBakedLighting } from '../scene/bakedMaterials'
 import { releasePrewarm } from '../scene/prewarm'
 import { createCrtMaterial, sceneTime } from '../scene/crtMaterial'
-import { createAmbienceGeometry, createAmbienceMaterial } from '../scene/ambience'
+import { createAmbienceGeometry, createAmbienceMaterial, setAmbienceScale } from '../scene/ambience'
 import { drawBlankScreen } from '../drawScreenTexture'
 import { warmVideos } from '../videoManager'
 import type { ScreenPhase } from '../types'
@@ -109,13 +110,13 @@ const FOV_SCALE = 1 / (2 * Math.tan(THREE.MathUtils.degToRad(50) / 2))
 
 /** Dust motes + PC LEDs (one Points draw call) and the shared shader clock. */
 function Ambience() {
-  const geometry = useMemo(createAmbienceGeometry, [])
-  const material = useMemo(createAmbienceMaterial, [])
+  const geometry = useMemo(() => createAmbienceGeometry(), [])
+  const material = useMemo(() => createAmbienceMaterial(), [])
   useEffect(() => () => { geometry.dispose(); material.dispose() }, [geometry, material])
   useFrame(({ clock, size, viewport }) => {
     sceneTime.value = clock.elapsedTime
     // world size -> pixels: drawing-buffer height / (2 tan(fov / 2))
-    material.uniforms.uScale.value = size.height * viewport.dpr * FOV_SCALE
+    setAmbienceScale(material, size.height * viewport.dpr * FOV_SCALE)
   })
   return <points geometry={geometry} material={material} frustumCulled={false} />
 }
@@ -181,8 +182,8 @@ interface SceneProps {
 function Scene({ onReady, freeCam, screenPhase, hoveredProject, introComplete }: SceneProps) {
   const camera = useThree((s) => s.camera)
   const rig = useMemo(() => new CameraRig(camera), [camera])
-  const controlsRef = useRef<CameraRig>(rig)
-  controlsRef.current = rig
+  // Ref-shaped handle for the camera components (follows the rig).
+  const controlsRef = useMemo<React.RefObject<CameraRig>>(() => ({ current: rig }), [rig])
   const readyRef = useRef(false)
 
   const handleReady = useMemo(() => () => {

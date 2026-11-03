@@ -1,6 +1,7 @@
 import { useRef, useMemo, useEffect, memo } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { getOfficeAssets } from './scene/office'
+import { createSteamMaterial } from './scene/steam'
 import * as THREE from 'three'
 
 const POOL_SIZE = 40
@@ -25,24 +26,17 @@ interface SteamParticle {
   rotationSpeed: THREE.Vector3
 }
 
-// The scene has no realtime lights any more (lighting is baked), so the steam
-// cubes use an unlit material with a cheap fixed-direction lambert term
-// (same key-light direction as the bake) to keep their faceted look; a high
-// ambient floor keeps the shadowed faces light, like backlit vapour.
-const KEY_DIR = new THREE.Vector3(8, 14, 15).normalize() // scripts/bake/stage.py KEY_DIR
-export function createSteamMaterial() {
-  const mat = new THREE.MeshBasicMaterial({ color: '#e6e1d8' })
-  mat.onBeforeCompile = (shader) => {
-    shader.uniforms.keyDir = { value: KEY_DIR }
-    shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vSteamNormal;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSteamNormal = normalize(mat3(modelMatrix) * mat3(instanceMatrix) * normal);')
-    shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform vec3 keyDir;\nvarying vec3 vSteamNormal;')
-      .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb *= 0.3 + 0.6 * max(dot(normalize(vSteamNormal), keyDir), 0.0) + 0.12 * (normalize(vSteamNormal).y * 0.5 + 0.5);')
-  }
-  mat.customProgramCacheKey = () => 'steam-lambert'
-  return mat
+function createPool(): SteamParticle[] {
+  return Array.from({ length: POOL_SIZE }, () => ({
+    age: 0,
+    maxAge: 0,
+    alive: false,
+    baseScale: 1,
+    position: new THREE.Vector3(),
+    velocity: new THREE.Vector3(),
+    rotation: new THREE.Euler(),
+    rotationSpeed: new THREE.Vector3(),
+  }))
 }
 
 function rand(min: number, max: number) {
@@ -74,6 +68,20 @@ function initParticle(p: SteamParticle, center: THREE.Vector3, radius: number) {
   p.alive = true
 }
 
+/** Advance a live particle; false once it has expired. */
+function ageParticle(p: SteamParticle, delta: number): boolean {
+  p.age += delta
+  if (p.age >= p.maxAge) {
+    p.alive = false
+    return false
+  }
+  p.position.addScaledVector(p.velocity, delta)
+  p.rotation.x += p.rotationSpeed.x * delta
+  p.rotation.y += p.rotationSpeed.y * delta
+  p.rotation.z += p.rotationSpeed.z * delta
+  return true
+}
+
 export default memo(function CoffeeSteam({ active = true }: { active?: boolean }) {
   const { scene } = getOfficeAssets()
   const meshRef = useRef<THREE.InstancedMesh>(null)
@@ -82,15 +90,17 @@ export default memo(function CoffeeSteam({ active = true }: { active?: boolean }
   const tmpQuat = useRef(new THREE.Quaternion())
   const tmpEuler = useRef(new THREE.Euler())
   const tmpScale = useRef(new THREE.Vector3())
+  // Simulation state, mutated every frame.
+  const pool = useRef<SteamParticle[] | null>(null)
 
-  const { spawnCenter, spawnRadius, particles, geometry, material } = useMemo(() => {
+  const { spawnCenter, spawnRadius, geometry, material } = useMemo(() => {
     let coffeeMesh: THREE.Object3D | undefined = undefined
     scene.traverse((child) => {
       if (!coffeeMesh && child.name === 'Cup') coffeeMesh = child
     })
     if (!coffeeMesh) {
       console.warn('CoffeeSteam: "Cup" object not found')
-      return { spawnCenter: null, spawnRadius: 0, particles: [] as SteamParticle[], geometry: null, material: null }
+      return { spawnCenter: null, spawnRadius: 0, geometry: null, material: null }
     }
 
     const box = new THREE.Box3().setFromObject(coffeeMesh)
@@ -104,18 +114,7 @@ export default memo(function CoffeeSteam({ active = true }: { active?: boolean }
     const geo = new THREE.BoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE)
     const mat = createSteamMaterial()
 
-    const parts: SteamParticle[] = Array.from({ length: POOL_SIZE }, () => ({
-      age: 0,
-      maxAge: 0,
-      alive: false,
-      baseScale: 1,
-      position: new THREE.Vector3(),
-      velocity: new THREE.Vector3(),
-      rotation: new THREE.Euler(),
-      rotationSpeed: new THREE.Vector3(),
-    }))
-
-    return { spawnCenter: center, spawnRadius: radius, particles: parts, geometry: geo, material: mat }
+    return { spawnCenter: center, spawnRadius: radius, geometry: geo, material: mat }
   }, [scene])
 
   useEffect(() => {
@@ -132,6 +131,7 @@ export default memo(function CoffeeSteam({ active = true }: { active?: boolean }
     if (!meshRef.current || !spawnCenter) return
     const delta = Math.min(rawDelta, 0.1)
     const mesh = meshRef.current
+    const particles = (pool.current ??= createPool())
 
     // Zero all matrices once — instances start as identity, which would
     // render the whole pool as cubes at the origin.
@@ -165,18 +165,12 @@ export default memo(function CoffeeSteam({ active = true }: { active?: boolean }
       }
       anyAlive = true
 
-      p.age += delta
-      if (p.age >= p.maxAge) {
-        p.alive = false
+      if (!ageParticle(p, delta)) {
         tmpMatrix.current.makeScale(0, 0, 0)
         mesh.setMatrixAt(i, tmpMatrix.current)
         continue
       }
 
-      p.position.addScaledVector(p.velocity, delta)
-      p.rotation.x += p.rotationSpeed.x * delta
-      p.rotation.y += p.rotationSpeed.y * delta
-      p.rotation.z += p.rotationSpeed.z * delta
 
       const lifeFrac = p.age / p.maxAge
       let s = p.baseScale
