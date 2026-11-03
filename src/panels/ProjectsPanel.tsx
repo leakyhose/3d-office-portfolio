@@ -1,17 +1,14 @@
-import { useState, useMemo } from 'react'
 import { PROJECTS } from '../config/projects'
 import TypedText from '../components/TypedText'
 import useUntypeTracker, { UntypeTrackerContext } from '../components/useUntypeTracker'
 import SectionNav from './SectionNav'
 import type { PanelProps } from '../types'
 
-const HIDDEN = { visibility: 'hidden' } as const
-
 // A pixel "↗". Not the U+2197 glyph: VT323 doesn't have it, and the first
 // system font-fallback lookup costs ~30 ms of layout when the panel mounts.
-function ExternalMark({ style }: { style?: React.CSSProperties }) {
+function ExternalMark() {
   return (
-    <svg className="external-mark" viewBox="0 0 9 9" aria-hidden="true" style={style}>
+    <svg className="external-mark" viewBox="0 0 9 9" aria-hidden="true">
       <path d="M3 0h6v6H7V2H3zM5 2h2v2H5zM4 3h2v2H4zM3 4h2v2H3zM2 5h2v2H2zM1 6h2v2H1zM0 7h2v2H0z" />
     </svg>
   )
@@ -24,15 +21,8 @@ function ExternalMark({ style }: { style?: React.CSSProperties }) {
  */
 function ProjectsPanel({ visible, onNavigate, onUntypeComplete, onProjectSelect, activeProject, showSectionNav }: PanelProps) {
   const tracker = useUntypeTracker(visible, onUntypeComplete)
-  // The icons follow the name's typing so each header reads left -> right.
-  // They always occupy their space (visibility only), so nothing shifts.
-  const [namePhase, setNamePhase] = useState<Record<string, 'typed' | 'gone'>>({})
-  const nameCallbacks = useMemo(() =>
-    Object.fromEntries(PROJECTS.map(p => [p.id, {
-      onTyped: () => setNamePhase(prev => ({ ...prev, [p.id]: 'typed' })),
-      onUntyped: () => setNamePhase(prev => ({ ...prev, [p.id]: 'gone' })),
-    }]))
-  , [])
+  // The header's icons and image follow its name's typing (CSS, see
+  // .project-header in App.css); they always keep their space.
 
   return (
     <UntypeTrackerContext value={tracker}>
@@ -41,9 +31,7 @@ function ProjectsPanel({ visible, onNavigate, onUntypeComplete, onProjectSelect,
           <TypedText text="Projects" icon="code" visible={visible} speed={35} />
         </h1>
         <ul className="project-list">
-          {PROJECTS.map(project => {
-            const typed = visible && namePhase[project.id] === 'typed'
-            return (
+          {PROJECTS.map(project => (
               <li
                 key={project.id}
                 className={`project${activeProject === project.id ? ' is-active' : ''}`}
@@ -54,10 +42,10 @@ function ProjectsPanel({ visible, onNavigate, onUntypeComplete, onProjectSelect,
                 }}
               >
                 <h2 className="project-header">
-                  <img src={project.icon} alt="" className="project-icon" style={visible || namePhase[project.id] !== 'gone' ? undefined : HIDDEN} />
+                  <img src={project.icon} alt="" className="project-icon" />
                   <a className="project-name" href={project.link} target="_blank" rel="noreferrer">
-                    <TypedText text={project.name} visible={visible} speed={20} {...nameCallbacks[project.id]} />
-                    <ExternalMark style={typed ? undefined : HIDDEN} />
+                    <TypedText text={project.name} visible={visible} speed={20} />
+                    <ExternalMark />
                   </a>
                   <a
                     className="project-source"
@@ -66,7 +54,6 @@ function ProjectsPanel({ visible, onNavigate, onUntypeComplete, onProjectSelect,
                     rel="noreferrer"
                     aria-label={`${project.name} source on GitHub`}
                     title="Source on GitHub"
-                    style={typed ? undefined : HIDDEN}
                   >
                     <i className="hn hn-github" aria-hidden="true" />
                   </a>
@@ -78,8 +65,7 @@ function ProjectsPanel({ visible, onNavigate, onUntypeComplete, onProjectSelect,
                   <TypedText text={project.tech.join(', ')} visible={visible} speed={10} />
                 </p>
               </li>
-            )
-          })}
+          ))}
         </ul>
         {showSectionNav && <SectionNav current="projects" visible={visible} onNavigate={onNavigate} />}
       </section>

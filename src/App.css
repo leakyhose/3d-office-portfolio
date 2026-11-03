@@ -351,6 +351,21 @@ kbd {
   image-rendering: pixelated;
 }
 
+/* A project header builds out from the edge its name is anchored to: the
+   adornments on that side show with the name's first letter, the ones on the
+   far side once the name is complete (and go first when it erases). Wide:
+   right-aligned, so ↗ + GitHub first, the image last. Stacked: the reverse. */
+.project-header :is(.project-icon, .external-mark, .project-source) {
+  visibility: hidden;
+}
+
+.project-header:has(.typed[data-anchor='right']:not(.is-empty)) :is(.external-mark, .project-source),
+.project-header:has(.typed[data-anchor='right'].is-done) .project-icon,
+.project-header:has(.typed[data-anchor='left']:not(.is-empty)) .project-icon,
+.project-header:has(.typed[data-anchor='left'].is-done) :is(.external-mark, .project-source) {
+  visibility: visible;
+}
+
 .project-name {
   color: var(--ink);
   text-decoration: none;
@@ -802,6 +817,12 @@ button:has(.typed:is(.is-empty, .is-off)) {
 .is-touch #menu .nav-link::after {
   content: ' \203A';
   color: var(--dim);
+  /* only next to a fully typed label: gone as soon as it starts erasing */
+  visibility: hidden;
+}
+
+.is-touch #menu .nav-link:has(> .typed.is-done)::after {
+  visibility: visible;
 }
 
 /* Flat layout (no 3D): a centred column on the plain backdrop */
