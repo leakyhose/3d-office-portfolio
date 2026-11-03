@@ -1,10 +1,12 @@
 import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// Injects <link rel="preload"> for the 3D scene's hashed assets (GLB +
-// lightmaps) and modulepreloads for the lazy 3D chunks so they download while the JS is still being fetched/parsed,
-// instead of only after the Stage chunk evaluates. Phones and tablets render
-// the scene too, so the hints apply at every viewport size.
+// Preloads for the 3D scene's hashed assets (GLB + lightmaps) and the lazy 3D
+// chunks, so they download while the overlay JS is still being fetched and
+// parsed instead of only after the Stage chunk evaluates. Emitted by an inline
+// head script that applies the same check as canRender3D() (src/capabilities.ts):
+// visitors who get the flat layout (no WebGL2, Data Saver, very low-end, ?2d)
+// don't download the 3D assets at all.
 function preloadSceneAssets(): Plugin {
   const patterns = [/office.*\.glb$/, /office-lightmap.*\.webp$/, /floor-lightmap.*\.webp$/]
   return {
@@ -16,23 +18,18 @@ function preloadSceneAssets(): Plugin {
         if (!ctx.bundle) return []
         const files = Object.keys(ctx.bundle).filter((f) => patterns.some((re) => re.test(f)))
         const chunks = Object.keys(ctx.bundle).filter((f) => /(^|\/)(Stage|vendor-3d)-[^/]*\.js$/.test(f))
-        const modulePreloads = chunks.map((f) => ({
-          tag: 'link',
-          attrs: { rel: 'modulepreload', href: `/${f}`, crossorigin: '' },
-          injectTo: 'head' as const,
-        }))
-        return [...modulePreloads, ...files.map((f) => ({
-          tag: 'link',
-          attrs: {
-            rel: 'preload',
-            href: `/${f}`,
-            as: 'fetch',
-            crossorigin: '',
-            // the overlay's JS/CSS/fonts go first on slow connections
-            fetchpriority: 'low',
-          },
-          injectTo: 'head' as const,
-        }))]
+        const links = [
+          ...chunks.map((f) => ({ rel: 'modulepreload', href: `/${f}`, crossorigin: '' })),
+          // the overlay's JS/CSS/fonts go first on slow connections
+          ...files.map((f) => ({ rel: 'preload', href: `/${f}`, as: 'fetch', crossorigin: '', fetchpriority: 'low' })),
+        ]
+        const script = '(function(){var q=location.search,n=navigator,c=n.connection;' +
+          'if(/[?&]2d(&|=|$)/.test(q))return;' +
+          "if(!/[?&]3d(&|=|$)/.test(q)&&(typeof WebGL2RenderingContext==='undefined'||(c&&c.saveData)||" +
+          '(n.deviceMemory!==undefined&&n.deviceMemory<=1)||(n.hardwareConcurrency!==undefined&&n.hardwareConcurrency<=2)))return;' +
+          `${JSON.stringify(links)}.forEach(function(a){var l=document.createElement('link');` +
+          'for(var k in a)l.setAttribute(k,a[k]);document.head.appendChild(l)})})()'
+        return [{ tag: 'script', children: script, injectTo: 'head' as const }]
       },
     },
   }
