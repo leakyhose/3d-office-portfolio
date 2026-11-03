@@ -1,0 +1,37 @@
+/*
+ * The HackerNoon pixel icons (@hackernoon/pixel-icon-library), cut down to
+ * the glyphs the site uses. The full font is 20 KB of woff2 (plus 1,000+
+ * classes of CSS) for ~400 icons; this subset is under 1 KB, so Vite inlines
+ * it into the CSS and the icons are there on first paint, no extra request.
+ * Same font, metrics and class names as the library's iconfont.css.
+ *
+ * Adding an icon: add its class below (codepoint from the library's
+ * fonts/iconfont.css) and regenerate the subset with every codepoint listed:
+ *   pyftsubset node_modules/@hackernoon/pixel-icon-library/fonts/iconfont.woff2 \
+ *     --unicodes=U+F110,U+F11A,U+F15D,U+F17D,U+F18E,U+F1A8,U+F1F7,U+F1FF \
+ *     --flavor=woff2 --output-file=src/assets/pixel-icons.woff2
+ */
+@font-face {
+  font-family: "iconfont";
+  src: url("./assets/pixel-icons.woff2") format("woff2");
+}
+
+.hn {
+  line-height: 1;
+}
+
+.hn:before {
+  font-family: iconfont !important;
+  font-style: normal;
+  font-weight: normal !important;
+  vertical-align: top;
+}
+
+.hn-github:before { content: "\f110"; }
+.hn-linkedin:before { content: "\f11a"; }
+.hn-at:before { content: "\f15d"; }
+.hn-code:before { content: "\f17d"; }
+.hn-envelope:before { content: "\f18e"; }
+.hn-home:before { content: "\f1a8"; }
+.hn-trophy:before { content: "\f1f7"; }
+.hn-user:before { content: "\f1ff"; }
