@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, useCallback, useReducer } from 'react'
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react'
 import '@fontsource/vt323'
 import '@hackernoon/pixel-icon-library/fonts/iconfont.css'
 import { VIEWS } from './config/views'
@@ -38,11 +38,12 @@ function viewFromHash(): ViewName | null {
 }
 
 /*
- * Navigation state lives in a ref (rendered via a version counter), so every
- * handler, including the window keydown/popstate listeners, always sees the
- * current panels. A view change: erase the visible panels (camera starts
- * flying at once), then, when every mounted panel reports it has finished
- * erasing, swap in the target view's panels and type them in.
+ * Navigation state is rendered from React state and mirrored in a ref that
+ * every handler (including the window keydown/popstate listeners) reads and
+ * writes synchronously through updateNav, so a burst of events in one tick
+ * always builds on the latest state. A view change: erase the visible panels
+ * (camera starts flying at once), then, when every mounted panel reports it
+ * has finished erasing, swap in the target view's panels and type them in.
  */
 interface NavState {
   view: ViewName
@@ -60,23 +61,22 @@ function App() {
   const mode = has3D ? screen.kind : 'flat'
 
   const [Stage, setStage] = useState<StageComponent | null>(null)
-  useEffect(() => {
-    if (!has3D || Stage) return
-    let alive = true
-    loadStage().then((C) => { if (alive) setStage(() => C) }, () => setStageFailed(true))
-    return () => { alive = false }
-  }, [has3D, Stage])
   const [stageVisible, setStageVisible] = useState(false)
 
-  const initialView = useRef<ViewName>(viewFromHash() ?? 'home').current
-  const nav = useRef<NavState>({
+  const [initialView] = useState<ViewName>(() => viewFromHash() ?? 'home')
+  const [navState, setNavState] = useState<NavState>(() => ({
     view: initialView,
     left: VIEWS[initialView].left,
     right: VIEWS[initialView].right,
-    leftVisible: false,
-    rightVisible: false,
-  })
-  const [, rerender] = useReducer((n: number) => n + 1, 0)
+    // flat layout from the start: panels straight away
+    leftVisible: !SUPPORTS_3D && Boolean(VIEWS[initialView].left),
+    rightVisible: !SUPPORTS_3D && Boolean(VIEWS[initialView].right),
+  }))
+  const nav = useRef(navState)
+  const updateNav = useCallback((patch: Partial<NavState>) => {
+    nav.current = { ...nav.current, ...patch }
+    setNavState(nav.current)
+  }, [])
   const pending = useRef<ViewName | null>(null)
   const leftDone = useRef(true)
   const rightDone = useRef(true)
@@ -84,40 +84,36 @@ function App() {
 
   const [freeCam, setFreeCam] = useState(false)
   const [freeCamIdle, setFreeCamIdle] = useState(false)
-  const [bootPhase, setBootPhase] = useState<'off' | 'booting' | 'done'>('off')
+  const [bootPhase, setBootPhase] = useState<'off' | 'booting' | 'done'>(SUPPORTS_3D ? 'off' : 'done')
   const [landedView, setLandedView] = useState<ViewName>(initialView)
   const [selectedProject, setSelectedProject] = useState<string | null>(null)
-  const [introComplete, setIntroComplete] = useState(false)
-  const [interactive, setInteractive] = useState(false)
+  const [introComplete, setIntroComplete] = useState(!SUPPORTS_3D)
+  const [interactive, setInteractive] = useState(!SUPPORTS_3D)
 
   const isFreeCam = useRef(false)
-  const interactiveRef = useRef(false)
+  const interactiveRef = useRef(!SUPPORTS_3D)
   const introZoomRef = useRef(false)
   const stageReadyRef = useRef(false)
-  const panelFallbackRef = useRef(false)
+  const panelFallbackRef = useRef(!SUPPORTS_3D)
   const introTimers = useRef<ReturnType<typeof setTimeout>[]>([])
   const lastInput = useRef<'pointer' | 'key'>('key')
 
   const showPanels = useCallback(() => {
     const s = nav.current
-    s.leftVisible = Boolean(s.left)
-    s.rightVisible = Boolean(s.right)
+    updateNav({ leftVisible: Boolean(s.left), rightVisible: Boolean(s.right) })
     if (!interactiveRef.current) {
       interactiveRef.current = true
       setInteractive(true)
     }
-    rerender()
-  }, [])
+  }, [updateNav])
 
   const trySwap = useCallback(() => {
     const target = pending.current
     if (!target || !leftDone.current || !rightDone.current) return
     pending.current = null
-    const s = nav.current
-    s.left = VIEWS[target].left
-    s.right = VIEWS[target].right
+    updateNav({ left: VIEWS[target].left, right: VIEWS[target].right })
     showPanels()
-  }, [showPanels])
+  }, [showPanels, updateNav])
 
   const onLeftUntypeComplete = useCallback(() => { leftDone.current = true; trySwap() }, [trySwap])
   const onRightUntypeComplete = useCallback(() => { rightDone.current = true; trySwap() }, [trySwap])
@@ -128,13 +124,19 @@ function App() {
     setIntroComplete(true)
   }, [])
 
-  const exitFreeCamMode = useCallback(() => {
-    if (!isFreeCam.current) return
+  /** Drop free cam state (no camera move, no panels). */
+  const leaveFreeCam = useCallback(() => {
+    if (!isFreeCam.current) return false
     isFreeCam.current = false
     setFreeCam(false)
+    return true
+  }, [])
+
+  const exitFreeCamMode = useCallback(() => {
+    if (!leaveFreeCam()) return
     showPanels()
     navigateToView(nav.current.view)
-  }, [showPanels])
+  }, [leaveFreeCam, showPanels])
 
   const navigate = useCallback((view: ViewName, opts: { history?: boolean; event?: NavEvent } = {}) => {
     if (!interactiveRef.current) return
@@ -152,7 +154,7 @@ function App() {
     if (opts.event && opts.event.detail > 0) (opts.event.currentTarget as HTMLElement | null)?.blur?.()
     focusPanelOnSwap.current = Boolean(opts.event && opts.event.detail === 0)
 
-    s.view = view
+    updateNav({ view })
     if (view !== 'projects') setSelectedProject(null)
     navigateToView(view)
 
@@ -169,11 +171,9 @@ function App() {
     // already true) or will report when it does.
     leftDone.current = !s.left || (!s.leftVisible && leftDone.current)
     rightDone.current = !s.right || (!s.rightVisible && rightDone.current)
-    s.leftVisible = false
-    s.rightVisible = false
-    rerender()
+    updateNav({ leftVisible: false, rightVisible: false })
     trySwap()
-  }, [exitFreeCamMode, finishIntro, showPanels, trySwap])
+  }, [exitFreeCamMode, finishIntro, showPanels, trySwap, updateNav])
 
   const onNavigate = useCallback((view: ViewName, e?: NavEvent) => navigate(view, { event: e }), [navigate])
 
@@ -191,11 +191,9 @@ function App() {
     if (!interactiveRef.current || introZoomRef.current || pending.current || isFreeCam.current || !stageReadyRef.current) return
     isFreeCam.current = true
     setFreeCam(true)
-    nav.current.leftVisible = false
-    nav.current.rightVisible = false
-    rerender()
+    updateNav({ leftVisible: false, rightVisible: false })
     enterFreeCam()
-  }, [])
+  }, [updateNav])
 
   // ── Key hints (desktop) ──
   const [keyHintArmed, setKeyHintArmed] = useState(false)
@@ -213,10 +211,7 @@ function App() {
 
   // In free cam, fade the HUD after 2s of inactivity so only the scene shows.
   useEffect(() => {
-    if (!freeCam) {
-      setFreeCamIdle(false)
-      return
-    }
+    if (!freeCam) return
     let timer: ReturnType<typeof setTimeout>
     const reset = () => {
       setFreeCamIdle(false)
@@ -232,19 +227,28 @@ function App() {
     }
   }, [freeCam])
 
-  // Flat layout (no 3D, or the stage failed): panels straight away.
+  // The 3D stage failed at runtime (chunk or WebGL context): flat layout.
+  const failStage = useCallback(() => {
+    setStageFailed(true)
+    panelFallbackRef.current = true
+    introTimers.current.forEach(clearTimeout)
+    introZoomRef.current = false
+    leaveFreeCam()
+    showPanels()
+    finishIntro()
+  }, [leaveFreeCam, showPanels, finishIntro])
+
+  useEffect(() => {
+    if (!has3D || Stage) return
+    let alive = true
+    loadStage().then((C) => { if (alive) setStage(() => C) }, () => { if (alive) failStage() })
+    return () => { alive = false }
+  }, [has3D, Stage, failStage])
+
+  // If the 3D scene is slow to come up, show the panels over the backdrop.
   useEffect(() => {
     performance.mark('app:mounted')
-    if (!has3D) {
-      panelFallbackRef.current = true
-      introTimers.current.forEach(clearTimeout)
-      introZoomRef.current = false
-      if (isFreeCam.current) { isFreeCam.current = false; setFreeCam(false) }
-      showPanels()
-      finishIntro()
-      return
-    }
-    if (stageReadyRef.current) return
+    if (!has3D || stageReadyRef.current) return
     const t = setTimeout(() => {
       if (stageReadyRef.current) return
       performance.mark('app:panel-fallback')
@@ -252,7 +256,7 @@ function App() {
       showPanels()
     }, PANEL_FALLBACK_MS)
     return () => clearTimeout(t)
-  }, [has3D, showPanels, finishIntro])
+  }, [has3D, showPanels])
 
   useEffect(() => () => introTimers.current.forEach(clearTimeout), [])
 
@@ -357,7 +361,7 @@ function App() {
     ? bootPhase
     : (landedView === 'projects' || selectedProject ? 'projects' : 'clouds')
 
-  const s = nav.current
+  const s = navState
   const LeftComponent = s.left ? PANELS[s.left] : null
   const RightComponent = s.right ? PANELS[s.right] : null
   const panelProps = {
@@ -383,7 +387,7 @@ function App() {
     <div id="app" className={appClass} style={{ '--scene-frac': sceneFraction } as React.CSSProperties}>
       {has3D && (
         <>
-          <StageBoundary onError={() => setStageFailed(true)}>
+          <StageBoundary onError={failStage}>
             {Stage && (
               <Stage
                 visible={stageVisible}
@@ -424,7 +428,7 @@ function App() {
                 href={hrefFor(sec.view)}
                 className="tab"
                 aria-current={sec.view === s.view ? 'page' : undefined}
-                onClick={navClick(sec.view, onNavigate)}
+                onClick={(e) => navClick(sec.view, onNavigate)(e)}
               >
                 <i className={`hn hn-${sec.icon}`} aria-hidden="true" />
                 <span>{sec.label}</span>
