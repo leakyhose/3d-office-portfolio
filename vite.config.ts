@@ -6,7 +6,7 @@ import react from '@vitejs/plugin-react'
 // instead of only after the Stage chunk evaluates. Mobile never renders 3D,
 // so the hints are restricted to desktop-width viewports via `media`.
 function preloadSceneAssets(): Plugin {
-  const patterns = [/office.*\.glb$/, /office-lightmap.*\.webp$/, /floor-lightmap.*\.webp$/]
+  const patterns = [/office.*\.glb$/, /(office|room|floor)-lightmap.*\.webp$/]
   return {
     name: 'preload-scene-assets',
     apply: 'build',

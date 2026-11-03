@@ -13,7 +13,7 @@ import ComputerScreenContent from '../ComputerScreenContent'
 import ExperiencePaper from './ExperiencePaper'
 import { ScreenMeshProvider, useScreenMesh } from './ScreenMeshContext'
 import { AdaptiveDpr } from '../hooks/useQualityTier'
-import { getOfficeAssets, FLOOR_BAKE_SIZE, LIGHTMAP_INTENSITY } from '../scene/office'
+import { getOfficeAssets, FLOOR_BAKE_SIZE, FLOOR_BAKE_CENTER, LIGHTMAP_INTENSITY } from '../scene/office'
 import { applyBakedLighting } from '../scene/bakedMaterials'
 import { releasePrewarm } from '../scene/prewarm'
 import { drawBlankScreen } from '../drawScreenTexture'
@@ -24,13 +24,13 @@ const BACKGROUND = '#1e1a15'
 const prepared = new WeakSet<THREE.Object3D>()
 
 const OfficeModel = memo(function OfficeModel() {
-  const { scene, lightmap } = getOfficeAssets()
+  const { scene, lightmap, roomLightmap } = getOfficeAssets()
   const { setScreenSetup, setFullScene } = useScreenMesh()
 
   // Swap in the baked-lighting materials before the scene is first rendered.
   if (!prepared.has(scene)) {
     prepared.add(scene)
-    applyBakedLighting(scene, lightmap)
+    applyBakedLighting(scene, lightmap, roomLightmap)
   }
 
   useLayoutEffect(() => {
@@ -89,8 +89,8 @@ function Floor() {
     const pos = geo.getAttribute('position')
     const uv1 = new Float32Array(pos.count * 2)
     for (let i = 0; i < pos.count; i++) {
-      uv1[i * 2] = pos.getX(i) / FLOOR_BAKE_SIZE + 0.5
-      uv1[i * 2 + 1] = pos.getZ(i) / FLOOR_BAKE_SIZE + 0.5
+      uv1[i * 2] = (pos.getX(i) - FLOOR_BAKE_CENTER[0]) / FLOOR_BAKE_SIZE + 0.5
+      uv1[i * 2 + 1] = (pos.getZ(i) - FLOOR_BAKE_CENTER[1]) / FLOOR_BAKE_SIZE + 0.5
     }
     geo.setAttribute('uv1', new THREE.BufferAttribute(uv1, 2))
     return geo
@@ -134,6 +134,8 @@ function Warmup({ onReady }: { onReady: () => void }) {
       performance.mark('stage:first-frame')
       releasePrewarm()
       if (import.meta.env.DEV) console.debug(`[stage] ${gl.info.programs?.length} shader programs`)
+      // QA hook (?qa): lets the screenshot/perf harness read renderer.info.
+      if (location.search.includes('qa')) (window as unknown as { __three: unknown }).__three = { gl, scene, camera }
       onReady()
     }
     run()
@@ -173,6 +175,10 @@ function Scene({ onReady, freeCam, screenPhase, hoveredProject, introComplete }:
 
   // Same per-frame look-at the drei OrbitControls used to do (priority -1).
   useFrame(() => rig.update(), -1)
+  // QA hook (?qa): lets screenshot scripts place the camera.
+  useEffect(() => {
+    if (location.search.includes('qa')) (window as unknown as { __rig: CameraRig }).__rig = rig
+  }, [rig])
 
   // Demo videos stay cold during the critical loading path; start buffering
   // them once the intro is done and bandwidth is free.
