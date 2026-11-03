@@ -200,19 +200,26 @@ kbd {
 }
 
 .inline-link {
-  color: var(--accent);
+  color: var(--hl, var(--accent));
   text-decoration: underline;
   text-decoration-thickness: 2px;
   text-underline-offset: 0.14em;
-  text-decoration-color: rgba(240, 182, 92, 0.4);
+  text-decoration-color: color-mix(in srgb, var(--hl, var(--accent)) 40%, transparent);
   transition: color 0.15s, text-decoration-color 0.15s;
 }
 
 .can-hover .inline-link:hover,
 .inline-link:focus-visible {
-  color: var(--accent-hi);
+  color: var(--hl-hi, var(--accent-hi));
   text-decoration-color: currentColor;
 }
+
+/* About: each highlight in its brand's colour (all >= 6:1 on --bg) */
+.about-hl-shopify  { --hl: #95bf47; --hl-hi: #b5d97a; }
+.about-hl-botpress { --hl: #a78bfa; --hl-hi: #c4b5fd; }
+.about-hl-nokia    { --hl: #5bb8f5; --hl-hi: #8dd0ff; }
+.about-hl-ubc      { --hl: #f5c45b; --hl-hi: #fad97a; }
+.about-hl-skills   { --hl: #6ee7b7; --hl-hi: #9af0d1; }
 
 .interest {
   color: var(--ink);
@@ -755,8 +762,9 @@ button:has(.typed:is(.is-empty, .is-off)) {
 .layout-flat {
   --pad-x: clamp(20px, 6vw, 56px);
   --gap-s: 8px;
-  --gap-m: clamp(14px, 3.4vw, 26px);
-  --gap-l: clamp(18px, 4.6vw, 34px);
+  /* capped low enough that tablets (type at its cap) keep the panels compact */
+  --gap-m: clamp(14px, 3.4vw, 20px);
+  --gap-l: clamp(18px, 4.6vw, 26px);
   --fs-display: clamp(50px, 16vw, 128px);
   --fs-title: clamp(36px, 10.5vw, 84px);
   --fs-nav: clamp(24px, 6.6vw, 46px);
