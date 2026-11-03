@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, memo } from 'react'
-import { useThree } from '@react-three/fiber'
+import { useThree } from './three/fiber'
 import { getOfficeAssets } from './scene/office'
 import * as THREE from 'three'
 

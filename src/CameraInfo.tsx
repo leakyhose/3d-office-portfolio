@@ -1,4 +1,4 @@
-import { useFrame, useThree } from '@react-three/fiber'
+import { useFrame, useThree } from './three/fiber'
 import { useRef, useState, useCallback, useEffect } from 'react'
 import type * as THREE from 'three'
 import type { CameraInfoState } from './types'

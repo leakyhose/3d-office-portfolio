@@ -13,7 +13,6 @@
   "dependencies": {
     "@fontsource/vt323": "^5.2.7",
     "@hackernoon/pixel-icon-library": "^1.0.6",
-    "@react-three/fiber": "^9.5.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "three": "^0.183.2"

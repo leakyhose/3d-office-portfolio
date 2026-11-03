@@ -1,4 +1,4 @@
-import { useThree, useFrame } from '@react-three/fiber'
+import { useThree, useFrame } from '../../three/fiber'
 import { useEffect, useRef, useCallback } from 'react'
 import * as THREE from 'three'
 import { VIEWS, ANIM_DURATION, START_POSITION, START_ROTATION, START_SUBJECT } from '../../config/views'

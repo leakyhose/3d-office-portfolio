@@ -1,7 +1,11 @@
+import { useMemo } from 'react'
+import { Fog } from 'three'
+import { useSceneAttach } from '../../three/fiber'
 import { INTRO_FOG } from '../../config/views'
 
 function IntroFog() {
-  return <fog attach="fog" args={INTRO_FOG} />
+  useSceneAttach('fog', useMemo(() => new Fog(...INTRO_FOG), []))
+  return null
 }
 
 export default IntroFog
