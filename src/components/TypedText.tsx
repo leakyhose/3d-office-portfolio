@@ -1,6 +1,7 @@
 import { useContext, useEffect, useLayoutEffect, useRef } from 'react'
 import type { TextSegment, TypedAnchor, TypedTextProps } from '../types'
 import { UntypeTrackerContext } from './useUntypeTracker'
+import { layoutGen } from './typedLayout'
 
 /*
  * Typewriter text. The visible part of the string is a window [s, e) over its
@@ -71,13 +72,6 @@ function flushResolves() {
 function queueResolve(r: Resolver) {
   if (!resolveQueue.size) queueMicrotask(flushResolves)
   resolveQueue.add(r)
-}
-
-// Measured line breaks are cached until something can re-wrap text.
-let layoutGen = 0
-if (typeof window !== 'undefined') {
-  window.addEventListener('resize', () => { layoutGen++ })
-  document.fonts?.addEventListener('loadingdone', () => { layoutGen++ })
 }
 
 // Scramble glyphs for the leading character. Letters map to glyphs with the
@@ -383,7 +377,7 @@ function TypedText({ text, segments, visible, speed, untypeSpeed = speed, onType
   const stateRef = useRef({ s: 0, e: 0 })
   const emptyRef = useRef(true)
   const idRef = useRef<object | null>(null)
-  const layoutRef = useRef<{ anchor: TypedAnchor; lines: Line[] | null; gen: number; key: string }>({ anchor: 'left', lines: null, gen: -1, key: '' })
+  const layoutRef = useRef<{ anchor: TypedAnchor; anchorGen: number; lines: Line[] | null; gen: number; key: string }>({ anchor: 'left', anchorGen: -1, lines: null, gen: -1, key: '' })
   const implRef = useRef<Impl | null>(null)
   // Imperative DOM state: last structure signature, edge text node (for the
   // per-frame scramble) and the text runs of the natural layout (for measuring).
@@ -461,8 +455,12 @@ function TypedText({ text, segments, visible, speed, untypeSpeed = speed, onType
         const root = rootRef.current
         if (!root) return
         const L = layoutRef.current
-        const a = anchor ?? detectAnchor(root)
-        L.anchor = a
+        if (anchor) L.anchor = anchor
+        else if (L.anchorGen !== layoutGen) {
+          L.anchor = detectAnchor(root)
+          L.anchorGen = layoutGen
+        }
+        const a = L.anchor
         if (a === 'left') return
         if (L.lines && L.gen === layoutGen && L.key === contentKey) return
         if (!dom.runs) return
