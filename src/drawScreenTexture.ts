@@ -546,6 +546,8 @@ function buildVideoChrome(
 }
 
 function videoChrome(width: number, height: number, windowTitle: string, videoAspect: number) {
+  // Without the video's size (not loaded yet) the window is a stopgap: not kept.
+  if (!videoAspect) return buildVideoChrome(width, height, windowTitle, videoAspect)
   const key = `${width}x${height}|${windowTitle}|${videoAspect.toFixed(4)}`
   let cache = videoChromes.get(key)
   if (!cache) {
@@ -558,12 +560,10 @@ function videoChrome(width: number, height: number, windowTitle: string, videoAs
 /**
  * Build a video window's chrome ahead of its first frame (the first build
  * pixelates the desktop background and rasterizes the title: ~10 ms on a fast
- * machine). Needs the video's size; returns false while it isn't known yet.
+ * machine). Call once the video's size is known.
  */
-export function prepareVideoWindow(width: number, height: number, video: HTMLVideoElement, windowTitle: string): boolean {
-  if (!video.videoWidth || !video.videoHeight) return false
-  videoChrome(width, height, windowTitle, video.videoWidth / video.videoHeight)
-  return true
+export function prepareVideoWindow(width: number, height: number, video: HTMLVideoElement, windowTitle: string) {
+  if (video.videoWidth && video.videoHeight) videoChrome(width, height, windowTitle, video.videoWidth / video.videoHeight)
 }
 
 export function drawVideoWindow(
