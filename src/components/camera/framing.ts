@@ -16,6 +16,9 @@ import type { Subject } from '../../types'
  *    the horizontal extent at the subject's depth stays what it was at
  *    REF_ASPECT, keeping the subject at the same normalised screen position.
  *    The panels are sized in vw, so the subject keeps clear of them.
+ *    A view with a vertical lens shift (wideShift) keeps its camera height
+ *    instead, so its bottom edge still clears whatever it was framed to
+ *    clear, and the extra height goes to the top of the frame.
  *  - Stacked layout (portrait): the panel sits under the scene, so the
  *    subject's bounding box is fitted into the top region of the screen,
  *    centred horizontally.
@@ -45,6 +48,8 @@ export interface PoseSpec {
   subject: THREE.Box3 | null
   /** Stacked layout: optional viewing direction override (world vector). */
   stackedLook?: readonly [number, number, number]
+  /** Wide layout: vertical lens shift (NDC), see ViewConfig.wideShift. */
+  wideShift?: number
 }
 
 export interface FrameContext {
@@ -107,7 +112,8 @@ export function resolvePose(spec: PoseSpec, ctx: FrameContext): Pose {
   }
 
   basis(spec.rotation)
-  if (aspect >= REF_ASPECT || !spec.subject) return poseFrom(authored, WIDE_FOV)
+  const shift = spec.wideShift ?? 0
+  if (aspect >= REF_ASPECT || !spec.subject) return poseFrom(authored, WIDE_FOV, shift)
 
   // Subject centre in camera space (right, up, depth).
   spec.subject.getCenter(_c)
@@ -119,10 +125,11 @@ export function resolvePose(spec: PoseSpec, ctx: FrameContext): Pose {
   // zs * k with k = REF / A keeps its NDC x (and its width on screen) as at
   // REF_ASPECT with the same x; scaling y by k keeps its NDC y too.
   const k = REF_ASPECT / aspect
-  const pos = authored.clone()
-    .addScaledVector(_f, -(zs * k - zs))
-    .addScaledVector(_v, -(ys * k - ys))
-  return poseFrom(pos, WIDE_FOV)
+  const pos = authored.clone().addScaledVector(_f, -(zs * k - zs))
+  // A lens-shifted shot keeps its height (and so where its bottom edge cuts
+  // the scene); the extra height of the narrower screen shows above.
+  if (!shift) pos.addScaledVector(_v, -(ys * k - ys))
+  return poseFrom(pos, WIDE_FOV, shift)
 }
 
 const _corners = Array.from({ length: 8 }, () => new THREE.Vector3())

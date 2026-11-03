@@ -24,6 +24,13 @@ export interface ViewConfig {
   subject: Subject
   /** stacked (portrait) layout: viewing direction override (world vector) */
   stackedLook?: [number, number, number]
+  /**
+   * Wide layout: vertical lens shift (NDC, negative = the frame shows more
+   * above). Keeps a level camera's bottom edge at a fixed elevation, so a
+   * shot can end just above the desk clutter beside its subject; narrower
+   * screens then dolly back at the same height (see framing.ts).
+   */
+  wideShift?: number
   left: PanelId | null
   right: PanelId | null
 }
