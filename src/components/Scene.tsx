@@ -16,6 +16,8 @@ import { AdaptiveDpr } from '../hooks/useQualityTier'
 import { getOfficeAssets, FLOOR_BAKE_SIZE, FLOOR_BAKE_CENTER, LIGHTMAP_INTENSITY } from '../scene/office'
 import { applyBakedLighting } from '../scene/bakedMaterials'
 import { releasePrewarm } from '../scene/prewarm'
+import { createCrtMaterial, sceneTime } from '../scene/crtMaterial'
+import { createAmbienceGeometry, createAmbienceMaterial } from '../scene/ambience'
 import { drawBlankScreen } from '../drawScreenTexture'
 import { warmVideos } from '../videoManager'
 import type { ScreenPhase } from '../types'
@@ -64,8 +66,8 @@ const OfficeModel = memo(function OfficeModel() {
     texture.wrapT = THREE.ClampToEdgeWrapping
 
     const originalMaterial = screenMesh.material
-    // Unlit: same output as the old black + emissiveMap(0.95) standard material.
-    const material = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.95, 0.95, 0.95), map: texture })
+    // Unlit picture tube (see crtMaterial.ts).
+    const material = createCrtMaterial(texture)
     screenMesh.material = material
     setScreenSetup({ mesh: screenMesh, canvas, texture, width: texWidth, height: texHeight })
 
@@ -101,6 +103,21 @@ function Floor() {
       <meshBasicMaterial color={BACKGROUND} lightMap={floorLightmap} lightMapIntensity={LIGHTMAP_INTENSITY} />
     </mesh>
   )
+}
+
+const FOV_SCALE = 1 / (2 * Math.tan(THREE.MathUtils.degToRad(50) / 2))
+
+/** Dust motes + PC LEDs (one Points draw call) and the shared shader clock. */
+function Ambience() {
+  const geometry = useMemo(createAmbienceGeometry, [])
+  const material = useMemo(createAmbienceMaterial, [])
+  useEffect(() => () => { geometry.dispose(); material.dispose() }, [geometry, material])
+  useFrame(({ clock, size, viewport }) => {
+    sceneTime.value = clock.elapsedTime
+    // world size -> pixels: drawing-buffer height / (2 tan(fov / 2))
+    material.uniforms.uScale.value = size.height * viewport.dpr * FOV_SCALE
+  })
+  return <points geometry={geometry} material={material} frustumCulled={false} />
 }
 
 /**
@@ -199,6 +216,7 @@ function Scene({ onReady, freeCam, screenPhase, hoveredProject, introComplete }:
       <OfficeModel />
       <ExperiencePaper />
       <Floor />
+      <Ambience />
       <CoffeeSteam active={introComplete} />
       <CatMeow />
       <Warmup onReady={handleReady} />

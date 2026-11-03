@@ -1,5 +1,7 @@
 import * as THREE from 'three'
 import { createSteamMaterial } from '../CoffeeSteam'
+import { createCrtMaterial } from './crtMaterial'
+import { createAmbienceGeometry, createAmbienceMaterial } from './ambience'
 
 /**
  * Starts compiling the scene's shader programs as soon as the WebGL context
@@ -35,13 +37,16 @@ export function prewarmPrograms(gl: THREE.WebGLRenderer, camera: THREE.Camera, f
     new THREE.MeshBasicMaterial({ map: tex(), lightMap, side: THREE.DoubleSide, transparent: true }),
     // experience paper (keeps MeshStandardMaterial)
     new THREE.MeshStandardMaterial({ map: tex(), lightMap, side: THREE.DoubleSide }),
-    // computer screen (canvas texture, no lightmap)
-    new THREE.MeshBasicMaterial({ map: tex() }),
   ]
   const meshes: THREE.Object3D[] = materials.map((m) => new THREE.Mesh(glbLike, m))
+  // computer screen (CRT tube; its mesh still has both UV sets)
+  meshes.push(new THREE.Mesh(glbLike, createCrtMaterial(tex())))
   // night sky outside the window (unlit canvas texture, no lightmap UV set)
   const plain = new THREE.PlaneGeometry()
   meshes.push(new THREE.Mesh(plain, new THREE.MeshBasicMaterial({ map: tex() })))
+  // dust motes + LEDs
+  const ambienceGeo = createAmbienceGeometry()
+  meshes.push(new THREE.Points(ambienceGeo, createAmbienceMaterial()))
   // floor (PlaneGeometry + uv1, front side)
   const floorGeo = new THREE.PlaneGeometry()
   floorGeo.setAttribute('uv1', floorGeo.getAttribute('uv').clone())
@@ -56,7 +61,7 @@ export function prewarmPrograms(gl: THREE.WebGLRenderer, camera: THREE.Camera, f
   // to the same programs: three frees a program when its last user is disposed.
   release = () => {
     for (const m of meshes) ((m as THREE.Mesh).material as THREE.Material).dispose()
-    glbLike.dispose(); floorGeo.dispose(); plain.dispose()
+    glbLike.dispose(); floorGeo.dispose(); plain.dispose(); ambienceGeo.dispose()
     release = null
   }
 }
