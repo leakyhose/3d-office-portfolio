@@ -21,14 +21,14 @@ const win95LogoReady = new Promise<void>(resolve => {
   win95LogoImg.onload = () => resolve()
   win95LogoImg.onerror = () => resolve()
 })
-win95LogoImg.src = '/windows_95_logo_and_text.png'
+win95LogoImg.src = '/windows_95_logo_and_text.webp'
 
 const cloudsImg = new Image()
 const cloudsReady = new Promise<void>(resolve => {
   cloudsImg.onload = () => resolve()
   cloudsImg.onerror = () => resolve()
 })
-cloudsImg.src = '/clouds_background.png'
+cloudsImg.src = '/clouds_background.webp'
 
 interface DesktopIcon {
   img: HTMLImageElement
