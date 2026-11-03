@@ -164,7 +164,8 @@ kbd {
 .panel-title .hn {
   font-size: 0.66em;
   margin-right: 0.22em;
-  vertical-align: 0.04em;
+  /* centres the glyph on the cap height (measured on screen) */
+  vertical-align: -0.23em;
   color: var(--accent);
 }
 
@@ -233,7 +234,7 @@ kbd {
 .nav-link .hn {
   font-size: 0.8em;
   margin-right: 0.3em;
-  vertical-align: 0.02em;
+  vertical-align: -0.15em;
 }
 
 /* the prompt caret marks the link under the pointer / focus */
@@ -493,7 +494,7 @@ kbd {
   font-size: 0.85em;
   margin-right: 0.35em;
   color: var(--muted);
-  vertical-align: 0.02em;
+  vertical-align: -0.1em;
 }
 
 .can-hover .contact-value:hover,
