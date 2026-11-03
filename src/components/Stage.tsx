@@ -3,7 +3,7 @@ import * as THREE from 'three'
 import { memo, useEffect, useState } from 'react'
 import Scene from './Scene'
 import { paperCanvasReady } from '../scene/paper'
-import { loadOffice } from '../scene/office'
+import { loadOffice, uploadLightmapsEarly } from '../scene/office'
 import { prewarmPrograms } from '../scene/prewarm'
 import { INTRO_FOG } from '../config/views'
 import { initialDpr } from '../hooks/useQualityTier'
@@ -68,6 +68,7 @@ export default memo(function Stage({ visible, onReady, ...sceneProps }: StagePro
           // the prewarm starts so later callers (ExperiencePaper) don't stall.
           gl.capabilities.getMaxAnisotropy()
           prewarmPrograms(gl, camera, new THREE.Fog(...INTRO_FOG))
+          uploadLightmapsEarly(gl)
         }}
       >
         {assetsLoaded && <Scene onReady={onReady} {...sceneProps} />}
