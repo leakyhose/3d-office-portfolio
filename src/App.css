@@ -1,10 +1,71 @@
-#app {
-  width: 100%;
-  height: 100%;
-  position: relative;
+/* ══════════════════════════════════════════════════════════════
+   Tokens
+   One warm palette (the room's backdrop, paper-white ink, the amber of
+   the desk light as the single accent) and one type scale.
+   --u is 1vw on 16:10 and wider-but-short screens follow the height, so
+   type never outgrows the viewport (ultrawide, phone landscape).
+   ══════════════════════════════════════════════════════════════ */
+:root {
+  --bg: #1e1a15;
+  --ink: #f2ebdf;
+  --ink-2: #d5ccbd;
+  --muted: #a39887;
+  --dim: #73695c;
+  --accent: #f0b65c;
+  --accent-hi: #ffd08a;
+  --line: rgba(242, 235, 223, 0.16);
+
+  --u: min(1vw, 1.6vh);
+  --pad-x: clamp(20px, calc(4.4 * var(--u)), 84px);
+  --pad-y: clamp(16px, calc(3.2 * var(--u)), 56px);
+  --gap-s: clamp(6px, calc(0.9 * var(--u)), 14px);
+  --gap-m: clamp(12px, calc(2 * var(--u)), 34px);
+  --gap-l: clamp(20px, calc(3.6 * var(--u)), 64px);
+
+  --fs-display: clamp(52px, calc(11.5 * var(--u)), 184px);
+  --fs-title: clamp(36px, calc(6.6 * var(--u)), 118px);
+  --fs-nav: clamp(22px, calc(2.9 * var(--u)), 48px);
+  --fs-lead: clamp(20px, calc(2.4 * var(--u)), 40px);
+  --fs-body: clamp(18px, calc(2.05 * var(--u)), 34px);
+  --fs-small: clamp(15px, calc(1.4 * var(--u)), 23px);
+  --fs-hint: clamp(14px, calc(1.1 * var(--u)), 19px);
+
+  --tabbar-h: 58px;
+
+  /* Section icons. Monochrome by default (they take the link colour); the
+     per-section colours from the earlier design are kept below, switch them
+     on with the .icons-color class on #app (see COLORED_ICONS in App.tsx). */
+  --icon-home: currentColor;
+  --icon-about: currentColor;
+  --icon-experience: currentColor;
+  --icon-projects: currentColor;
+  --icon-contact: currentColor;
 }
 
-/* 3D canvas wrapper: stays transparent (the #1e1a15 backdrop shows) until the
+#app.icons-color {
+  --icon-home: #c2a87d;
+  --icon-about: #8bbfd4;
+  --icon-experience: #d4b85a;
+  --icon-projects: #8dc4a0;
+  --icon-contact: #c49a9a;
+}
+
+.nav-link .hn-home, .tab .hn-home { color: var(--icon-home); }
+.nav-link .hn-user, .tab .hn-user { color: var(--icon-about); }
+.nav-link .hn-trophy, .tab .hn-trophy { color: var(--icon-experience); }
+.nav-link .hn-code, .tab .hn-code { color: var(--icon-projects); }
+.nav-link .hn-envelope, .tab .hn-envelope { color: var(--icon-contact); }
+
+#app {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  font-family: 'VT323', monospace;
+  color: var(--ink);
+  background: var(--bg);
+}
+
+/* 3D canvas wrapper: stays transparent (the backdrop shows) until the
    scene's first frame is compiled and drawn, then fades in. */
 .stage {
   position: absolute;
@@ -15,10 +76,12 @@
 .stage.visible {
   opacity: 1;
 }
+.stage canvas {
+  touch-action: none;
+}
 
 /* Replaces the postprocessing Vignette (offset 0.3, darkness 0.7): same
-   smoothstep falloff, converted to an sRGB-space black overlay. Costs no
-   shader compile and no extra full-screen pass. */
+   smoothstep falloff, converted to an sRGB-space black overlay. */
 .vignette {
   position: absolute;
   inset: 0;
@@ -38,373 +101,367 @@
 
 #overlay {
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
+  inset: 0;
   pointer-events: none;
   z-index: 10;
 }
 
-/* Interactive overlay elements get pointer events */
 #overlay a,
 #overlay button,
-#name-title,
-#overlay .about-highlight-clickable {
+.project {
   pointer-events: auto;
 }
 
-#name-title {
-  position: absolute;
-  top: 0;
-  right: 0;
+h1, h2, p, ul, ol, dl, dd {
+  margin: 0;
+  padding: 0;
+  font-weight: 400;
+}
+
+ul, ol {
+  list-style: none;
+}
+
+kbd {
+  font: inherit;
+}
+
+/* ── Focus: one style everywhere, keyboard only ── */
+:focus {
+  outline: none;
+}
+:focus-visible {
+  outline: 2px dashed var(--accent);
+  outline-offset: 4px;
+}
+.panel:focus-visible {
+  outline: none;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Panel content (shared by every layout)
+   ══════════════════════════════════════════════════════════════ */
+.panel {
   font-family: 'VT323', monospace;
-  font-size: clamp(64px, 13vw, 192px);
-  color: #fff;
-  padding: clamp(16px, 2vw, 30px) clamp(32px, 6.5vw, 100px);
-  cursor: default;
-  margin-bottom: 0;
+  color: var(--ink);
+}
+
+.panel-title {
+  font-size: var(--fs-title);
+  line-height: 0.95;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+}
+
+.panel-title .hn {
+  font-size: 0.66em;
+  margin-right: 0.22em;
+  vertical-align: 0.04em;
+  color: var(--accent);
+}
+
+.title-accent {
+  color: var(--accent);
+}
+
+.panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-m);
+  margin-top: var(--gap-l);
+}
+
+.body-text {
+  font-size: var(--fs-lead);
+  line-height: 1.12;
+  color: var(--ink-2);
+  max-width: 34em;
+}
+
+.inline-link {
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.14em;
+  text-decoration-color: rgba(240, 182, 92, 0.4);
+  transition: color 0.15s, text-decoration-color 0.15s;
+}
+
+.can-hover .inline-link:hover,
+.inline-link:focus-visible {
+  color: var(--accent-hi);
+  text-decoration-color: currentColor;
+}
+
+.interest {
+  color: var(--ink);
+}
+
+/* ── Nav links (home menu, section nav) ── */
+.nav-link {
+  position: relative;
+  display: inline-block;
+  color: var(--muted);
+  text-decoration: none;
+  font-size: var(--fs-nav);
+  line-height: 1;
+  padding: 0.1em 0;
+  user-select: none;
+  transition: color 0.15s;
+}
+
+.nav-link .hn {
+  font-size: 0.8em;
+  margin-right: 0.3em;
+  vertical-align: 0.02em;
+}
+
+/* the prompt caret marks the link under the pointer / focus */
+.nav-link::before {
+  content: '>';
+  position: absolute;
+  right: 100%;
+  margin-right: 0.3em;
+  color: var(--accent);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.can-hover .nav-link:hover,
+.nav-link:focus-visible {
+  color: var(--ink);
+}
+
+.can-hover .nav-link:hover::before,
+.nav-link:focus-visible::before {
+  opacity: 1;
+}
+
+.nav-link:focus-visible {
+  outline: none;
+}
+
+.section-nav {
+  display: grid;
+  grid-template-columns: repeat(2, max-content);
+  column-gap: calc(var(--fs-nav) * 1.3);
+  row-gap: calc(var(--fs-nav) * 0.32);
+  margin-top: auto;
+  padding-top: var(--gap-l);
+}
+
+/* ── Home ── */
+#name-title {
+  font-size: var(--fs-display);
+  line-height: 0.9;
+  white-space: nowrap;
   user-select: none;
 }
 
 #menu {
-  position: absolute;
-  top: clamp(160px, 22vw, 320px);
-  right: 0;
   display: flex;
   flex-direction: column;
-  gap: clamp(14px, 1.8vw, 28px);
-  padding: 0 clamp(36px, 7vw, 108px);
-  font-family: 'VT323', monospace;
-  align-items: flex-end;
+  gap: calc(var(--fs-nav) * 0.42);
+  margin-top: var(--gap-l);
 }
 
-#menu a {
-  color: #999;
-  text-decoration: none;
-  font-size: clamp(28px, 3.4vw, 52px);
-  padding: 0;
-  border: none;
-  background: none;
-  transition: color 0.2s;
-  cursor: default;
-  user-select: none;
-}
-
-#menu a:has(.hn-home) {
-  font-size: clamp(30px, 3.7vw, 56px);
-}
-
-#menu a::before {
-  content: '';
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-
-#menu a:hover {
-  color: #fff;
-}
-
-#menu a:hover::before {
-  content: '> ';
-  opacity: 1;
-}
-
-#about-panel {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: min(66vw, 1150px);
-  height: 100%;
-  padding: clamp(16px, 2vw, 30px) clamp(24px, 4.7vw, 72px) clamp(16px, 2vw, 30px) clamp(24px, 3.5vw, 56px);
+/* ── Experience ── */
+.experience-list {
   display: flex;
   flex-direction: column;
-  font-family: 'VT323', monospace;
-  color: #fff;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.25s ease;
+  gap: var(--gap-m);
+  margin-top: var(--gap-l);
 }
 
-#experience-panel {
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: min(60vw, 1020px);
-  height: 100%;
-  padding: clamp(16px, 2vw, 30px) clamp(24px, 4.7vw, 72px);
+.experience-entry {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 0.7em;
+  align-items: center;
+  font-size: var(--fs-body);
+}
+
+.experience-logo {
+  width: 2.6em;
+  height: 2.6em;
+  object-fit: contain;
+  transition: opacity 0.2s ease;
+}
+
+.experience-list.is-erasing .experience-logo {
+  opacity: 0;
+}
+
+.experience-info {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  font-family: 'VT323', monospace;
-  color: #fff;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.25s ease;
-  justify-content: center;
-}
-
-#experience-panel .about-nav {
-  margin-top: clamp(16px, 2.3vw, 36px);
-  justify-items: end;
-  margin-left: auto;
-}
-
-#experience-panel .about-nav a {
-  color: #f5e6d3;
-}
-
-#experience-panel .about-nav a:hover {
-  color: #fff;
-}
-
-#about-panel.visible,
-#experience-panel.visible {
-  opacity: 1;
-}
-
-#projects-panel {
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: min(50vw, 800px);
-  height: 100%;
-  padding: clamp(16px, 2vw, 30px) clamp(32px, 6.5vw, 100px);
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  font-family: 'VT323', monospace;
-  color: #fff;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.25s ease;
-}
-
-#projects-panel.visible {
-  opacity: 1;
-}
-
-.panel-title {
-  margin: 0 0 8px;
-  font-size: clamp(36px, 7vw, 146px);
-  font-weight: 400;
-  line-height: 0.95;
-  min-height: calc(1em * 0.95);
-  white-space: nowrap;
-}
-
-.panel-line {
-  margin: clamp(16px, 2.3vw, 36px) 0 0;
-  font-size: clamp(22px, 2.6vw, 40px);
   line-height: 1.05;
 }
 
-#projects-panel .projects-menu {
-  position: relative;
-  top: auto;
-  right: auto;
-  margin-top: auto;
-  padding: 0;
+.experience-name {
+  font-size: 1.35em;
+  color: var(--ink);
 }
 
-.projects-menu a {
-  position: relative;
+.experience-now {
+  margin-left: 0.5em;
+  padding: 0 0.3em;
+  font-size: 0.6em;
+  vertical-align: 0.2em;
+  color: var(--bg);
+  background: var(--accent);
 }
 
-.projects-menu a::before {
-  content: '>';
-  position: absolute;
-  right: calc(100% + 0.3em);
+.experience-now:has(.is-empty) {
+  background: transparent;
 }
 
-.projects-menu a:hover::before {
-  content: '>';
+.experience-role {
+  color: var(--ink-2);
 }
 
-#contact-panel {
-  position: absolute;
-  inset: 0;
-  height: 50%;
-  padding: clamp(16px, 2vw, 30px) clamp(24px, 5vw, 78px);
+.experience-date {
+  color: var(--muted);
+  font-size: var(--fs-small);
+}
+
+/* ── Projects ── */
+.project-list {
   display: flex;
-  justify-content: flex-end;
-  align-items: flex-start;
-  font-family: 'VT323', monospace;
-  color: #fff;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.25s ease;
-  overflow: hidden;
+  flex-direction: column;
+  gap: var(--gap-l);
+  margin-top: var(--gap-l);
 }
 
-#contact-panel.visible {
-  opacity: 1;
-  pointer-events: auto;
+.project {
+  cursor: default;
 }
 
-.contact-title {
-  margin: 0;
-  font-size: clamp(32px, 7.5vw, 116px);
-  font-weight: 400;
-  line-height: 0.95;
-  white-space: nowrap;
-}
-
-.contact-main {
-  max-width: 980px;
-  max-height: 20vh;
-  text-align: right;
-}
-
-.contact-kicker {
-  margin: 10px 0 0;
-  white-space: nowrap;
-  color: #b8b8b8;
-  font-size: clamp(16px, 1.8vw, 28px);
-}
-
-.contact-links-row {
-  margin-top: 20px;
+.project-header {
   display: flex;
-  flex-wrap: nowrap;
-  gap: 22px;
-  align-items: stretch;
-  justify-content: flex-end;
-}
-
-.contact-pill {
-  min-width: 0;
-  padding: 0;
-  color: #9be7ff;
-  text-decoration: none;
-}
-
-.contact-pill-label {
-  display: block;
-  margin-bottom: 6px;
-  color: #a8a8a8;
-  font-size: clamp(14px, 1.6vw, 24px);
+  align-items: center;
+  gap: 0.35em;
+  font-size: calc(var(--fs-nav) * 0.88);
   line-height: 1;
 }
 
-.contact-copied {
-  color: #7be8a4;
+.project-icon {
+  width: 1.05em;
+  height: 1.05em;
+  image-rendering: pixelated;
 }
 
-.contact-pill > .typed {
-  display: block;
-  font-size: clamp(18px, 2vw, 30px);
+.project-name {
+  color: var(--ink);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.external-mark {
+  margin-left: 0.2em;
+  font-size: 0.8em;
+  color: var(--muted);
+}
+
+.project-source {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 0.85em;
+  line-height: 1;
+  transition: color 0.15s;
+}
+
+.project.is-active .project-name {
+  color: var(--accent);
+}
+
+.can-hover .project-name:hover,
+.project-name:focus-visible {
+  color: var(--accent-hi);
   text-decoration: underline;
   text-decoration-thickness: 2px;
-  text-underline-offset: 0.1em;
+  text-underline-offset: 0.12em;
 }
 
-.contact-pill:hover {
-  color: #c4f2ff;
+.can-hover .project-source:hover,
+.project-source:focus-visible {
+  color: var(--ink);
 }
 
-.contact-nav,
-.projects-nav {
-  position: absolute;
-  top: clamp(20px, 3vw, 48px);
-  left: clamp(24px, 4.5vw, 70px);
-  display: grid;
-  grid-template-columns: repeat(2, max-content);
-  justify-content: start;
-  column-gap: clamp(24px, 3.6vw, 56px);
-  row-gap: clamp(8px, 1vw, 16px);
-  font-family: 'VT323', monospace;
+.project-desc {
+  margin-top: 0.35em;
+  font-size: var(--fs-body);
+  line-height: 1.1;
+  color: var(--ink-2);
 }
 
-.contact-nav a,
-.projects-nav a {
-  position: relative;
-  color: #999;
-  text-decoration: none;
-  font-size: clamp(26px, 3.3vw, 50px);
-  line-height: 0.95;
-  cursor: default;
-  user-select: none;
+.project-tech {
+  margin-top: 0.3em;
+  font-size: var(--fs-small);
+  line-height: 1.1;
+  color: var(--muted);
 }
 
-.contact-nav a:has(.hn-home),
-.projects-nav a:has(.hn-home) {
-  font-size: clamp(28px, 3.5vw, 54px);
+/* ── Contact ── */
+.contact-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-m);
+  margin-top: var(--gap-l);
 }
 
-.contact-nav a::before,
-.projects-nav a::before {
-  content: '>';
-  position: absolute;
-  right: calc(100% + 0.3em);
+.contact-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15em;
+}
+
+.contact-label {
+  font-size: var(--fs-small);
+  color: var(--muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.contact-status {
+  margin-left: 0.6em;
+  color: var(--accent);
   opacity: 0;
-  transition: opacity 0.2s;
+  transition: opacity 0.15s;
 }
 
-.contact-nav a:hover,
-.projects-nav a:hover {
-  color: #fff;
-}
-
-.contact-nav a:hover::before,
-.projects-nav a:hover::before {
+.contact-status.is-shown {
   opacity: 1;
 }
 
-.about-title {
-  margin: 0 0 8px;
-  font-size: clamp(36px, 7vw, 146px);
-  font-weight: 400;
-  line-height: 0.95;
-  white-space: nowrap;
-}
-
-.about-line {
-  margin: clamp(16px, 2.3vw, 36px) 0 0;
-  font-size: clamp(22px, 2.6vw, 40px);
+.contact-value {
+  font: inherit;
+  font-size: var(--fs-lead);
   line-height: 1.05;
-  max-width: 980px;
-}
-
-.about-nav {
-  margin-top: auto;
-  display: grid;
-  grid-template-columns: repeat(2, max-content);
-  column-gap: clamp(24px, 4vw, 62px);
-  row-gap: clamp(8px, 1.2vw, 18px);
-  max-width: 460px;
-}
-
-.about-highlight {
-  color: #7fd3ff;
-  text-decoration: underline;
-  text-decoration-thickness: 2px;
-  text-underline-offset: 0.09em;
-}
-
-.about-highlight-clickable {
+  color: var(--ink);
+  background: none;
+  border: 0;
+  padding: 0;
   cursor: pointer;
-}
-
-.about-highlight-clickable:hover {
-  color: #a3e7ff;
-}
-
-.about-hl-shopify        { color: #95bf47; }
-.about-hl-botpress       { color: #a78bfa; }
-.about-hl-botpress:hover { color: #c4b5fd; }
-.about-hl-nokia          { color: #5bb8f5; }
-.about-hl-nokia:hover    { color: #8dd0ff; }
-.about-hl-ubc            { color: #f5c45b; }
-.about-hl-ubc:hover      { color: #fad97a; }
-.about-hl-skills         { color: #6ee7b7; }
-.about-hl-skills:hover   { color: #9af0d1; }
-
-.about-highlight-subtle  {
+  text-align: inherit;
   text-decoration: underline;
-  text-decoration-color: rgba(255, 255, 255, 0.25);
   text-decoration-thickness: 2px;
-  text-underline-offset: 0.15em;
+  text-underline-offset: 0.14em;
+  text-decoration-color: var(--line);
+  transition: color 0.15s, text-decoration-color 0.15s;
+}
+
+.contact-value .hn {
+  font-size: 0.85em;
+  margin-right: 0.35em;
+  color: var(--muted);
+  vertical-align: 0.02em;
+}
+
+.can-hover .contact-value:hover,
+.contact-value:focus-visible {
+  color: var(--accent-hi);
+  text-decoration-color: currentColor;
 }
 
 /* ── Typed text (see TypedText.tsx) ──
@@ -426,7 +483,8 @@
   text-shadow: none;
 }
 
-.typed-sr {
+.typed-sr,
+.sr-only {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -442,191 +500,127 @@
 .typed:is(.is-empty, .is-off),
 .typed:is(.is-empty, .is-off) *,
 a:has(.typed:is(.is-empty, .is-off)),
-#name-title:has(.typed:is(.is-empty, .is-off)) {
+button:has(.typed:is(.is-empty, .is-off)) {
   pointer-events: none !important;
 }
 
-.about-nav a {
-  position: relative;
-  color: #999;
-  text-decoration: none;
-  font-size: clamp(26px, 3.1vw, 48px);
-  cursor: default;
-  user-select: none;
-}
-
-.about-nav a:has(.hn-home) {
-  font-size: clamp(28px, 3.4vw, 52px);
-}
-
-.about-nav a::before {
-  content: '>';
+/* ══════════════════════════════════════════════════════════════
+   Wide layout: panels in a column beside the subject, over the scene
+   ══════════════════════════════════════════════════════════════ */
+.layout-wide .panel {
   position: absolute;
-  right: calc(100% + 0.3em);
+  top: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  padding: var(--pad-y) var(--pad-x);
+  /* keeps text legible where it crosses lit parts of the desk */
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+.layout-wide .panel-left {
+  left: 0;
+  width: min(58vw, 1180px);
+  align-items: flex-start;
+  text-align: left;
+}
+
+.layout-wide .panel-right {
+  right: 0;
+  width: min(52vw, 980px);
+  align-items: flex-end;
+  text-align: right;
+}
+
+.layout-wide .panel-right .section-nav {
+  justify-content: end;
+  justify-items: end;
+}
+
+.layout-wide .panel-right .project-header {
+  justify-content: flex-end;
+}
+
+/* the monitor fills the left half of the projects shot */
+.layout-wide #projects-panel {
+  width: min(44vw, 860px);
+}
+
+.layout-wide .project-desc {
+  max-width: 30em;
+  margin-left: auto;
+}
+
+/* The sheet on the desk is the experience content here; keep the list for
+   screen readers only (the sheet is a canvas texture). */
+.layout-wide .experience-list {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.layout-wide .panel-sheet {
+  display: contents;
+}
+
+/* Short landscape screens (phones on their side, small laptop windows) */
+@media (max-height: 520px) {
+  :root {
+    --fs-title: clamp(28px, calc(6.6 * var(--u)), 118px);
+    --fs-nav: clamp(17px, calc(2.9 * var(--u)), 48px);
+    --fs-lead: clamp(15px, calc(2.4 * var(--u)), 40px);
+    --fs-body: clamp(14px, calc(2.05 * var(--u)), 34px);
+    --fs-small: clamp(13px, calc(1.4 * var(--u)), 23px);
+    --fs-display: clamp(40px, calc(11.5 * var(--u)), 184px);
+    --gap-l: clamp(12px, calc(3.6 * var(--u)), 64px);
+  }
+}
+
+/* ── Key hints (mouse + keyboard devices) ── */
+.key-hints {
+  position: absolute;
+  bottom: var(--pad-y);
+  right: var(--pad-x);
+  display: flex;
+  gap: 1.6em;
+  font-size: var(--fs-hint);
+  color: var(--muted);
+  white-space: nowrap;
+  user-select: none;
   opacity: 0;
-  transition: opacity 0.2s;
+  transition: opacity 0.8s ease-out;
 }
 
-.about-nav a:hover {
-  color: #fff;
+/* Key hints sit at the foot of the text column (left for About, right
+   elsewhere), under the section nav, which leaves room for them. */
+.view-about .key-hints {
+  right: auto;
+  left: var(--pad-x);
 }
 
-.about-nav a:hover::before {
+.layout-wide.has-key-hints .panel {
+  padding-bottom: calc(var(--pad-y) + var(--fs-hint) * 2.4);
+}
+
+.key-hints.visible {
   opacity: 1;
 }
 
-/* ── Pixel Icons ── */
-
-.hn::before {
-  vertical-align: baseline;
+.key-hints kbd,
+.freecam-hud kbd {
+  display: inline-block;
+  margin-right: 0.45em;
+  padding: 0 0.4em;
+  line-height: 1.15;
+  color: var(--ink);
+  border: 1px solid rgba(242, 235, 223, 0.35);
+  border-bottom-width: 3px;
+  border-radius: 3px;
 }
 
-/* Section title icons */
-.about-title .hn,
-.panel-title .hn,
-.contact-title .hn {
-  font-size: clamp(26px, 4.8vw, 100px);
-  margin-right: 0.2em;
-  vertical-align: middle;
-}
-
-.about-name {
-  color: #8bbfd4;
-}
-
-/* Home nav icons */
-#menu .hn {
-  font-size: clamp(24px, 2.7vw, 42px);
-  margin-right: 0.25em;
-  vertical-align: middle;
-}
-
-/* Sub-nav icons */
-.about-nav .hn,
-.contact-nav .hn,
-.projects-nav .hn {
-  font-size: clamp(22px, 2.5vw, 38px);
-  margin-right: 0.2em;
-  vertical-align: middle;
-}
-
-/* Contact pill icons */
-.contact-pill .hn {
-  font-size: clamp(18px, 1.8vw, 28px);
-  margin-right: 0.25em;
-  vertical-align: middle;
-}
-
-/* ── Icon Colors ── */
-.hn-home    { color: #c2a87d; }
-.hn-user    { color: #8bbfd4; }
-.hn-trophy  { color: #d4b85a; }
-.hn-code    { color: #8dc4a0; }
-.hn-envelope { color: #c49a9a; }
-
-.hn-folder-open  { color: #8dc4a0; }
-.hn-location-pin { color: #c49a9a; }
-
-.contact-pill .hn-at       { color: #c49a9a; }
-.contact-pill .hn-linkedin { color: #8bb5d4; }
-.contact-pill .hn-github   { color: #b8b0c8; }
-
-#menu a:hover .hn-home     { color: #dcc49a; }
-#menu a:hover .hn-user     { color: #a8d6e8; }
-#menu a:hover .hn-trophy   { color: #e4cc72; }
-#menu a:hover .hn-code     { color: #a4d6b6; }
-#menu a:hover .hn-envelope { color: #d6b0b0; }
-
-.about-nav a:hover .hn,
-.contact-nav a:hover .hn,
-.projects-nav a:hover .hn   { filter: brightness(1.2); }
-
-/* ── Project List ── */
-
-.project-list {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-  margin-top: 20px;
-}
-
-
-.project-card {
-  display: block;
-  text-align: right;
-  text-decoration: none;
-  color: inherit;
-  padding: 10px 0;
-  cursor: default;
-  pointer-events: auto;
-}
-
-.project-card-active .project-name {
-  color: #8dc4a0;
-}
-
-.project-card-header {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-}
-
-.project-icon {
-  width: 30px;
-  height: 30px;
-  image-rendering: pixelated;
-}
-
-.project-name {
-  font-size: clamp(22px, 2.3vw, 36px);
-  color: #fff;
-}
-
-.project-link-icon {
-  font-size: 22px;
-  color: #777;
-  text-decoration: none;
-  pointer-events: auto;
-  transition: color 0.2s;
-}
-
-.project-link-icon:hover {
-  color: #fff;
-}
-
-.project-link-ext {
-  font-family: 'VT323', monospace;
-  font-size: 28px;
-  line-height: 1;
-  pointer-events: none;
-}
-
-.project-desc {
-  margin: 16px 0 0;
-  font-size: clamp(18px, 1.8vw, 28px);
-  color: #e0e0e0;
-  line-height: 1.2;
-}
-
-.project-tech-tags {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 5px;
-  margin-top: 14px;
-  font-size: 13px;
-  color: #777;
-}
-
-.project-tech-tag {
-  font-size: 13px;
-  color: #777;
-  padding: 0 4px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-/* ── Free-cam HUD fade ── */
+/* ── Free-cam HUD ── */
 .freecam-ui {
   transition: opacity 0.7s ease-out;
 }
@@ -635,384 +629,249 @@ a:has(.typed:is(.is-empty, .is-off)),
   opacity: 0;
 }
 
-/* ── Free-cam hint ── */
-.freecam-hint {
+.freecam-hud {
   position: absolute;
-  bottom: 40px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-family: 'VT323', monospace;
-  font-size: clamp(18px, 1.8vw, 28px);
-  color: rgba(255, 255, 255, 0.5);
-  pointer-events: none;
-  user-select: none;
+  top: var(--pad-y);
+  left: var(--pad-x);
+  font-size: var(--fs-hint);
+  color: var(--muted);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 
-/* ── Key hints overlay ── */
-.key-hints {
-  position: absolute;
-  bottom: 32px;
-  right: 32px;
-  font-family: 'VT323', monospace;
-  font-size: clamp(14px, 1.2vw, 20px);
-  color: rgba(255, 255, 255, 0.45);
-  pointer-events: none;
-  user-select: none;
-  opacity: 0;
-  transition: opacity 0.8s ease-out;
+.freecam-title {
+  font-size: calc(var(--fs-hint) * 1.6);
+  line-height: 1;
+  color: var(--accent);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.freecam-controls {
   display: flex;
-  gap: clamp(14px, 1.5vw, 24px);
+  flex-wrap: wrap;
+  gap: 0.4em 1.4em;
+  margin-top: 0.6em;
 }
 
-.key-hints.visible {
+.freecam-controls kbd {
+  margin-right: 0.35em;
+}
+
+.freecam-controls kbd + kbd {
+  margin-left: 0.35em;
+}
+
+.freecam-pose {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-top: 0.9em;
+  padding: 0;
+  font: inherit;
+  font-size: 0.9em;
+  line-height: 1.15;
+  color: var(--dim);
+  background: none;
+  border: 0;
+  cursor: copy;
+}
+
+.can-hover .freecam-pose:hover {
+  color: var(--muted);
+}
+
+.is-freecam .panel-sheet {
+  opacity: 0;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Stacked layout (portrait): the scene on top, the panel below it,
+   section tabs at the bottom.
+   ══════════════════════════════════════════════════════════════ */
+.layout-stacked,
+.layout-flat {
+  --pad-x: clamp(20px, 6vw, 56px);
+  --gap-s: 8px;
+  --gap-m: clamp(14px, 3.4vw, 26px);
+  --gap-l: clamp(18px, 4.6vw, 34px);
+  --fs-display: clamp(50px, 16vw, 104px);
+  --fs-title: clamp(36px, 10.5vw, 72px);
+  --fs-nav: clamp(24px, 6.6vw, 40px);
+  --fs-lead: clamp(19px, 5.1vw, 30px);
+  --fs-body: clamp(18px, 4.7vw, 27px);
+  --fs-small: clamp(15px, 3.9vw, 21px);
+}
+
+.layout-stacked .panel-sheet,
+.layout-flat .panel-sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(var(--scene-frac) * 100%);
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 26px var(--pad-x) calc(var(--tabbar-h) + 28px + env(safe-area-inset-bottom));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  pointer-events: auto;
+  transition: top 0.7s cubic-bezier(0.22, 0.8, 0.3, 1), opacity 0.3s;
+  scrollbar-width: none;
+}
+
+.layout-stacked .panel-sheet::-webkit-scrollbar,
+.layout-flat .panel-sheet::-webkit-scrollbar {
+  display: none;
+}
+
+/* the scene fades into the panel instead of ending on a hard edge */
+.layout-stacked .panel-sheet {
+  background: linear-gradient(to bottom, rgba(30, 26, 21, 0) 0, rgba(30, 26, 21, 0.86) 22px, var(--bg) 46px);
+}
+
+.layout-stacked:not(.view-home) .panel-sheet,
+.layout-flat:not(.view-home) .panel-sheet {
+  /* content scrolling under the tab bar fades out above it */
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--tabbar-h) - 40px - env(safe-area-inset-bottom)), transparent calc(100% - var(--tabbar-h) - 6px - env(safe-area-inset-bottom)));
+  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--tabbar-h) - 40px - env(safe-area-inset-bottom)), transparent calc(100% - var(--tabbar-h) - 6px - env(safe-area-inset-bottom)));
+}
+
+.layout-stacked.view-home .panel-sheet,
+.layout-flat.view-home .panel-sheet {
+  padding-bottom: calc(28px + env(safe-area-inset-bottom));
+}
+
+.layout-stacked .panel,
+.layout-flat .panel {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+}
+
+.layout-stacked .section-nav,
+.layout-flat .section-nav {
+  display: none;
+}
+
+.layout-stacked .panel-title,
+.layout-flat .panel-title {
+  white-space: normal;
+}
+
+.layout-stacked .panel-body,
+.layout-stacked .project-list,
+.layout-stacked .contact-list,
+.layout-stacked .experience-list,
+.layout-flat .panel-body,
+.layout-flat .project-list,
+.layout-flat .contact-list,
+.layout-flat .experience-list {
+  margin-top: var(--gap-m);
+}
+
+.layout-stacked .project-list,
+.layout-flat .project-list {
+  gap: var(--gap-l);
+}
+
+.layout-stacked #menu,
+.layout-flat #menu {
+  margin-top: var(--gap-m);
+  gap: 4px;
+}
+
+.layout-stacked #menu .nav-link,
+.layout-flat #menu .nav-link {
+  padding: 8px 0;
+}
+
+/* touch: there is no hover caret, so mark the menu as a list of options */
+.is-touch #menu .nav-link::after {
+  content: ' \203A';
+  color: var(--dim);
+}
+
+/* Flat layout (no 3D): a centred column on the plain backdrop */
+.layout-flat .panel-sheet {
+  top: 0;
+  align-items: center;
+  padding-top: max(40px, 8vh);
+}
+
+.layout-flat .panel {
+  width: 100%;
+  max-width: 640px;
+  margin: auto 0;
+}
+
+/* ── Tab bar (stacked + flat) ── */
+.tabbar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  padding: 0 4px env(safe-area-inset-bottom);
+  background: #17140f;
+  border-top: 1px solid rgba(242, 235, 223, 0.08);
+  pointer-events: auto;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(12px);
+  transition: opacity 0.3s, transform 0.3s, visibility 0s 0.3s;
+}
+
+.tabbar.visible {
   opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition: opacity 0.3s, transform 0.3s;
 }
 
-.key-hints-key {
-  color: rgba(255, 255, 255, 0.75);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  padding: 0 6px;
-  margin-right: 6px;
-  border-radius: 2px;
-}
-
-/* ── Experience Timeline ── */
-
-.experience-timeline {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0;
-}
-
-.experience-entry {
-  display: flex;
-  align-items: center;
-  gap: clamp(12px, 1.5vw, 24px);
-}
-
-.experience-logo {
-  width: clamp(32px, 4vw, 56px);
-  height: clamp(32px, 4vw, 56px);
-  object-fit: contain;
-  image-rendering: auto;
-}
-
-.experience-info {
-  display: flex;
-  flex-direction: column;
-}
-
-.experience-name {
-  font-size: clamp(22px, 2.6vw, 40px);
-  color: #fff;
-}
-
-.experience-date {
-  font-size: clamp(14px, 1.5vw, 24px);
-  color: #999;
-}
-
-.experience-arrow {
-  display: flex;
-  justify-content: center;
-  padding: clamp(10px, 1.5vw, 20px) 0;
-}
-
-.experience-logo,
-.experience-arrow-line {
-  transition: opacity 0.2s ease;
-}
-
-.experience-timeline.is-erasing .experience-logo,
-.experience-timeline.is-erasing .experience-arrow-line {
+.view-home .tabbar {
   opacity: 0;
+  visibility: hidden;
+  transform: translateY(12px);
+  transition: opacity 0.3s, transform 0.3s, visibility 0s 0.3s;
 }
 
-.experience-arrow-line {
-  display: block;
-  width: 2px;
-  height: clamp(28px, 3.5vw, 56px);
-  background: #555;
+.tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: var(--tabbar-h);
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 15px;
+  line-height: 1;
+  -webkit-tap-highlight-color: transparent;
 }
 
-/* ══════════════════════════════════
-   Mobile Layout (≤ 768px)
-   ══════════════════════════════════ */
+.tab .hn {
+  font-size: 22px;
+}
 
-@media (max-width: 768px) {
+.tab[aria-current='page'] {
+  color: var(--accent);
+}
 
-  /* ── Fix pointer-events: panels inherit none from desktop CSS,
-     override rule only targets #overlay a — mobile needs auto ── */
-  #mobile-app,
-  #mobile-app * {
-    pointer-events: auto;
-  }
+.tab:active {
+  color: var(--ink);
+}
 
-  /* ── Mobile container ── */
-  #mobile-app {
-    position: relative;
-    width: 100%;
-    min-height: 100dvh;
-    padding: 24px 20px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    font-family: 'VT323', monospace;
-  }
+.tab:focus-visible {
+  outline-offset: -6px;
+}
 
-  /* ── Home: name title ── */
-  #name-title {
-    position: relative;
-    top: auto;
-    right: auto;
-    text-align: center;
-    font-size: clamp(40px, 12vw, 72px);
-    padding: 16px 0;
-  }
-
-  /* ── Home: nav menu ── */
-  #menu {
-    position: relative;
-    top: auto;
-    right: auto;
-    align-items: center;
-    padding: 0;
-    gap: clamp(10px, 2vw, 18px);
-  }
-
-  #menu a {
-    font-size: clamp(24px, 6vw, 36px);
-  }
-
-  #menu a:has(.hn-home) {
-    font-size: clamp(26px, 6.5vw, 38px);
-  }
-
-  /* ── About panel ── */
-  #about-panel {
-    position: relative;
-    top: auto;
-    left: auto;
-    width: 100%;
-    height: auto;
-    padding: 16px 20px;
-    align-items: center;
-    text-align: center;
-  }
-
-  .about-title {
-    font-size: clamp(28px, 8vw, 48px);
-    text-align: center;
-  }
-
-  .about-line {
-    font-size: clamp(18px, 4.5vw, 28px);
-    max-width: 100%;
-    text-align: center;
-  }
-
-  .about-nav {
-    margin-top: 48px;
-    max-width: 100%;
-    justify-items: center;
-    justify-content: center;
-  }
-
-  .about-nav a {
-    font-size: clamp(22px, 5.5vw, 34px);
-  }
-
-  .about-nav a:has(.hn-home) {
-    font-size: clamp(24px, 6vw, 36px);
-  }
-
-  /* ── Experience panel ── */
-  #experience-panel {
-    position: relative;
-    top: auto;
-    right: auto;
-    width: 100%;
-    height: auto;
-    padding: 16px 0;
-    align-items: center;
-    justify-content: center;
-  }
-
-  #experience-panel .about-nav {
-    margin-top: 48px;
-    margin-left: 0;
-    justify-items: center;
-    justify-content: center;
-  }
-
-  .experience-logo {
-    width: clamp(28px, 8vw, 44px);
-    height: clamp(28px, 8vw, 44px);
-  }
-
-  .experience-name {
-    font-size: clamp(20px, 5vw, 32px);
-  }
-
-  .experience-date {
-    font-size: clamp(13px, 3.5vw, 20px);
-  }
-
-  /* ── Projects: nav appears BELOW content ── */
-  .projects-nav {
-    order: 2;
-  }
-
-  #projects-panel {
-    order: 1;
-  }
-
-  /* ── Projects panel ── */
-  #projects-panel {
-    position: relative;
-    top: auto;
-    right: auto;
-    width: 100%;
-    height: auto;
-    padding: 16px 0;
-    align-items: center;
-    text-align: center;
-  }
-
-  .panel-title {
-    font-size: clamp(28px, 8vw, 48px);
-    text-align: center;
-  }
-
-  .project-list {
-    width: 100%;
-  }
-
-  .project-card {
-    text-align: center;
-  }
-
-  .project-card-header {
-    justify-content: center;
-  }
-
-  .project-name {
-    font-size: clamp(18px, 5vw, 28px);
-  }
-
-  .project-desc {
-    font-size: clamp(15px, 3.8vw, 22px);
-    text-align: center;
-  }
-
-  .project-tech-tags {
-    justify-content: center;
-  }
-
-  /* ── Contact panel ── */
-  #contact-panel {
-    position: relative;
-    inset: auto;
-    width: 100%;
-    height: auto;
-    padding: 16px 0;
-    justify-content: center;
-    align-items: center;
-  }
-
-  .contact-main {
-    max-height: none;
-    text-align: center;
-  }
-
-  .contact-title {
-    font-size: clamp(24px, 7vw, 42px);
-    text-align: center;
-  }
-
-  .contact-links-row {
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 16px;
-  }
-
-  .contact-pill {
-    text-align: center;
-  }
-
-  .contact-pill > .typed {
-    font-size: clamp(15px, 3.8vw, 22px);
-  }
-
-  .contact-pill-label {
-    font-size: clamp(12px, 3vw, 18px);
-    text-align: center;
-  }
-
-  /* ── Nav grids (projects-nav, contact-nav) ── */
-  .contact-nav,
-  .projects-nav {
-    position: relative;
-    top: auto;
-    left: auto;
-    justify-content: center;
-    margin-top: 48px;
-    padding: 0;
-  }
-
-  .contact-nav a,
-  .projects-nav a {
-    font-size: clamp(22px, 5.5vw, 34px);
-  }
-
-  .contact-nav a:has(.hn-home),
-  .projects-nav a:has(.hn-home) {
-    font-size: clamp(24px, 6vw, 36px);
-  }
-
-  /* ── Icon sizes ── */
-  .about-title .hn,
-  .panel-title .hn,
-  .contact-title .hn {
-    font-size: clamp(22px, 6vw, 40px);
-  }
-
-  #menu .hn {
-    font-size: clamp(20px, 5vw, 32px);
-  }
-
-  .about-nav .hn,
-  .contact-nav .hn,
-  .projects-nav .hn {
-    font-size: clamp(18px, 4.5vw, 28px);
-  }
-
-  .contact-pill .hn {
-    font-size: clamp(14px, 3.5vw, 22px);
-  }
-
-  /* ── Touch targets ── */
-  #menu a,
-  .about-nav a,
-  .contact-nav a,
-  .projects-nav a {
-    padding: 8px 0;
-  }
-
-  /* ── Hover states: replace with :active for touch ── */
-  #menu a::before,
-  .about-nav a::before,
-  .contact-nav a::before,
-  .projects-nav a::before {
-    display: none;
-  }
-
-  #menu a:active,
-  .about-nav a:active,
-  .contact-nav a:active,
-  .projects-nav a:active {
-    color: #fff;
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
   }
 }

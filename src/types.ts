@@ -2,40 +2,47 @@ import type * as THREE from 'three'
 
 export type ViewName = 'home' | 'about' | 'experience' | 'projects' | 'contact'
 
-export type PanelId =
-  | 'home'
-  | 'about'
-  | 'contact-left'
-  | 'contact-right'
-  | 'experience'
-  | 'projects-nav'
-  | 'projects'
+export type PanelId = 'home' | 'about' | 'experience' | 'projects' | 'contact'
+
+/** What a camera shot is about: GLB objects whose union box gets framed. */
+export interface Subject {
+  names: string[]
+  /** world units added on every side */
+  pad?: number
+  /** extra world units above (e.g. steam over the mug) */
+  padTop?: number
+}
 
 export interface ViewConfig {
   position: [number, number, number]
   rotation: [number, number, number]
+  /** drag-orbit pivot (object name) */
   pivotObject: string
+  subject: Subject
+  /** stacked (portrait) layout: viewing direction override (world vector) */
+  stackedLook?: [number, number, number]
   left: PanelId | null
   right: PanelId | null
-  extraDelay: number
-  mobileOrder?: ('left' | 'right')[]
 }
 
 export type ViewsMap = Record<ViewName, ViewConfig>
 
 export interface PanelProps {
   visible: boolean
-  onNavigate: (viewName: ViewName) => void
+  onNavigate: (viewName: ViewName, e?: React.MouseEvent) => void
   onUntypeComplete: () => void
-  onHoverChange?: (hovering: boolean) => void
-  onProjectHover?: (projectId: string | null) => void
+  /** pointer is over the panel's section nav (see App: buffered screen phase) */
+  onNavHoverChange?: (hovering: boolean) => void
+  onProjectSelect?: (projectId: string | null) => void
   activeProject?: string | null
 }
 
 export interface TextSegment {
   text: string
   className?: string
-  onClick?: () => void
+  /** renders the segment as a link */
+  href?: string
+  onClick?: (e: React.MouseEvent) => void
 }
 
 export interface TypedTextProps {

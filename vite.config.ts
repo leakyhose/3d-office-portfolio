@@ -3,8 +3,8 @@ import react from '@vitejs/plugin-react'
 
 // Injects <link rel="preload"> for the 3D scene's hashed assets (GLB +
 // lightmaps) and modulepreloads for the lazy 3D chunks so they download while the JS is still being fetched/parsed,
-// instead of only after the Stage chunk evaluates. Mobile never renders 3D,
-// so the hints are restricted to desktop-width viewports via `media`.
+// instead of only after the Stage chunk evaluates. Phones and tablets render
+// the scene too, so the hints apply at every viewport size.
 function preloadSceneAssets(): Plugin {
   const patterns = [/office.*\.glb$/, /office-lightmap.*\.webp$/, /floor-lightmap.*\.webp$/]
   return {
@@ -18,7 +18,7 @@ function preloadSceneAssets(): Plugin {
         const chunks = Object.keys(ctx.bundle).filter((f) => /(^|\/)(Stage|vendor-3d)-[^/]*\.js$/.test(f))
         const modulePreloads = chunks.map((f) => ({
           tag: 'link',
-          attrs: { rel: 'modulepreload', href: `/${f}`, crossorigin: '', media: '(min-width: 769px)' },
+          attrs: { rel: 'modulepreload', href: `/${f}`, crossorigin: '' },
           injectTo: 'head' as const,
         }))
         return [...modulePreloads, ...files.map((f) => ({
@@ -28,7 +28,6 @@ function preloadSceneAssets(): Plugin {
             href: `/${f}`,
             as: 'fetch',
             crossorigin: '',
-            media: '(min-width: 769px)',
             // the overlay's JS/CSS/fonts go first on slow connections
             fetchpriority: 'low',
           },
