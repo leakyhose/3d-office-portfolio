@@ -31,11 +31,11 @@ function AboutPanel({ visible, onNavigate, onUntypeComplete, showSectionNav }: P
             <TypedText
               segments={[
                 { text: "I'm currently a SWE intern at " },
-                link('Shopify', 'experience'),
+                link('Shopify', 'experience', ' about-hl-shopify'),
                 { text: ', and previously worked at ' },
-                link('Botpress', 'experience'),
+                link('Botpress', 'experience', ' about-hl-botpress'),
                 { text: ' and ' },
-                link('Nokia', 'experience'),
+                link('Nokia', 'experience', ' about-hl-nokia'),
                 { text: '.' },
               ]}
               visible={visible} speed={5}
@@ -45,13 +45,13 @@ function AboutPanel({ visible, onNavigate, onUntypeComplete, showSectionNav }: P
             <TypedText
               segments={[
                 { text: 'Currently studying at ' },
-                link('UBC', 'experience'),
+                link('UBC', 'experience', ' about-hl-ubc'),
                 { text: ', where I work on ' },
-                link('fullstack', 'projects'),
+                link('fullstack', 'projects', ' about-hl-skills'),
                 { text: ' with an emphasis on the ' },
-                link('backend', 'projects'),
+                link('backend', 'projects', ' about-hl-skills'),
                 { text: ', and ' },
-                link('agentic systems', 'projects'),
+                link('agentic systems', 'projects', ' about-hl-skills'),
                 { text: '.' },
               ]}
               visible={visible} speed={5}
