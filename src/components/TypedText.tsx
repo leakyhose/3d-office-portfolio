@@ -1,19 +1,30 @@
 import { useContext, useEffect, useLayoutEffect, useRef } from 'react'
-import type { TypedTextProps } from '../types'
+import type { TextSegment, TypedAnchor, TypedTextProps } from '../types'
 import { UntypeTrackerContext } from './useUntypeTracker'
 
 /*
- * Typewriter text with one consistent rule everywhere:
+ * Typewriter text. The visible part of the string is a window [s, e) over its
+ * cells (the icon counts as one cell). Typing extends the window, erasing
+ * shrinks it; reversing mid-animation just changes direction, so nothing jumps.
  *
- *   - The final text is always laid out in full; untyped characters are just
- *     `visibility: hidden`. Nothing reflows or shifts while typing, whatever
- *     the alignment (left, right, centered, wrapped).
- *   - Characters appear left -> right (icon first) with a cursor riding the
- *     leading edge, and erase right -> left back to the start.
- *   - Progress is time based (elapsed / speed) on one shared rAF clock and is
- *     written straight to the DOM, so many lines animate in lockstep without a
- *     React render per character, independent of frame rate or timer clamping.
- *   - Reversing mid-animation continues from the current character.
+ * The line always occupies its full final size (hidden cells keep their
+ * space), so surrounding layout never moves. Where the visible glyphs sit
+ * inside that box depends on the line's anchor, detected from the computed
+ * alignment of its container (or the `anchor` prop):
+ *
+ *   left   types left -> right in place, erases from the right.
+ *   right  stays flush right: each new char enters at the right edge and the
+ *          line steps left one cell (VT323 is monospace); erases from the
+ *          left, so the remaining chars never move.
+ *   center stays centered while it grows / shrinks.
+ *
+ * Right / center lines are drawn by reordering cells inside each visual line
+ * (hidden cells first, visible run last, for right). The visual lines come
+ * from the natural layout of the full text and each is pinned in its own
+ * nowrap inline-block, so a wrapped paragraph never re-wraps mid-animation.
+ *
+ * Progress is time based on one shared rAF clock and written straight to the
+ * DOM (no React render per character).
  */
 
 // ── Shared animation clock ──
@@ -39,9 +50,15 @@ const reducedMotion = typeof window !== 'undefined'
   ? window.matchMedia('(prefers-reduced-motion: reduce)')
   : null
 
-// Scramble glyphs for the leading character. Letters only map to glyphs with
-// the same line-breaking class (and VT323 is monospace), so the scramble never
-// changes layout.
+// Measured line breaks are cached until something can re-wrap text.
+let layoutGen = 0
+if (typeof window !== 'undefined') {
+  window.addEventListener('resize', () => { layoutGen++ })
+  document.fonts?.addEventListener('loadingdone', () => { layoutGen++ })
+}
+
+// Scramble glyphs for the leading character. Letters map to glyphs with the
+// same line-breaking class (and VT323 is monospace), so layout never changes.
 const LETTER_GLYPHS = 'ABCDEFGHJKMNPQRSTUVWXYZabdeghkmnpqrsuvwxyz#@&*'
 const DIGIT_GLYPHS = '0123456789'
 function scramble(ch: string): string {
@@ -50,127 +67,362 @@ function scramble(ch: string): string {
   return ch
 }
 
-interface SegNodes {
-  text: string
-  start: number
-  el: HTMLSpanElement
-  on: Text
-  off: HTMLSpanElement
-  offText: Text
-  sig: number
+const NBSP = ' '
+const ICON = -1
+
+interface Cell { ch: string; seg: number }
+/** Visual line: cells [a, b); content ends at `end` (trailing spaces excluded). */
+interface Line { a: number; b: number; end: number }
+type Phase = 'type' | 'erase' | 'idle'
+type EdgeKind = 'type' | 'erase'
+type Mode = 'on' | 'off' | 'edge' | 'trail'
+interface Entry { i: number; mode: Mode }
+interface TextRun { node: Text; start: number }
+
+// ── Anchor detection ──
+function alignOf(value: string): TypedAnchor | null {
+  const v = value.replace(/^(safe|unsafe) /, '')
+  if (v === 'right' || v === 'end' || v === 'flex-end' || v === 'self-end' || v === '-webkit-right') return 'right'
+  if (v === 'center' || v === '-webkit-center') return 'center'
+  return null
 }
 
-type Phase = 'type' | 'erase' | 'idle'
+/** How a shrink-wrapped, left-aligned box is itself placed by its parent. */
+function boxAnchor(el: HTMLElement, cs: CSSStyleDeclaration): TypedAnchor | null {
+  if (cs.position === 'absolute' || cs.position === 'fixed') {
+    if (typeof el.computedStyleMap === 'function') {
+      const map = el.computedStyleMap()
+      const left = map.get('left')?.toString()
+      const right = map.get('right')?.toString()
+      return left === 'auto' && right !== 'auto' ? 'right' : null
+    }
+    return parseFloat(cs.right) < parseFloat(cs.left) ? 'right' : null
+  }
+  const parent = el.parentElement
+  if (!parent) return null
+  const ps = getComputedStyle(parent)
+  if (ps.display.endsWith('flex')) {
+    if (ps.flexDirection.startsWith('column')) {
+      return alignOf(cs.alignSelf === 'auto' ? ps.alignItems : cs.alignSelf)
+    }
+    return alignOf(ps.justifyContent)
+  }
+  if (ps.display.endsWith('grid')) {
+    return alignOf(cs.justifySelf === 'auto' ? ps.justifyItems : cs.justifySelf)
+  }
+  return null
+}
 
-function TypedText({ text, segments, visible, speed, untypeSpeed = speed, onTyped, onUntyped, icon, iconPosition = 'before' }: TypedTextProps) {
+function detectAnchor(root: HTMLElement): TypedAnchor {
+  let el: HTMLElement | null = root
+  while (el) {
+    const d = getComputedStyle(el).display
+    if (d !== 'inline' && d !== 'contents') break
+    el = el.parentElement
+  }
+  if (!el) return 'left'
+  const cs = getComputedStyle(el)
+  return alignOf(cs.textAlign) ?? boxAnchor(el, cs) ?? 'left'
+}
+
+// ── Line measurement (natural layout only) ──
+function trimEnd(cells: Cell[], a: number, b: number): number {
+  let end = b
+  while (end > a && cells[end - 1].seg !== ICON && /\s/.test(cells[end - 1].ch)) end--
+  return end
+}
+
+function measureLines(runs: TextRun[], cells: Cell[]): Line[] {
+  const total = cells.length
+  const single = [{ a: 0, b: total, end: trimEnd(cells, 0, total) }]
+  const pos: { i: number; node: Text; off: number }[] = []
+  for (const run of runs) {
+    for (let k = 0; k < run.node.length; k++) pos.push({ i: run.start + k, node: run.node, off: k })
+  }
+  if (pos.length < 2) return single
+  const range = document.createRange()
+  const rectAt = (p: { node: Text; off: number }) => {
+    range.setStart(p.node, p.off)
+    range.setEnd(p.node, p.off + 1)
+    return range.getBoundingClientRect()
+  }
+  const first = rectAt(pos[0])
+  const last = rectAt(pos[pos.length - 1])
+  if (!first.height || Math.abs(last.top - first.top) < first.height / 2) return single
+
+  const breaks: number[] = []
+  let prev = first
+  for (let k = 1; k < pos.length; k++) {
+    const r = rectAt(pos[k])
+    if (!r.width && !r.height) continue
+    if (r.top > prev.top + prev.height / 2 && r.left < prev.left) breaks.push(pos[k].i)
+    prev = r
+  }
+  const lines: Line[] = []
+  let a = 0
+  for (const b of [...breaks, total]) {
+    if (b > a) lines.push({ a, b, end: trimEnd(cells, a, b) })
+    a = b
+  }
+  return lines.length ? lines : single
+}
+
+// ── Cursor placement ──
+function edgeFor(phase: Phase, anchor: TypedAnchor, s: number, e: number, total: number): { c: number; kind: EdgeKind } {
+  const none = { c: -1, kind: 'type' as EdgeKind }
+  if (phase === 'idle') return none
+  if (phase === 'type') {
+    // Re-adding on the left (reversal of an erase-from-left) happens first.
+    if (s > 0) return e === total ? { c: s - 1, kind: 'type' } : { c: e, kind: 'erase' }
+    return e < total ? { c: e, kind: 'type' } : none
+  }
+  if (anchor === 'right') {
+    if (e === total) return s > 0 ? { c: s - 1, kind: 'erase' } : none
+    return { c: e, kind: 'erase' }
+  }
+  return e > s && e < total ? { c: e, kind: 'erase' } : none
+}
+
+function naturalEntries(total: number, s: number, e: number, c: number): Entry[] {
+  const out: Entry[] = []
+  for (let i = 0; i < total; i++) out.push({ i, mode: i === c ? 'edge' : i >= s && i < e ? 'on' : 'off' })
+  return out
+}
+
+function anchoredEntries(lines: Line[], anchor: TypedAnchor, s: number, e: number, c: number): (Entry | null)[] {
+  const out: (Entry | null)[] = []
+  lines.forEach((line, li) => {
+    const runA = Math.max(line.a, s)
+    const runB = Math.max(runA, Math.min(line.end, e))
+    const edgeHere = c >= line.a && c < line.end
+    const hidden: Entry[] = []
+    for (let i = line.a; i < line.end; i++) {
+      if ((i < runA || i >= runB) && i !== c) hidden.push({ i, mode: 'off' })
+    }
+    const run: Entry[] = []
+    for (let i = runA; i < runB; i++) run.push({ i, mode: 'on' })
+    const edge: Entry[] = edgeHere ? [{ i: c, mode: 'edge' }] : []
+    const before = edgeHere && c < runA ? edge : []
+    const after = edgeHere && c >= runA ? edge : []
+    const split = anchor === 'center' ? hidden.length >> 1 : hidden.length
+    out.push(...hidden.slice(0, split), ...before, ...run, ...after, ...hidden.slice(split))
+    for (let i = line.end; i < line.b; i++) out.push({ i, mode: 'trail' })
+    if (li < lines.length - 1) out.push(null)
+  })
+  return out
+}
+
+interface BuildCtx {
+  cells: Cell[]
+  segs: TextSegment[]
+  icon?: string
+  rotated: boolean
+  kind: EdgeKind
+  onSegClick: (seg: number) => void
+}
+
+/** Rebuild the visual layer. Returns the edge's text node and the text runs (for measuring). */
+function build(vis: HTMLElement, entries: (Entry | null)[], ctx: BuildCtx): { edge: Text | null; runs: TextRun[] } {
+  vis.textContent = ''
+  // Multi-line (null separators): each visual line is its own nowrap
+  // inline-block. Consecutive lines can't share a row (they didn't fit together
+  // originally), and unlike <br> this keeps the container's intrinsic widths.
+  const newLine = () => {
+    const line = document.createElement('span')
+    line.className = 'typed-line'
+    vis.appendChild(line)
+    return line
+  }
+  const multi = entries.includes(null)
+  let container: HTMLElement = multi ? newLine() : vis
+  const runs: TextRun[] = []
+  let edge: Text | null = null
+  let group: { seg: number; mode: Mode; text: string; start: number } | null = null
+
+  const element = (seg: number, mode: Mode, text: string, start: number) => {
+    const s = ctx.segs[seg]
+    const link = mode === 'on' && s.href
+    const el = document.createElement(link ? 'a' : 'span')
+    const cls = [s.className]
+    if (mode === 'off' || mode === 'trail') cls.push('typed-off')
+    if (mode === 'edge') cls.push(ctx.kind === 'erase' ? 'typed-edge typed-edge-erase' : 'typed-edge')
+    const className = cls.filter(Boolean).join(' ')
+    if (className) el.className = className
+    if (link && s.href) {
+      el.setAttribute('href', s.href)
+      if (/^https?:/.test(s.href)) {
+        el.setAttribute('target', '_blank')
+        el.setAttribute('rel', 'noreferrer')
+      }
+    }
+    if (mode === 'on' && s.onClick) el.addEventListener('click', () => ctx.onSegClick(seg))
+    const node = document.createTextNode(text)
+    el.appendChild(node)
+    container.appendChild(el)
+    if (!ctx.rotated) runs.push({ node, start })
+    return node
+  }
+  const flush = () => {
+    if (group) element(group.seg, group.mode, group.text, group.start)
+    group = null
+  }
+
+  for (const entry of entries) {
+    if (!entry) {
+      flush()
+      container = newLine()
+      continue
+    }
+    const cell = ctx.cells[entry.i]
+    if (entry.mode === 'trail' && multi) {
+      // The line-break space sits between the line blocks, exactly where it
+      // was: line + space + next line still can't share a row, and intrinsic
+      // widths stay the same.
+      flush()
+      const sp = document.createElement('span')
+      sp.className = 'typed-off'
+      sp.textContent = cell.ch
+      vis.appendChild(sp)
+      continue
+    }
+    if (cell.seg === ICON) {
+      flush()
+      const i = document.createElement('i')
+      i.className = `hn hn-${ctx.icon}`
+      if (entry.mode !== 'on') i.style.visibility = 'hidden'
+      container.appendChild(i)
+      continue
+    }
+    // Hidden / cursor cells in a reordered line must keep their width:
+    // a collapsible space could merge with a neighbour or vanish at line start.
+    const ch = ctx.rotated && cell.ch === ' ' && (entry.mode === 'off' || entry.mode === 'edge') ? NBSP : cell.ch
+    if (entry.mode === 'edge') {
+      flush()
+      edge = element(cell.seg, 'edge', ctx.kind === 'type' ? scramble(ch) : ch, entry.i)
+      continue
+    }
+    if (group && group.seg === cell.seg && group.mode === entry.mode) {
+      group.text += ch
+    } else {
+      flush()
+      group = { seg: cell.seg, mode: entry.mode, text: ch, start: entry.i }
+    }
+  }
+  flush()
+  return { edge, runs }
+}
+
+interface Impl {
+  paint: (phase: Phase) => void
+  resolve: () => void
+}
+
+function TypedText({ text, segments, visible, speed, untypeSpeed = speed, onTyped, onUntyped, icon, iconPosition = 'before', anchor }: TypedTextProps) {
   const tracker = useContext(UntypeTrackerContext)
 
   const segs = segments ?? [{ text: text ?? '' }]
   const fullText = segs.map(s => s.text).join('')
-  const contentKey = segs.map(s => `${s.text}\u0000${s.className ?? ''}`).join('\u0001')
-  const iconAfter = iconPosition === 'after'
-  const textOffset = icon && !iconAfter ? 1 : 0
+  const hasLinks = segs.some(s => s.href)
+  const contentKey = JSON.stringify([icon ?? '', iconPosition, segs.map(s => [s.text, s.className ?? '', s.href ?? ''])])
   const total = fullText.length + (icon ? 1 : 0)
 
   const rootRef = useRef<HTMLSpanElement>(null)
-  const iconRef = useRef<HTMLElement>(null)
-  const segEls = useRef<(HTMLSpanElement | null)[]>([])
-  const nodes = useRef<SegNodes[]>([])
-  const edgeRef = useRef<HTMLSpanElement | null>(null)
-  const shownRef = useRef(0)
+  const visRef = useRef<HTMLSpanElement>(null)
+  const stateRef = useRef({ s: 0, e: 0 })
   const emptyRef = useRef(true)
   const idRef = useRef<object | null>(null)
-  const trackerRef = useRef(tracker)
+  const layoutRef = useRef<{ anchor: TypedAnchor; lines: Line[] | null; gen: number; key: string }>({ anchor: 'left', lines: null, gen: -1, key: '' })
+  const implRef = useRef<Impl | null>(null)
+  // Imperative DOM state: last structure signature, edge text node (for the
+  // per-frame scramble) and the text runs of the natural layout (for measuring).
+  const domRef = useRef<{ sig: string; edge: Text | null; runs: TextRun[] | null }>({ sig: '', edge: null, runs: null })
   const cbRef = useRef({ onTyped, onUntyped })
+
+  // Latest props for the imperative layer (closures are rebuilt each render).
   useLayoutEffect(() => {
     cbRef.current = { onTyped, onUntyped }
-    trackerRef.current = tracker
-  })
+    const cells: Cell[] = []
+    if (icon && iconPosition !== 'after') cells.push({ ch: '', seg: ICON })
+    segs.forEach((seg, si) => {
+      for (let k = 0; k < seg.text.length; k++) cells.push({ ch: seg.text[k], seg: si })
+    })
+    if (icon && iconPosition === 'after') cells.push({ ch: '', seg: ICON })
 
-  // Paint `shown` cells (icon counts as one cell). The cell at the leading
-  // edge becomes the cursor: a scrambled glyph while typing, a bare cursor
-  // while erasing.
-  const paintRef = useRef<(shown: number, phase: Phase) => void>(() => {})
-  useLayoutEffect(() => {
-    const edgeIndexFor = (shown: number, phase: Phase) => {
-      if (phase === 'idle' || shown >= total) return -1
-      if (phase === 'erase' && shown === 0) return -1
-      const textIdx = shown - textOffset
-      return textIdx >= 0 && textIdx < fullText.length ? textIdx : -1
+    const dom = domRef.current
+    const ctxBase = {
+      cells, segs, icon,
+      onSegClick: (si: number) => segs[si]?.onClick?.(),
     }
-    paintRef.current = (shown, phase) => {
+
+    const paint = (phase: Phase) => {
       const root = rootRef.current
-      if (!root) return
-      const textShown = Math.min(Math.max(shown - textOffset, 0), fullText.length)
-      const edgeIdx = edgeIndexFor(shown, phase)
-      let edge = edgeRef.current
-      if (edgeIdx >= 0 && !edge) {
-        edge = edgeRef.current = document.createElement('span')
-        edge.appendChild(document.createTextNode(''))
+      const vis = visRef.current
+      if (!root || !vis) return
+      const st = stateRef.current
+      const L = layoutRef.current
+      const anchorNow = L.anchor
+      const edge = edgeFor(phase, anchorNow, st.s, st.e, total)
+      const kind = edge.kind
+      const c = edge.c >= total || (edge.c >= 0 && cells[edge.c].seg === ICON) ? -1 : edge.c
+      const rotated = phase !== 'idle' && anchorNow !== 'left' && L.lines !== null
+      const nextSig = `${rotated ? L.gen : 'n'}|${anchorNow}|${st.s}|${st.e}|${c}|${kind}`
+      if (nextSig !== dom.sig) {
+        dom.sig = nextSig
+        const entries = rotated && L.lines
+          ? anchoredEntries(L.lines, anchorNow, st.s, st.e, c)
+          : naturalEntries(total, st.s, st.e, c)
+        const out = build(vis, entries, { ...ctxBase, rotated, kind })
+        dom.edge = out.edge
+        dom.runs = rotated ? null : out.runs
+      } else if (dom.edge && kind === 'type' && c >= 0 && /[A-Za-z0-9]/.test(cells[c].ch)) {
+        dom.edge.data = scramble(cells[c].ch)
       }
 
-      for (const seg of nodes.current) {
-        const local = Math.min(Math.max(textShown - seg.start, 0), seg.text.length)
-        const hasEdge = edgeIdx >= seg.start && edgeIdx < seg.start + seg.text.length
-        const sig = local * 2 + (hasEdge ? 1 : 0)
-        if (sig !== seg.sig) {
-          seg.sig = sig
-          seg.on.data = seg.text.slice(0, local)
-          if (hasEdge && edge) {
-            seg.el.insertBefore(edge, seg.off)
-            seg.offText.data = seg.text.slice(local + 1)
-          } else {
-            seg.offText.data = seg.text.slice(local)
-          }
-        }
-      }
-
-      if (edge) {
-        if (edgeIdx < 0) {
-          edge.remove()
-        } else {
-          const ch = fullText[edgeIdx]
-          edge.className = phase === 'erase' ? 'typed-edge typed-edge-erase' : 'typed-edge'
-          ;(edge.firstChild as Text).data = phase === 'type' ? scramble(ch) : ch
-        }
-      }
-
-      if (iconRef.current) {
-        const iconCell = iconAfter ? fullText.length : 0
-        iconRef.current.style.visibility = shown > iconCell ? '' : 'hidden'
-      }
-
-      const empty = shown === 0
+      const shown = st.e - st.s
+      const empty = shown <= 0
       root.classList.toggle('is-empty', empty)
-      root.classList.toggle('is-done', phase === 'idle' && shown === total)
-      shownRef.current = shown
+      root.classList.toggle('is-done', phase === 'idle' && st.s === 0 && st.e === total)
       if (empty !== emptyRef.current) {
         emptyRef.current = empty
-        if (idRef.current) trackerRef.current?.report(idRef.current, empty)
+        if (idRef.current) tracker?.report(idRef.current, empty)
       }
     }
-  }, [fullText, total, textOffset, iconAfter])
 
-  // Build the per-segment DOM (typed text node + hidden remainder). React
-  // renders the segment spans empty and never touches their children.
+    // Decide the anchor and, for right / center, the visual lines of the
+    // natural layout (cached until resize / font load / content change).
+    const resolve = () => {
+      const root = rootRef.current
+      const vis = visRef.current
+      if (!root || !vis) return
+      const L = layoutRef.current
+      const a = anchor ?? detectAnchor(root)
+      L.anchor = a
+      if (root.dataset.anchor !== a) root.dataset.anchor = a
+      if (a === 'left') return
+      if (L.lines && L.gen === layoutGen && L.key === contentKey) return
+      if (!dom.runs) {
+        const st = stateRef.current
+        const out = build(vis, naturalEntries(total, st.s, st.e, -1), { ...ctxBase, rotated: false, kind: 'type' })
+        dom.runs = out.runs
+        dom.edge = null
+        dom.sig = ''
+      }
+      L.lines = measureLines(dom.runs, cells)
+      L.gen = layoutGen
+      L.key = contentKey
+    }
+
+    implRef.current = { paint, resolve }
+  })
+
+  // (Re)build when the content changes.
   useLayoutEffect(() => {
-    let start = 0
-    nodes.current = segs.map((seg, i) => {
-      const el = segEls.current[i]!
-      el.textContent = ''
-      const on = document.createTextNode('')
-      const off = document.createElement('span')
-      off.className = 'typed-off'
-      const offText = document.createTextNode(seg.text)
-      off.appendChild(offText)
-      el.append(on, off)
-      const n = { text: seg.text, start, el, on, off, offText, sig: -1 }
-      start += seg.text.length
-      return n
-    })
-    paintRef.current(Math.min(shownRef.current, total), 'idle')
-    // segs is derived from contentKey
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const st = stateRef.current
+    st.s = Math.min(st.s, total)
+    st.e = Math.min(st.e, total)
+    layoutRef.current.lines = null
+    domRef.current.sig = ''
+    implRef.current?.paint('idle')
   }, [contentKey, total])
 
   // Register with the panel's untype tracker.
@@ -185,62 +437,66 @@ function TypedText({ text, segments, visible, speed, untypeSpeed = speed, onType
     }
   }, [tracker])
 
-  // Drive the animation toward the target. Progress restarts from the
-  // currently shown character count, so reversals never jump.
+  // Drive the animation toward the target.
   useEffect(() => {
-    const target = visible ? total : 0
-    // Hidden (erasing) text is never interactive.
     rootRef.current?.classList.toggle('is-off', !visible)
-    const settle = () => {
-      paintRef.current(target, 'idle')
-      if (target === total) cbRef.current.onTyped?.()
-      if (target === 0) cbRef.current.onUntyped?.()
-    }
+    const impl = implRef.current
+    if (!impl) return
+    // Reads only here (alignment + line measurement); all writes happen in
+    // the shared tick, so many lines starting together cause one layout.
+    impl.resolve()
+    const st = stateRef.current
+    const s0 = st.s
+    const e0 = st.e
+    const typing = visible
+    const steps = typing ? s0 + (total - e0) : e0 - s0
+    const ms = typing ? speed : untypeSpeed
+    const fromLeft = layoutRef.current.anchor === 'right'
 
-    const from = shownRef.current
-    const dir = target > from ? 1 : -1
-    const ms = dir > 0 ? speed : untypeSpeed
-    if (from === target || reducedMotion?.matches || !(ms > 0)) {
+    const settle = () => {
+      st.s = 0
+      st.e = typing ? total : 0
+      implRef.current?.paint('idle')
+      if (typing) cbRef.current.onTyped?.()
+      else cbRef.current.onUntyped?.()
+    }
+    if (steps <= 0 || reducedMotion?.matches || !(ms > 0)) {
       settle()
       return
     }
 
+    const phase: Phase = typing ? 'type' : 'erase'
+    const apply = (k: number) => {
+      if (typing) {
+        const ds = Math.min(k, s0)
+        st.s = s0 - ds
+        st.e = Math.min(total, e0 + k - ds)
+      } else if (fromLeft) {
+        st.s = Math.min(e0, s0 + k)
+      } else {
+        st.e = Math.max(s0, e0 - k)
+      }
+    }
     const t0 = performance.now()
-    const phase: Phase = dir > 0 ? 'type' : 'erase'
     const tick: Tick = (now) => {
-      // One character per `ms`: typing reveals a char once its slot has
-      // elapsed, erasing removes one as each slot elapses.
-      const steps = Math.floor(Math.max(0, now - t0) / ms)
-      const shown = from + dir * steps
-      if (dir > 0 ? shown >= target : shown <= target) {
+      // One cell per `ms`.
+      const k = Math.floor(Math.max(0, now - t0) / ms)
+      if (k >= steps) {
         settle()
         return false
       }
-      paintRef.current(shown, phase)
+      apply(k)
+      implRef.current?.paint(phase)
       return true
     }
-    paintRef.current(from, phase)
     startTick(tick)
     return () => stopTick(tick)
-  }, [visible, total, speed, untypeSpeed, contentKey])
-
-  const iconEl = icon ? <i ref={iconRef} className={`hn hn-${icon}`} style={{ visibility: 'hidden' }} /> : null
+  }, [visible, total, speed, untypeSpeed, contentKey, anchor])
 
   return (
     <span ref={rootRef} className="typed is-empty is-off">
-      {visible && <span className="typed-sr">{fullText}</span>}
-      <span className="typed-vis" aria-hidden="true">
-        {!iconAfter && iconEl}
-        {segs.map((seg, i) => (
-          <span
-            key={i}
-            ref={(el) => { segEls.current[i] = el }}
-            className={seg.className}
-            onClick={seg.onClick}
-          />
-        ))}
-        {iconAfter && iconEl}
-      </span>
+      {visible && !hasLinks && <span className="typed-sr">{fullText}</span>}
+      <span ref={visRef} className="typed-vis" aria-hidden={hasLinks ? undefined : true} />
     </span>
   )
 }

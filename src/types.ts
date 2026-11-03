@@ -36,7 +36,12 @@ export interface TextSegment {
   text: string
   className?: string
   onClick?: () => void
+  /** render this segment as a link */
+  href?: string
 }
+
+/** Which edge a line of typed text grows from / stays flush to. */
+export type TypedAnchor = 'left' | 'right' | 'center'
 
 export interface TypedTextProps {
   text?: string
@@ -52,6 +57,15 @@ export interface TypedTextProps {
   onUntyped?: () => void
   icon?: string
   iconPosition?: 'before' | 'after'
+  /**
+   * Edge the visible text stays flush to while animating. Detected from the
+   * computed alignment of the line's container when omitted:
+   * - left: types left -> right in place, erases from the right
+   * - right: always flush right; each new char enters at the right edge
+   *   (line steps left), erases from the left
+   * - center: stays centered while growing / shrinking
+   */
+  anchor?: TypedAnchor
 }
 
 export interface ScreenMeshContextValue {

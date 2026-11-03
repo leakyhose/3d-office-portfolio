@@ -408,8 +408,10 @@
 }
 
 /* ── Typed text (see TypedText.tsx) ──
-   The full text is always laid out; untyped characters are only hidden, so
-   lines never reflow while typing. The leading cell is the cursor. */
+   Every cell of the final text is always laid out (untyped ones are only
+   hidden), so the line's box never changes. Right / centered lines reorder
+   cells so the visible glyphs stay flush right / centered inside that box.
+   The leading cell is the cursor. */
 .typed-off {
   visibility: hidden;
 }
@@ -418,6 +420,12 @@
   color: #fff;
   text-shadow: 0 0 0.3em rgba(255, 255, 255, 0.55);
   box-shadow: inset 0 -0.09em #fff;
+}
+
+/* One visual line of a wrapped right / centered text while it animates */
+.typed-line {
+  display: inline-block;
+  white-space: nowrap;
 }
 
 /* Erasing: the cell is already gone, only the cursor remains */

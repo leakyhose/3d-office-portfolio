@@ -1,4 +1,4 @@
-import { createContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createContext, useEffect, useLayoutEffect, useState } from 'react'
 
 /**
  * Tracks whether every TypedText inside a panel has finished erasing.
@@ -16,10 +16,13 @@ export class UntypeTracker {
   private busy = new Set<object>()
   private visible: boolean
   private fired = false
-  private readonly complete: () => void
+  private complete?: () => void
 
-  constructor(visible: boolean, complete: () => void) {
+  constructor(visible: boolean) {
     this.visible = visible
+  }
+
+  setOnComplete(complete: (() => void) | undefined) {
     this.complete = complete
   }
 
@@ -57,7 +60,7 @@ export class UntypeTracker {
   private check() {
     if (this.visible || this.fired || this.busy.size > 0) return
     this.fired = true
-    this.complete()
+    this.complete?.()
   }
 }
 
@@ -65,11 +68,10 @@ export const UntypeTrackerContext = createContext<UntypeTracker | null>(null)
 
 /** Create the tracker for a panel; provide it via `<UntypeTrackerContext value={tracker}>`. */
 export default function useUntypeTracker(visible: boolean, onComplete?: () => void): UntypeTracker {
-  const onCompleteRef = useRef(onComplete)
+  const [tracker] = useState(() => new UntypeTracker(visible))
   useLayoutEffect(() => {
-    onCompleteRef.current = onComplete
-  })
-  const [tracker] = useState(() => new UntypeTracker(visible, () => onCompleteRef.current?.()))
+    tracker.setOnComplete(onComplete)
+  }, [tracker, onComplete])
   // Parent effects run after child effects, so by the time the tracker learns
   // about a visibility change every TypedText has already reacted to it.
   useEffect(() => {
