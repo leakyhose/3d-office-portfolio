@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { getScreen, isScreenStale, refreshScreen, drawVideoWindow, type ScreenKind } from './drawScreenTexture'
+import { getScreen, isScreenStale, refreshScreen, drawVideoWindow, prepareVideoWindow, type ScreenKind } from './drawScreenTexture'
 import { useScreenMesh } from './components/screenMesh'
 import { getVideo } from './videoManager'
 import { PROJECTS } from './config/projects'
@@ -413,15 +413,42 @@ export default function ComputerScreenContent({ screenPhase = 'clouds', hoveredP
   }, [screenPhase, screenCanvas, screenTexture, screenTexSize])
 
   // Once booted, draw the screen that isn't showing yet in the background,
-  // so a later switch only has to blit it.
+  // so a later switch only has to blit it; then each project's video window
+  // (one per idle period, once its video's size is known), so a hover never
+  // builds one in the middle of the screen switch.
   const booted = screenPhase === 'clouds' || screenPhase === 'projects'
   useEffect(() => {
     if (!booted || !screenTexSize) return
     const { width, height } = screenTexSize
-    return whenIdle(() => {
+    const jobs: (() => void)[] = [() => {
       getScreen('desktop', width, height)
       getScreen('clouds', width, height)
-    })
+    }]
+    let cancelIdle: (() => void) | null = null
+    const run = () => {
+      cancelIdle = null
+      jobs.shift()?.()
+      if (jobs.length) cancelIdle = whenIdle(run)
+    }
+    const enqueue = (job: () => void) => {
+      jobs.push(job)
+      if (!cancelIdle) cancelIdle = whenIdle(run)
+    }
+    const cleanups: (() => void)[] = []
+    for (const project of PROJECTS) {
+      const video = getVideo(project.id)
+      if (!video) continue
+      const prepare = () => prepareVideoWindow(width, height, video, `${project.name}.exe`)
+      if (video.videoWidth) { jobs.push(prepare); continue }
+      const onMeta = () => enqueue(prepare)
+      video.addEventListener('loadedmetadata', onMeta, { once: true })
+      cleanups.push(() => video.removeEventListener('loadedmetadata', onMeta))
+    }
+    cancelIdle = whenIdle(run)
+    return () => {
+      cancelIdle?.()
+      cleanups.forEach((c) => c())
+    }
   }, [booted, screenTexSize])
 
   // Keep the desktop's taskbar clock current: redraw it in the background

@@ -416,23 +416,23 @@ function getBootBg(width: number, height: number): HTMLCanvasElement {
 // Invalidate cache when assets finish loading so icons appear
 Promise.all([logoReady, allIconsReady]).then(() => {
   _bgCache = null
-  _videoChromeCache = null
+  videoChromes.clear()
 })
 
 // Cached static composite for the video window: boot background + window
 // chrome + scanlines + vignette, with the video content rectangle left
 // transparent. Drawn once per (w, h, title, videoAspect) and blitted over the
 // raw video frame each draw — collapses ~12 ops + fillText + strokes into a
-// single drawImage per frame.
+// single drawImage per frame. One per project, so hovering from one project to
+// another never rebuilds it, and prepareVideoWindow() builds them ahead of time.
 interface VideoChromeCache {
   composite: HTMLCanvasElement
   contentX: number
   contentY: number
   contentW: number
   contentH: number
-  key: string
 }
-let _videoChromeCache: VideoChromeCache | null = null
+const videoChromes = new Map<string, VideoChromeCache>()
 
 function buildVideoChrome(
   width: number,
@@ -542,8 +542,28 @@ function buildVideoChrome(
     contentY,
     contentW,
     contentH,
-    key: `${width}x${height}|${windowTitle}|${videoAspect.toFixed(4)}`,
   }
+}
+
+function videoChrome(width: number, height: number, windowTitle: string, videoAspect: number) {
+  const key = `${width}x${height}|${windowTitle}|${videoAspect.toFixed(4)}`
+  let cache = videoChromes.get(key)
+  if (!cache) {
+    cache = buildVideoChrome(width, height, windowTitle, videoAspect)
+    videoChromes.set(key, cache)
+  }
+  return cache
+}
+
+/**
+ * Build a video window's chrome ahead of its first frame (the first build
+ * pixelates the desktop background and rasterizes the title: ~10 ms on a fast
+ * machine). Needs the video's size; returns false while it isn't known yet.
+ */
+export function prepareVideoWindow(width: number, height: number, video: HTMLVideoElement, windowTitle: string): boolean {
+  if (!video.videoWidth || !video.videoHeight) return false
+  videoChrome(width, height, windowTitle, video.videoWidth / video.videoHeight)
+  return true
 }
 
 export function drawVideoWindow(
@@ -557,13 +577,7 @@ export function drawVideoWindow(
     video.videoWidth && video.videoHeight
       ? video.videoWidth / video.videoHeight
       : 0
-  const key = `${width}x${height}|${windowTitle}|${videoAspect.toFixed(4)}`
-
-  if (!_videoChromeCache || _videoChromeCache.key !== key) {
-    _videoChromeCache = buildVideoChrome(width, height, windowTitle, videoAspect)
-  }
-
-  const cache = _videoChromeCache
+  const cache = videoChrome(width, height, windowTitle, videoAspect)
 
   // Black backdrop for the area outside the chrome (composite has transparent
   // pixels there too since the boot background fully covers but we still want
