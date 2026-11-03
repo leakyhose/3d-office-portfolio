@@ -4,6 +4,7 @@ import './iconfont.css'
 import { VIEWS } from './config/views'
 import { navigateToView, jumpToView, triggerIntroZoom, enterFreeCam, setOnNavigationComplete, clearOnNavigationComplete, setOnIntroPreComplete, clearOnIntroPreComplete } from './components/camera/bridge'
 import PANELS from './panels'
+import { invalidateTypedLayout } from './components/typedLayout'
 import { SECTIONS, hrefFor, navClick } from './panels/sections'
 import { canRender3D, StageBoundary } from './capabilities'
 import { useScreenLayout, useCanHover, stackedSceneFraction } from './layout'
@@ -59,6 +60,8 @@ function App() {
   const [stageFailed, setStageFailed] = useState(false)
   const has3D = SUPPORTS_3D && !stageFailed
   const mode = has3D ? screen.kind : 'flat'
+  // Text alignment follows the layout mode (TypedText caches it).
+  useLayoutEffect(() => { invalidateTypedLayout() }, [mode])
 
   const [Stage, setStage] = useState<StageComponent | null>(null)
   const [stageVisible, setStageVisible] = useState(false)
