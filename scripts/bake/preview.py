@@ -74,7 +74,7 @@ snt.nodes.clear()
 so = snt.nodes.new('ShaderNodeOutputMaterial')
 em = snt.nodes.new('ShaderNodeEmission')
 img = snt.nodes.new('ShaderNodeTexImage')
-img.image = bpy.data.images.load(os.path.join(os.path.dirname(IN), '..', 'public', 'clouds_background.png'))
+img.image = bpy.data.images.load(os.path.join(os.path.dirname(IN), '..', 'art', 'screen', 'clouds_background.png'))
 em.inputs['Strength'].default_value = 0.95
 snt.links.new(img.outputs['Color'], em.inputs['Color'])
 snt.links.new(em.outputs['Emission'], so.inputs['Surface'])

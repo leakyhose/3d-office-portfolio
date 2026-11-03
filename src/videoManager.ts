@@ -1,4 +1,5 @@
 import { PROJECTS } from './config/projects'
+import { isCameraAnimating } from './components/camera/bridge'
 
 interface VideoEntry {
   video: HTMLVideoElement
@@ -15,9 +16,10 @@ function createVideos() {
     video.muted = true
     video.loop = true
     video.playsInline = true
-    // Don't fetch anything yet — the videos total several MB and would
-    // compete with the GLB/HDR downloads on the critical loading path.
-    // warmVideos() flips them to full preload once the intro is done.
+    // Don't fetch anything yet — the videos total ~1.7 MB and would
+    // compete with the GLB/lightmap downloads on the critical loading path.
+    // warmVideos() flips them to full preload once the intro is done (on a
+    // fast connection); otherwise a video loads when it's first played.
     video.preload = 'none'
     video.style.display = 'none'
     document.body.appendChild(video)
@@ -27,29 +29,78 @@ function createVideos() {
   }
 }
 
-let warmed = false
+interface NetworkInformation {
+  saveData?: boolean
+  effectiveType?: string
+}
 
 /**
- * Start buffering the demo videos, one per idle period (each load() sets up a
- * media player: ~15 ms of main-thread work), and never while `busy()`.
+ * Whether to download the demos (~1.7 MB) ahead of a hover, which is what
+ * makes hover playback instant. Not with Data Saver on or on a 2g/3g-class
+ * connection (Chrome's "Slow 4G" preset rates as 3g): there a video only
+ * loads when its project is hovered.
  */
-export function warmVideos(busy: () => boolean = () => false) {
-  if (warmed) return
-  warmed = true
-  const ric = window.requestIdleCallback ?? ((cb: () => void) => window.setTimeout(cb, 300))
+export function canPrefetchVideos(): boolean {
+  const connection = (navigator as Navigator & { connection?: NetworkInformation }).connection
+  if (!connection) return true
+  if (connection.saveData) return false
+  return !['slow-2g', '2g', '3g'].includes(connection.effectiveType ?? '')
+}
+
+const ric = (cb: () => void) =>
+  window.requestIdleCallback ? window.requestIdleCallback(cb, { timeout: 2000 }) : window.setTimeout(cb, 300)
+
+const PRELOAD_RANK: Record<string, number> = { none: 0, metadata: 1, auto: 2 }
+
+/**
+ * Raise each video's preload to `level`, one per idle period (each load()
+ * sets up a media player: ~15 ms of main-thread work), never while `busy()`.
+ */
+function preloadAll(level: 'metadata' | 'auto', busy: () => boolean) {
   const queue = [...videoMap.values()]
   const next = () => {
     if (busy()) {
-      ric(next, { timeout: 2000 })
+      ric(next)
       return
     }
     const entry = queue.shift()
     if (!entry) return
-    entry.video.preload = 'auto'
-    entry.video.load()
-    ric(next, { timeout: 2000 })
+    if (PRELOAD_RANK[entry.video.preload] < PRELOAD_RANK[level]) {
+      entry.video.preload = level
+      entry.video.load()
+    }
+    ric(next)
   }
-  ric(next, { timeout: 2000 })
+  ric(next)
+}
+
+let sceneDone = false
+let warmed = false
+
+/**
+ * Start buffering the demo videos, if the connection allows it (see
+ * canPrefetchVideos). Call once the 3D scene's first frame is done and the
+ * intro is over.
+ */
+export function warmVideos(busy: () => boolean = () => false) {
+  sceneDone = true
+  if (warmed || !canPrefetchVideos()) return
+  warmed = true
+  preloadAll('auto', busy)
+}
+
+/*
+ * Where the demos aren't prefetched (but Data Saver is off), pointing at or
+ * focusing a link to Projects (once the scene is up) fetches just enough of
+ * each video for its first frame, so hovering a project there shows a
+ * picture sooner.
+ */
+function onProjectsIntent(e: Event) {
+  if (!sceneDone || warmed || !(e.target instanceof Element) || !e.target.closest('a[href="#projects"]')) return
+  document.removeEventListener('pointerover', onProjectsIntent)
+  document.removeEventListener('focusin', onProjectsIntent)
+  const connection = (navigator as Navigator & { connection?: NetworkInformation }).connection
+  if (!connection?.saveData) preloadAll('metadata', isCameraAnimating)
 }
 
 export function getVideo(projectId: string): HTMLVideoElement | null {
@@ -58,3 +109,5 @@ export function getVideo(projectId: string): HTMLVideoElement | null {
 
 // Create elements on module import; actual downloads start via warmVideos()
 createVideos()
+document.addEventListener('pointerover', onProjectsIntent, { passive: true })
+document.addEventListener('focusin', onProjectsIntent)
