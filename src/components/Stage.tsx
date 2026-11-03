@@ -1,6 +1,6 @@
 import { Canvas } from '@react-three/fiber'
 import * as THREE from 'three'
-import { useEffect, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 import Scene from './Scene'
 import { paperCanvasReady } from './ExperiencePaper'
 import { loadOffice } from '../scene/office'
@@ -23,7 +23,9 @@ interface StageProps {
   introComplete: boolean
 }
 
-export default function Stage({ visible, onReady, ...sceneProps }: StageProps) {
+// Memoized: the app re-renders on every navigation step, the 3D tree only
+// needs to when one of these props changes.
+export default memo(function Stage({ visible, onReady, ...sceneProps }: StageProps) {
   // The canvas (and its WebGL context) is created right away, in parallel
   // with the downloads; the scene mounts once everything it needs is loaded.
   const [assetsLoaded, setAssetsLoaded] = useState(false)
@@ -57,4 +59,4 @@ export default function Stage({ visible, onReady, ...sceneProps }: StageProps) {
       </Canvas>
     </div>
   )
-}
+})
