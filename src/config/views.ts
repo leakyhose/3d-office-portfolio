@@ -62,6 +62,7 @@ export const VIEWS: ViewsMap = {
     wideShift: 0.3,
     pivotObject: 'EXPERIENCE_PAPER',
     subject: { names: ['EXPERIENCE_PAPER'], pad: 0.04 },
+    // portrait: the original, slightly tilted angle (no lens shift there)
     stackedLook: [-0.015, -0.979, -0.202],
     left: null,
     right: 'experience',
