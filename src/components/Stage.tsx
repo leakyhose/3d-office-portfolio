@@ -29,6 +29,10 @@ export default memo(function Stage({ visible, onReady, ...sceneProps }: StagePro
   // The canvas (and its WebGL context) is created right away, in parallel
   // with the downloads; the scene mounts once everything it needs is loaded.
   const [assetsLoaded, setAssetsLoaded] = useState(false)
+  // R3F creates the renderer asynchronously, outside React's error handling;
+  // re-throw a failure during render so <StageBoundary> switches to flat.
+  const [failure, setFailure] = useState<Error | null>(null)
+  if (failure) throw failure
   useEffect(() => {
     let alive = true
     assetsReady.then(() => { if (alive) setAssetsLoaded(true) })
@@ -43,7 +47,14 @@ export default memo(function Stage({ visible, onReady, ...sceneProps }: StagePro
         // Lighting is baked; the old composer rendered without tone mapping,
         // so render flat (NoToneMapping) to keep the same colours.
         flat
-        gl={{ antialias: true, powerPreference: 'high-performance' }}
+        gl={async (defaults) => {
+          try {
+            return new THREE.WebGLRenderer({ ...defaults, antialias: true, powerPreference: 'high-performance' })
+          } catch (e) {
+            setFailure(e instanceof Error ? e : new Error(String(e)))
+            return new Promise<never>(() => {}) // the boundary unmounts the canvas
+          }
+        }}
         // Shader error checking forces synchronous getShaderInfoLog/
         // getProgramInfoLog round-trips to the GPU process for every program.
         onCreated={({ gl, camera }) => {
