@@ -7,6 +7,16 @@ import type { PanelProps } from '../types'
 
 const HIDDEN = { visibility: 'hidden' } as const
 
+// A pixel "↗". Not the U+2197 glyph: VT323 doesn't have it, and the first
+// system font-fallback lookup costs ~30 ms of layout when the panel mounts.
+function ExternalMark({ style }: { style?: React.CSSProperties }) {
+  return (
+    <svg className="external-mark" viewBox="0 0 9 9" aria-hidden="true" style={style}>
+      <path d="M3 0h6v6H7V2H3zM5 2h2v2H5zM4 3h2v2H4zM3 4h2v2H3zM2 5h2v2H2zM1 6h2v2H1zM0 7h2v2H0z" />
+    </svg>
+  )
+}
+
 /*
  * A project is previewed on the monitor while it's "selected": hovered with a
  * mouse, focused from the keyboard, or tapped (outside its links) on touch.
@@ -47,7 +57,7 @@ function ProjectsPanel({ visible, onNavigate, onUntypeComplete, onProjectSelect,
                   <img src={project.icon} alt="" className="project-icon" style={visible || namePhase[project.id] !== 'gone' ? undefined : HIDDEN} />
                   <a className="project-name" href={project.link} target="_blank" rel="noreferrer">
                     <TypedText text={project.name} visible={visible} speed={20} {...nameCallbacks[project.id]} />
-                    <span className="external-mark" aria-hidden="true" style={typed ? undefined : HIDDEN}>&#8599;</span>
+                    <ExternalMark style={typed ? undefined : HIDDEN} />
                   </a>
                   <a
                     className="project-source"

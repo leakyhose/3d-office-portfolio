@@ -358,9 +358,12 @@ kbd {
 }
 
 .external-mark {
-  margin-left: 0.2em;
-  font-size: 0.8em;
-  color: var(--muted);
+  width: 0.42em;
+  height: 0.42em;
+  margin-left: 0.28em;
+  vertical-align: 0.16em;
+  fill: var(--muted);
+  shape-rendering: crispEdges;
 }
 
 .project-source {
