@@ -237,7 +237,18 @@ def add_lights(model_path):
     add_sun('__rim', (30, 20, -10), hex_lin('#ffe8cc'), 0.03, 3)
     moon = float(os.environ.get('MOON', '0.8'))
     if moon > 0:
-        add_sun('__moon', (-2, 4.7, -3), hex_lin('#8fa8ff'), moon, 1.5)
+        mo = add_sun('__moon', (-2, 4.7, -3), hex_lin('#8fa8ff'), moon, 1.5)
+        # The moon comes over the top of the back wall, whose shadow lands on
+        # the right wall as a long hard diagonal: blue above, warm below. The
+        # home view puts the title on that wall, so by default it skips the
+        # moon and keeps the lamp's soft falloff only (MOON_RIGHT=1: as before).
+        if os.environ.get('MOON_RIGHT', '0') != '1':
+            moon_skip = bpy.data.collections.new('__moon_receivers')
+            for n in (ROOM_PREFIX + 'Right', ROOM_PREFIX + 'BaseRight'):
+                moon_skip.objects.link(scene.objects[n])
+            for co in moon_skip.collection_objects:
+                co.light_linking.link_state = 'EXCLUDE'
+            mo.light_linking.receiver_collection = moon_skip
 
     scr = scene.objects['ComputerScreen']
     bb = [scr.matrix_world @ Vector(c) for c in scr.bound_box]
