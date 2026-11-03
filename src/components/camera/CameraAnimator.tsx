@@ -99,6 +99,13 @@ interface CameraAnimatorProps {
 function CameraAnimator({ controlsRef, freeCam }: CameraAnimatorProps) {
   const { camera, gl } = useThree()
   const size = useThree((s) => s.size)
+  const getState = useThree((s) => s.get)
+  // Canvas size from R3F's store (kept current by its ResizeObserver); reading
+  // clientWidth here would force a synchronous layout in the nav click handler.
+  const viewSize = useCallback(() => {
+    const { width, height } = getState().size
+    return width && height ? { w: width, h: height } : { w: window.innerWidth, h: window.innerHeight }
+  }, [getState])
   const { fullScene } = useScreenMesh()
   const animating = useRef(false)
   const introAnim = useRef(false)
@@ -150,8 +157,7 @@ function CameraAnimator({ controlsRef, freeCam }: CameraAnimatorProps) {
 
   /** Where the camera goes for a shot at the current canvas size. */
   const poseFor = useCallback((shot: Shot): Pose => {
-    const w = gl.domElement.clientWidth || window.innerWidth
-    const h = gl.domElement.clientHeight || window.innerHeight
+    const { w, h } = viewSize()
     const kind = layoutKindFor(w, h)
     const aspect = w / h
     if (shot === 'start') {
@@ -165,7 +171,7 @@ function CameraAnimator({ controlsRef, freeCam }: CameraAnimatorProps) {
       { position: view.position, rotation: view.rotation, stackedLook: view.stackedLook, subject: boxFor(view.subject) },
       { aspect, kind, region: stackedRegion(stackedSceneFraction(shot, w, h), h) },
     )
-  }, [gl, boxFor])
+  }, [viewSize, boxFor])
 
   const setFov = useCallback((fov: number) => {
     const pcam = camera as THREE.PerspectiveCamera
@@ -214,7 +220,7 @@ function CameraAnimator({ controlsRef, freeCam }: CameraAnimatorProps) {
     duration.current = reducedMotionQuery?.matches ? 1e-3 : (dur || ANIM_DURATION)
 
     startAnchorOx.current = anchorOx.current
-    const w = gl.domElement.clientWidth, h = gl.domElement.clientHeight
+    const { w, h } = viewSize()
     goalAnchorOx.current = computeAnchorGoal(viewName, w / h, layoutKindFor(w, h))
 
     animating.current = true
@@ -224,7 +230,7 @@ function CameraAnimator({ controlsRef, freeCam }: CameraAnimatorProps) {
     ready.current = false
     dragOffset.current = { x: 0, y: 0 }
     if (isIntro) performance.mark('intro:anim-start')
-  }, [controlsRef, camera, gl, poseFor])
+  }, [controlsRef, camera, viewSize, poseFor])
 
   useEffect(() => {
     setNavigateTo(navigateTo)
