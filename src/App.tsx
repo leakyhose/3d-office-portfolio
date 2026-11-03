@@ -357,9 +357,14 @@ function App() {
     return () => clearOnNavigationComplete(handler)
   }, [showPanels, finishIntro])
 
-  const screenPhase: ScreenPhase = bootPhase !== 'done'
-    ? bootPhase
-    : (landedView === 'projects' || selectedProject ? 'projects' : 'clouds')
+  // The monitor follows the camera, not the panels: it switches to the desktop
+  // (and plays a selected project's demo) only once the camera has landed on
+  // Projects. A project gets selected mid-flight whenever the cursor rests
+  // where the list types in; switching there would put the screen's redraws,
+  // a texture upload per frame and a 3D re-render on top of the flight.
+  const onProjects = landedView === 'projects'
+  const screenPhase: ScreenPhase = bootPhase !== 'done' ? bootPhase : (onProjects ? 'projects' : 'clouds')
+  const monitorProject = onProjects ? selectedProject : null
 
   const s = navState
   const LeftComponent = s.left ? PANELS[s.left] : null
@@ -394,7 +399,7 @@ function App() {
                 onReady={onStageReady}
                 freeCam={freeCam}
                 screenPhase={screenPhase}
-                hoveredProject={selectedProject}
+                hoveredProject={monitorProject}
                 introComplete={introComplete}
               />
             )}

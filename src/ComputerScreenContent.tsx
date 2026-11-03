@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { getScreen, isScreenStale, refreshScreen, drawVideoWindow, type ScreenKind } from './drawScreenTexture'
+import { getScreen, isScreenStale, refreshScreen, drawVideoWindow, prepareVideoWindow, type ScreenKind } from './drawScreenTexture'
 import { useScreenMesh } from './components/screenMesh'
 import { getVideo } from './videoManager'
 import { PROJECTS } from './config/projects'
@@ -413,15 +413,42 @@ export default function ComputerScreenContent({ screenPhase = 'clouds', hoveredP
   }, [screenPhase, screenCanvas, screenTexture, screenTexSize])
 
   // Once booted, draw the screen that isn't showing yet in the background,
-  // so a later switch only has to blit it.
+  // so a later switch only has to blit it; then each project's video window
+  // (one per idle period, once its video's size is known), so a hover never
+  // builds one in the middle of the screen switch.
   const booted = screenPhase === 'clouds' || screenPhase === 'projects'
   useEffect(() => {
     if (!booted || !screenTexSize) return
     const { width, height } = screenTexSize
-    return whenIdle(() => {
+    const jobs: (() => void)[] = [() => {
       getScreen('desktop', width, height)
       getScreen('clouds', width, height)
-    })
+    }]
+    let cancelIdle: (() => void) | null = null
+    const run = () => {
+      cancelIdle = null
+      jobs.shift()?.()
+      if (jobs.length) cancelIdle = whenIdle(run)
+    }
+    const enqueue = (job: () => void) => {
+      jobs.push(job)
+      if (!cancelIdle) cancelIdle = whenIdle(run)
+    }
+    const cleanups: (() => void)[] = []
+    for (const project of PROJECTS) {
+      const video = getVideo(project.id)
+      if (!video) continue
+      const prepare = () => prepareVideoWindow(width, height, video, `${project.name}.exe`)
+      if (video.videoWidth) { jobs.push(prepare); continue }
+      const onMeta = () => enqueue(prepare)
+      video.addEventListener('loadedmetadata', onMeta, { once: true })
+      cleanups.push(() => video.removeEventListener('loadedmetadata', onMeta))
+    }
+    cancelIdle = whenIdle(run)
+    return () => {
+      cancelIdle?.()
+      cleanups.forEach((c) => c())
+    }
   }, [booted, screenTexSize])
 
   // Keep the desktop's taskbar clock current: redraw it in the background
@@ -482,34 +509,39 @@ export default function ComputerScreenContent({ screenPhase = 'clouds', hoveredP
     const project = PROJECTS.find(p => p.id === hoveredProject)
     const title = project ? `${project.name}.exe` : 'Video'
 
+    // Redraw (and re-upload the screen) only when the video has a new frame
+    // to show, at most every 25 ms (the demos are 30 fps); without
+    // requestVideoFrameCallback, every 33 ms. Starts dirty so the window
+    // shows even if playback is refused.
+    let fresh = true
     let lastDrawTime = 0
+    let frameCb = 0
+    const rvfc = 'requestVideoFrameCallback' in video
+    const onVideoFrame = () => {
+      fresh = true
+      frameCb = video.requestVideoFrameCallback(onVideoFrame)
+    }
+    if (rvfc) frameCb = video.requestVideoFrameCallback(onVideoFrame)
 
     function drawFrame() {
-      const now = performance.now()
-      // Wait for any CRT switch animation to finish
-      if (switchAnimRef.current) {
-        videoRafRef.current = requestAnimationFrame(drawFrame)
-        return
-      }
-      // Skip the texImage2D upload while the camera is lerping — keeps the
-      // R3F frame budget free for the navigation animation. Loop resumes
-      // immediately once the camera settles.
-      if (isCameraAnimating()) {
-        videoRafRef.current = requestAnimationFrame(drawFrame)
-        return
-      }
-      if (now - lastDrawTime >= 33) {
-        lastDrawTime = now
-        drawVideoWindow(ctx, texWidth, texHeight, video!, title)
-        upload(texture)
-        shownRef.current = 'other'
-      }
       videoRafRef.current = requestAnimationFrame(drawFrame)
+      // Wait for any CRT switch animation to finish, and skip the upload
+      // while the camera is flying (keeps the frame budget for the flight);
+      // the latest frame is drawn as soon as it settles.
+      if (switchAnimRef.current || isCameraAnimating()) return
+      const now = performance.now()
+      if (rvfc ? !fresh || now - lastDrawTime < 25 : now - lastDrawTime < 33) return
+      fresh = false
+      lastDrawTime = now
+      drawVideoWindow(ctx, texWidth, texHeight, video!, title)
+      upload(texture)
+      shownRef.current = 'other'
     }
 
     videoRafRef.current = requestAnimationFrame(drawFrame)
 
     return () => {
+      if (rvfc) video.cancelVideoFrameCallback(frameCb)
       if (videoRafRef.current) {
         cancelAnimationFrame(videoRafRef.current)
         videoRafRef.current = null
