@@ -755,11 +755,6 @@ button:has(.typed:is(.is-empty, .is-off)) {
   text-align: left;
 }
 
-.layout-stacked .section-nav,
-.layout-flat .section-nav {
-  display: none;
-}
-
 .layout-stacked .panel-title,
 .layout-flat .panel-title {
   white-space: normal;
@@ -822,24 +817,11 @@ button:has(.typed:is(.is-empty, .is-off)) {
   background: #17140f;
   border-top: 1px solid rgba(242, 235, 223, 0.08);
   pointer-events: auto;
-  opacity: 0;
-  visibility: hidden;
-  transform: translateY(12px);
-  transition: opacity 0.3s, transform 0.3s, visibility 0s 0.3s;
+  animation: tabbar-in 0.3s ease-out;
 }
 
-.tabbar.visible {
-  opacity: 1;
-  visibility: visible;
-  transform: none;
-  transition: opacity 0.3s, transform 0.3s;
-}
-
-.view-home .tabbar {
-  opacity: 0;
-  visibility: hidden;
-  transform: translateY(12px);
-  transition: opacity 0.3s, transform 0.3s, visibility 0s 0.3s;
+@keyframes tabbar-in {
+  from { opacity: 0; transform: translateY(12px); }
 }
 
 .tab {

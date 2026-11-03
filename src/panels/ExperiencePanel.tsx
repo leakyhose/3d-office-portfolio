@@ -8,7 +8,7 @@ import type { PanelProps } from '../types'
 // list is only kept for screen readers there (the sheet is a canvas texture).
 const ENTRIES = [...EXPERIENCE].reverse()
 
-function ExperiencePanel({ visible, onNavigate, onUntypeComplete, onNavHoverChange }: PanelProps) {
+function ExperiencePanel({ visible, onNavigate, onUntypeComplete, onNavHoverChange, showSectionNav }: PanelProps) {
   const tracker = useUntypeTracker(visible, onUntypeComplete)
 
   return (
@@ -36,7 +36,7 @@ function ExperiencePanel({ visible, onNavigate, onUntypeComplete, onNavHoverChan
             </li>
           ))}
         </ol>
-        <SectionNav current="experience" visible={visible} onNavigate={onNavigate} onHoverChange={onNavHoverChange} />
+        {showSectionNav && <SectionNav current="experience" visible={visible} onNavigate={onNavigate} onHoverChange={onNavHoverChange} />}
       </section>
     </UntypeTrackerContext>
   )

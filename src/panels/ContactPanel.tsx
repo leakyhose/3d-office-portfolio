@@ -11,7 +11,7 @@ const LINKS = [
   { label: 'GitHub', icon: 'github', text: 'leakyhose', href: 'https://github.com/leakyhose' },
 ]
 
-function ContactPanel({ visible, onNavigate, onUntypeComplete, onNavHoverChange }: PanelProps) {
+function ContactPanel({ visible, onNavigate, onUntypeComplete, onNavHoverChange, showSectionNav }: PanelProps) {
   const tracker = useUntypeTracker(visible, onUntypeComplete)
   const [copied, setCopied] = useState(false)
 
@@ -62,7 +62,7 @@ function ContactPanel({ visible, onNavigate, onUntypeComplete, onNavHoverChange 
             </div>
           ))}
         </dl>
-        <SectionNav current="contact" visible={visible} onNavigate={onNavigate} onHoverChange={onNavHoverChange} />
+        {showSectionNav && <SectionNav current="contact" visible={visible} onNavigate={onNavigate} onHoverChange={onNavHoverChange} />}
       </section>
     </UntypeTrackerContext>
   )

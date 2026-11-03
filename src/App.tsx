@@ -375,6 +375,8 @@ function App() {
   const LeftComponent = s.left ? PANELS[s.left] : null
   const RightComponent = s.right ? PANELS[s.right] : null
   const panelProps = {
+    // the wide layout has a section nav in each panel; the others a tab bar
+    showSectionNav: mode === 'wide',
     onNavigate,
     onNavHoverChange,
     onProjectSelect: setSelectedProject,
@@ -428,8 +430,9 @@ function App() {
             <RightComponent {...panelProps} visible={s.rightVisible} onUntypeComplete={onRightUntypeComplete} />
           )}
         </div>
-        {mode !== 'wide' && (
-          <nav className={`tabbar${interactive && !freeCam ? ' visible' : ''}`} aria-label="Sections">
+        {/* Home's own menu is the navigation there; elsewhere the tab bar is. */}
+        {mode !== 'wide' && interactive && !freeCam && s.view !== 'home' && (
+          <nav className="tabbar" aria-label="Sections">
             {SECTIONS.map((sec) => (
               <a
                 key={sec.view}
