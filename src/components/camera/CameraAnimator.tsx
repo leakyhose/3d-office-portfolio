@@ -16,9 +16,10 @@ type Shot = ViewName | 'start'
 // The projects shot slides the image sideways on screens wider than 16:9
 // (lens shift via setViewOffset) so the monitor stays clear of the panel.
 // Below 16:10 the framing dolly takes over, so the shift is held there.
+// With keepWidth, framing.ts holds the 16:10 framing on wider screens instead.
 const ANCHOR_ASPECT = 16 / 9
 function computeAnchorGoal(shot: Shot, aspect: number, kind: LayoutKind) {
-  if (shot !== 'projects' || kind !== 'wide') return 0
+  if (shot !== 'projects' || kind !== 'wide' || VIEWS.projects.keepWidth) return 0
   return 1 - ANCHOR_ASPECT / Math.max(aspect, REF_ASPECT)
 }
 
@@ -161,7 +162,7 @@ function CameraAnimator({ controlsRef, freeCam }: CameraAnimatorProps) {
     }
     const view = VIEWS[shot]
     return resolvePose(
-      { position: view.position, rotation: view.rotation, stackedLook: view.stackedLook, subject: boxFor(view.subject) },
+      { position: view.position, rotation: view.rotation, stackedLook: view.stackedLook, wideShift: view.wideShift, keepWidth: view.keepWidth, subject: boxFor(view.subject) },
       { aspect, kind, region: stackedRegion(stackedSceneFraction(shot, w, h), h) },
     )
   }, [viewSize, boxFor])

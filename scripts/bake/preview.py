@@ -20,12 +20,13 @@ SCALE = int(argv[4]) if len(argv) > 4 else 50
 os.makedirs(OUT, exist_ok=True)
 
 # position, look-at target (from src/config/views.ts; target = position + 20 * forward)
+# [, vertical lens shift (views.ts wideShift, NDC)]
 CAMS = {
-    'home': ((-5.9, 10.47, 14.15), (5.996, 1.552, 0.773)),
-    'about': ((-0.29, 5.61, 3.55), (-19.9, 7.918, 6.731)),
-    'experience': ((5.62, 6.94, 2.95), (5.32, -12.644, -1.097)),
-    'projects': ((0.05, 7.52, 5.13), (6.094, 6.472, -13.906)),
-    'contact': ((2, 5.42, 2.51), (19.611, 1.763, -6.236)),
+    'home': ((-8, 12, 19), (4.96, 4.0, 6.04)),
+    'about': ((-0.29, 5.61, 4.35), (-20.11, 7.91, 3.0)),
+    'experience': ((5.95, 7.36, 2.2), (5.95, -12.64, 1.84), 0.3),
+    'projects': ((0.2, 6.5, 6.0), (4.17, 6.5, -13.6), -0.74),
+    'contact': ((7.6, 7.9, -0.4), (-9.29, -2.7, -1.88)),
     'far': ((16, 16, 27), (-2, 4, 1)),
     'behind': ((14, 14, -16), (0, 4, 2)),
     'right': ((22, 12, 14), (0, 4, 2)),
@@ -105,7 +106,9 @@ scene.collection.objects.link(cam)
 scene.camera = cam
 
 for v in VIEWS:
-    pos, tgt = CAMS[v]
+    pos, tgt = CAMS[v][:2]
+    # setViewOffset shifts by NDC/2 of the height; Blender's shift is in units of the width
+    cam_data.shift_y = -(CAMS[v][2] if len(CAMS[v]) > 2 else 0) / 2 * 900 / 1440
     cam.location = stage.t2b(pos)
     cam.rotation_euler = (stage.t2b(tgt) - stage.t2b(pos)).to_track_quat('-Z', 'Y').to_euler()
     scene.render.filepath = os.path.join(OUT, f'{v}.png')
