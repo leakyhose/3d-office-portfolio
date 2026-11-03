@@ -47,14 +47,18 @@ export function prewarmPrograms(gl: THREE.WebGLRenderer, camera: THREE.Camera, f
   meshes.push(new THREE.InstancedMesh(new THREE.BoxGeometry(), createSteamMaterial(), 1))
   scene.add(...meshes)
 
-  gl.compileAsync(scene, camera).catch(() => {})
+  const compiled = gl.compileAsync(scene, camera).catch(() => {})
 
   // Keep the stand-in materials alive until the real scene holds references
   // to the same programs: three frees a program when its last user is disposed.
+  // Also wait for this compileAsync to settle: it polls its materials on a
+  // timer and throws if one was disposed under it.
   release = () => {
-    for (const m of meshes) ((m as THREE.Mesh).material as THREE.Material).dispose()
-    glbLike.dispose(); floorGeo.dispose()
     release = null
+    compiled.then(() => {
+      for (const m of meshes) ((m as THREE.Mesh).material as THREE.Material).dispose()
+      glbLike.dispose(); floorGeo.dispose()
+    })
   }
 }
 
