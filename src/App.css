@@ -572,30 +572,6 @@ button:has(.typed:is(.is-empty, .is-off)) {
   text-align: right;
 }
 
-/* Home: the name and the menu read as one block. The panel shrinks to the
-   name (its widest line) and the menu is centred under it, its icons in a
-   column. The alignments set how TypedText draws them while typing: the
-   name grows out from the block's centre line, the links type left to right. */
-.layout-wide #home-panel {
-  width: auto;
-  align-items: center;
-  text-align: center;
-}
-
-.layout-wide #home-panel #menu {
-  align-items: flex-start;
-  text-align: left;
-}
-
-/* Short landscape (phones on their side): centred, the foot of the menu
-   reaches the wall/floor seam where it is lit beside the chair. Keep the
-   block flush right there. */
-@media (max-height: 520px) {
-  .layout-wide #home-panel {
-    align-items: flex-end;
-  }
-}
-
 .layout-wide .panel-right .section-nav {
   justify-content: end;
   justify-items: end;
