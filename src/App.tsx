@@ -394,21 +394,18 @@ function App() {
   return (
     <div id="app" className={appClass}>
       {has3D && (
-        <>
-          <StageBoundary onError={failStage}>
-            {Stage && (
-              <Stage
-                visible={stageVisible}
-                onReady={onStageReady}
-                freeCam={freeCam}
-                screenPhase={screenPhase}
-                hoveredProject={monitorProject}
-                introComplete={introComplete}
-              />
-            )}
-          </StageBoundary>
-          <div className="vignette" />
-        </>
+        <StageBoundary onError={failStage}>
+          {Stage && (
+            <Stage
+              visible={stageVisible}
+              onReady={onStageReady}
+              freeCam={freeCam}
+              screenPhase={screenPhase}
+              hoveredProject={monitorProject}
+              introComplete={introComplete}
+            />
+          )}
+        </StageBoundary>
       )}
 
       <div id="overlay">

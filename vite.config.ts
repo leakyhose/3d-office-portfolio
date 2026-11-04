@@ -13,7 +13,7 @@ import { EXPERIENCE } from './src/config/experience'
 // <link> would wait for the CSS to download before running, delaying every
 // 3D download by a round trip or more.
 function preloadSceneAssets(): Plugin {
-  const patterns = [/office.*\.glb$/, /(office|room|floor)-lightmap.*\.webp$/]
+  const patterns = [/office.*\.glb$/, /office-lightmap.*\.webp$/, /(room|floor)-lightmap.*\.avif$/]
   return {
     name: 'preload-scene-assets',
     apply: 'build',
@@ -57,7 +57,7 @@ export default defineConfig({
   plugins: [react(), preloadSceneAssets()],
   build: {
     // GLB/lightmaps must stay separate files (never inlined as data: URIs).
-    assetsInlineLimit: (file) => (/\.(glb|webp)$/.test(file) ? false : undefined),
+    assetsInlineLimit: (file) => (/\.(glb|webp|avif)$/.test(file) ? false : undefined),
     rolldownOptions: {
       output: {
         // three + R3F only load with the lazy 3D stage, never on the critical

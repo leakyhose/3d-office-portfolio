@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, memo } from 'react'
-import { useFrame, useSceneAttach, useSceneObject, useThree } from '../three/fiber'
+import { useFrame, useSceneObject, useThree } from '../three/fiber'
 import * as THREE from 'three'
 import CameraSetup from './camera/CameraSetup'
 import CameraAnimator from './camera/CameraAnimator'
@@ -19,6 +19,7 @@ import { applyBakedLighting } from '../scene/bakedMaterials'
 import { releasePrewarm } from '../scene/prewarm'
 import { createCrtMaterial, sceneTime } from '../scene/crtMaterial'
 import { createAmbienceGeometry, createAmbienceMaterial, setAmbienceScale } from '../scene/ambience'
+import { createBackdrop } from '../scene/output'
 import { drawBlankScreen } from '../drawScreenTexture'
 import { warmVideos } from '../videoManager'
 import type { ScreenPhase } from '../types'
@@ -83,8 +84,14 @@ const OfficeModel = memo(function OfficeModel() {
   return null
 })
 
+/** The backdrop colour behind the room (vignetted + dithered like the scene, see output.ts). */
 function Background() {
-  useSceneAttach('background', useMemo(() => new THREE.Color(BACKGROUND), []))
+  const mesh = useMemo(() => createBackdrop(BACKGROUND), [])
+  useEffect(() => () => {
+    mesh.geometry.dispose()
+    mesh.material.dispose()
+  }, [mesh])
+  useSceneObject(mesh)
   return null
 }
 
@@ -102,7 +109,7 @@ function Floor() {
       uv1[i * 2 + 1] = (pos.getZ(i) - FLOOR_BAKE_CENTER[1]) / FLOOR_BAKE_SIZE + 0.5
     }
     geo.setAttribute('uv1', new THREE.BufferAttribute(uv1, 2))
-    const material = new THREE.MeshBasicMaterial({ color: BACKGROUND, lightMap: floorLightmap, lightMapIntensity: LIGHTMAP_INTENSITY })
+    const material = new THREE.MeshBasicMaterial({ color: BACKGROUND, lightMap: floorLightmap, lightMapIntensity: LIGHTMAP_INTENSITY, dithering: true })
     const m = new THREE.Mesh(geo, material)
     m.position.set(0, -0.01, 0)
     return m
