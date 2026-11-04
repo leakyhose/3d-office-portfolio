@@ -171,7 +171,7 @@ function CameraAnimator({ controlsRef, freeCam }: CameraAnimatorProps) {
     if (shot === 'start') {
       return resolvePose(
         { position: START_POSITION, rotation: START_ROTATION, subject: boxFor(START_SUBJECT) },
-        { aspect, kind, region: FULL_REGION },
+        { aspect, kind, region: FULL_REGION, width: w },
       )
     }
     const view = VIEWS[shot]
@@ -180,7 +180,7 @@ function CameraAnimator({ controlsRef, freeCam }: CameraAnimatorProps) {
         position: view.position, rotation: view.rotation, stackedLook: view.stackedLook, wideShift: view.wideShift, keepWidth: view.keepWidth, subject: boxFor(view.subject),
         narrowRaise: view.narrowRaise && { clear: boxFor(view.narrowRaise.clear), slide: view.narrowRaise.slide },
       },
-      { aspect, kind, region: stackedRegion(stackedSceneFraction(shot, w, h), h) },
+      { aspect, kind, region: stackedRegion(stackedSceneFraction(shot, w, h), h), width: w },
     )
   }, [viewSize, boxFor])
 

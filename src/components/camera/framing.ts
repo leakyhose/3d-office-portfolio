@@ -71,6 +71,8 @@ export interface FrameContext {
   kind: LayoutKind
   /** stacked layout: where on screen (NDC) the subject goes */
   region: Region
+  /** viewport width, CSS px */
+  width: number
 }
 
 const TARGET_DIST = 20
@@ -78,6 +80,13 @@ const TARGET_DIST = 20
 const NARROW_ASPECT = 4 / 3
 /** narrowRaise: NDC kept between the frame's bottom edge and the clear objects */
 const CLEAR_PAD = 0.03
+/**
+ * narrowRaise: full raise from the second width (CSS px), none at the first
+ * (where the layout turns stacked). Below ~760px the panel type is at its
+ * minimum size (--fs-nav: clamp(22px, 2.9vw, ..)), so the nav links reach
+ * further left, over the clutter beside the monitor a raise brings in.
+ */
+const SMALL_W = [600, 760] as const
 
 const _q = new THREE.Quaternion()
 const _e = new THREE.Euler()
@@ -178,9 +187,10 @@ export function resolvePose(spec: PoseSpec, ctx: FrameContext): Pose {
   const shiftX = slide / (zs * k * tan * aspect)
   // Raise: back to the subject's top at 16:10 at most, and not so far that
   // the frame's bottom edge (NDC -1 - shift before the shift) reaches the
-  // clear objects.
+  // clear objects. Narrow windows raise less (see SMALL_W).
   let lift = boxTopNdc(spec.subject, authored, tan) - boxTopNdc(spec.subject, pos, tan)
   if (raise.clear) lift = Math.min(lift, -1 - boxTopNdc(raise.clear, pos, tan) - CLEAR_PAD - shift)
+  lift *= THREE.MathUtils.clamp((ctx.width - SMALL_W[0]) / (SMALL_W[1] - SMALL_W[0]), 0, 1)
   return poseFrom(pos, fov, shift + Math.max(0, lift), shiftX)
 }
 
