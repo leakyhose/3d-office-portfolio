@@ -35,6 +35,7 @@ CAMS = {
 bpy.ops.wm.read_factory_settings(use_empty=True)
 bpy.ops.import_scene.gltf(filepath=IN)
 scene = bpy.context.scene
+stage.arrange(scene)  # desk rearrangement (see stage.OBJECT_MOVES)
 
 # Floor (runtime: 600x600 plane, colour = backdrop)
 bpy.ops.mesh.primitive_plane_add(size=200, location=(0, 0, -0.01))

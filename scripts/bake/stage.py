@@ -71,6 +71,63 @@ def quad(name, corners, mat):
     return ob
 
 
+# --- Desk rearrangement ------------------------------------------------------
+# Moves applied to the source model (art/newcat.glb) before baking, so the
+# runtime GLB, its lightmaps and preview.py all agree. Three-space deltas.
+#
+# SpeakerL: from beside the monitor's front to the back of the desk, against
+# the PC case. Seen square-on (projects view) it then hides behind the case,
+# so on squarer screens the shot can show the monitor higher up without the
+# speaker standing behind the panel's nav links.
+OBJECT_MOVES = {
+    'SpeakerL_ComputerDesk_0': (-0.18, 0.0, -1.3),
+}
+# The speaker cable's right-hand branch ran on to the speaker's old place:
+# cut it off inside the speaker's new place (drop the vertices right of x and
+# in front of z, three space), so it ends inside the speaker.
+SPEAKER_CABLE_CUT = (1.1, 0.7)
+# The mouse cable ran past the back of the desk through the speaker's new
+# place: bend that stretch out to the right (three x += this, faded in and
+# out along z over MOUSE_CABLE_BEND_Z = (z0, z1, z2, z3)).
+MOUSE_CABLE_BEND = 0.3
+MOUSE_CABLE_BEND_Z = (-0.3, 0.0, 0.85, 1.6)
+
+
+def _smooth(a, b, x):
+    t = min(1.0, max(0.0, (x - a) / (b - a)))
+    return t * t * (3 - 2 * t)
+
+
+def arrange(scene):
+    """Applies OBJECT_MOVES and the matching cable edits to the imported model."""
+    for name, d in OBJECT_MOVES.items():
+        scene.objects[name].location += t2b(d)
+
+    cable = scene.objects['Speakers_cable_ComputerDesk_0']
+    mw = cable.matrix_world
+    bm = bmesh.new()
+    bm.from_mesh(cable.data)
+    cx, cz = SPEAKER_CABLE_CUT
+    cut = [v for v in bm.verts if (mw @ v.co).x > cx and -(mw @ v.co).y > cz]
+    bmesh.ops.delete(bm, geom=cut, context='VERTS')
+    bm.to_mesh(cable.data)
+    bm.free()
+
+    mouse = scene.objects['BézierCurve']
+    mw = mouse.matrix_world
+    inv = mw.inverted()
+    z0, z1, z2, z3 = MOUSE_CABLE_BEND_Z
+    for v in mouse.data.vertices:
+        w = mw @ v.co
+        tz = -w.y  # three z
+        if w.x < 1.3:  # the other strand, and the loop hanging off the desk
+            continue
+        k = _smooth(z0, z1, tz) * (1 - _smooth(z2, z3, tz))
+        if k > 0:
+            v.co = inv @ (w + Vector((MOUSE_CABLE_BEND * k, 0, 0)))
+    mouse.data.update()
+
+
 FLOOR_COLOR = '#1e1a15'
 WALL_COLOR = os.environ.get('WALL_COLOR', '#39403b')
 TRIM_COLOR = '#2a241d'
