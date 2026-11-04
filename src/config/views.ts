@@ -68,12 +68,15 @@ export const VIEWS: ViewsMap = {
     right: 'experience',
   },
   projects: {
-    // Level, just above the speaker and phone tops, lens-shifted so the
-    // frame ends above them: the list and nav sit over bare wall.
-    position: [0.2, 6.5, 6.0],
-    rotation: [0, -0.2, 0],
-    wideShift: -0.74,
-    keepWidth: true,
+    // Square-on to the monitor (its screen plays the project demos), level
+    // and a little below its base, lens-shifted up so the frame ends just
+    // under the bezel: the speaker and phone beside it stay below the frame
+    // and the list and nav sit over bare wall.
+    position: [0.75, 5.4, 5.2],
+    rotation: [0, 0, 0],
+    wideShift: -1.34,
+    // as large as the gap beside the panel allows on wider screens
+    keepWidth: 1.9,
     pivotObject: 'ComputerScreen',
     subject: { names: ['ComputerScreen'], pad: 0.08 },
     // portrait: face the screen square-on so the demo fills the width

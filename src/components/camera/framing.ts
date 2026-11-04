@@ -16,11 +16,13 @@ import type { Subject } from '../../types'
  *    the horizontal extent at the subject's depth stays what it was at
  *    REF_ASPECT, keeping the subject at the same normalised screen position.
  *    The panels are sized in vw, so the subject keeps clear of them.
- *    A view with a vertical lens shift (wideShift) keeps its camera height
- *    instead, so its bottom edge still clears whatever it was framed to
- *    clear, and the extra height goes to the top of the frame.
+ *    A view with a vertical lens shift (wideShift) was framed against the
+ *    frame edge nearest its optical axis (e.g. ending just above the desk
+ *    clutter): the dolly keeps where that edge cuts the subject's depth, so
+ *    it still clears what it was framed to clear.
  *  - Wide layout, wider than REF_ASPECT, keepWidth views: the same dolly,
- *    forwards, so the shot keeps its REF_ASPECT width.
+ *    forwards, so the shot keeps its REF_ASPECT width up to the keepWidth
+ *    aspect (wider still shows more at the sides).
  *  - Stacked layout (portrait): the panel sits under the scene, so the
  *    subject's bounding box is fitted into the top region of the screen,
  *    centred horizontally.
@@ -52,8 +54,8 @@ export interface PoseSpec {
   stackedLook?: readonly [number, number, number]
   /** Wide layout: vertical lens shift (NDC), see ViewConfig.wideShift. */
   wideShift?: number
-  /** Wide layout: keep the 16:10 width on wider screens too (ViewConfig.keepWidth). */
-  keepWidth?: boolean
+  /** Wide layout: keep the 16:10 width on wider screens, up to this aspect (ViewConfig.keepWidth). */
+  keepWidth?: number
 }
 
 export interface FrameContext {
@@ -64,6 +66,7 @@ export interface FrameContext {
 }
 
 const TARGET_DIST = 20
+const WIDE_TAN = Math.tan(THREE.MathUtils.degToRad(WIDE_FOV) / 2)
 
 const _q = new THREE.Quaternion()
 const _e = new THREE.Euler()
@@ -117,7 +120,8 @@ export function resolvePose(spec: PoseSpec, ctx: FrameContext): Pose {
 
   basis(spec.rotation)
   const shift = spec.wideShift ?? 0
-  if ((aspect >= REF_ASPECT && !spec.keepWidth) || !spec.subject) return poseFrom(authored, WIDE_FOV, shift)
+  const keep = spec.keepWidth ?? 0
+  if ((aspect >= REF_ASPECT && !keep) || !spec.subject) return poseFrom(authored, WIDE_FOV, shift)
 
   // Subject centre in camera space (right, up, depth).
   spec.subject.getCenter(_c)
@@ -128,11 +132,14 @@ export function resolvePose(spec: PoseSpec, ctx: FrameContext): Pose {
   // NDC x = x / (z tan A), NDC y = y / (z tan). Pushing the subject to depth
   // zs * k with k = REF / A keeps its NDC x (and its width on screen) as at
   // REF_ASPECT with the same x; scaling y by k keeps its NDC y too.
-  const k = REF_ASPECT / aspect
+  const k = REF_ASPECT / (keep ? Math.min(aspect, keep) : aspect)
   const pos = authored.clone().addScaledVector(_f, -(zs * k - zs))
-  // A lens-shifted shot keeps its height (and so where its bottom edge cuts
-  // the scene); the extra height of the narrower screen shows above.
-  if (!shift) pos.addScaledVector(_v, -(ys * k - ys))
+  // Scale the shot about a height that stays put on screen: the subject's
+  // centre, or for a lens-shifted shot the frame edge nearest the axis (the
+  // bottom edge when shifted down, the top when shifted up), where it cuts
+  // the subject's depth.
+  const ya = shift ? (Math.sign(shift) - shift) * zs * WIDE_TAN : ys
+  pos.addScaledVector(_v, -(ya * k - ya))
   return poseFrom(pos, WIDE_FOV, shift)
 }
 
