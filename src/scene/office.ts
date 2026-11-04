@@ -3,8 +3,10 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js'
 import officeUrl from '../assets/office.glb?url'
 import lightmapUrl from '../assets/office-lightmap.webp?url'
-import floorLightmapUrl from '../assets/floor-lightmap.webp?url'
-import roomLightmapUrl from '../assets/room-lightmap.webp?url'
+import floorLightmapUrl from '../assets/floor-lightmap.avif?url'
+import roomLightmapUrl from '../assets/room-lightmap.avif?url'
+import floorLightmapFallbackUrl from '../assets/floor-lightmap.webp?url'
+import roomLightmapFallbackUrl from '../assets/room-lightmap.webp?url'
 
 // Lighting is baked offline (Blender/Cycles, see scripts/bake/) into three
 // lightmaps (UV set TEXCOORD_1): one atlas for the desk model's meshes, one
@@ -30,6 +32,16 @@ export interface OfficeAssets {
 }
 
 export const OFFICE_ASSET_URLS = [officeUrl, lightmapUrl, roomLightmapUrl, floorLightmapUrl]
+
+// The room and floor lightmaps are 4:4:4 AVIF: lossy WebP turned the walls'
+// and floor's smooth gradients into blocks and rings (see
+// scripts/bake/bake.sh). Browsers that can't decode AVIF (Safari before 16,
+// or on macOS before Ventura) fall back to WebP copies (only the AVIFs are
+// preloaded). The desk atlas stays WebP: its AVIF decodes ~70% slower, and it
+// is the last download the first frame waits for.
+function loadLightmap(url: string, fallbackUrl: string): Promise<THREE.Texture> {
+  return loadTexture(url).catch(() => loadTexture(fallbackUrl))
+}
 
 async function loadTexture(url: string): Promise<THREE.Texture> {
   // Not THREE.ImageBitmapLoader: it reads the body with res.blob(), and when
@@ -66,7 +78,11 @@ export function loadOffice(): Promise<OfficeAssets> {
   if (promise) return promise
   const gltfLoader = new GLTFLoader()
   gltfLoader.setMeshoptDecoder(MeshoptDecoder)
-  lightmaps = [loadTexture(lightmapUrl), loadTexture(roomLightmapUrl), loadTexture(floorLightmapUrl)]
+  lightmaps = [
+    loadTexture(lightmapUrl),
+    loadLightmap(roomLightmapUrl, roomLightmapFallbackUrl),
+    loadLightmap(floorLightmapUrl, floorLightmapFallbackUrl),
+  ]
   promise = Promise.all([gltfLoader.loadAsync(officeUrl), ...lightmaps]).then(([gltf, lightmap, roomLightmap, floorLightmap]) => {
     performance.mark('stage:assets-loaded')
     loaded = { scene: gltf.scene, lightmap, roomLightmap, floorLightmap }
