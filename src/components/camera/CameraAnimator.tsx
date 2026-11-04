@@ -137,6 +137,10 @@ function CameraAnimator({ controlsRef, freeCam }: CameraAnimatorProps) {
   const shiftY = useRef(0)
   const startShiftY = useRef(0)
   const goalShiftY = useRef(0)
+  // horizontal lens shift from the pose (narrowRaise), NDC, on top of anchorOx
+  const shiftX = useRef(0)
+  const startShiftX = useRef(0)
+  const goalShiftX = useRef(0)
   const dragging = useRef(false)
   const panning = useRef(false)
   const lastPointer = useRef({ x: 0, y: 0 })
@@ -167,13 +171,16 @@ function CameraAnimator({ controlsRef, freeCam }: CameraAnimatorProps) {
     if (shot === 'start') {
       return resolvePose(
         { position: START_POSITION, rotation: START_ROTATION, subject: boxFor(START_SUBJECT) },
-        { aspect, kind, region: FULL_REGION },
+        { aspect, kind, region: FULL_REGION, width: w },
       )
     }
     const view = VIEWS[shot]
     return resolvePose(
-      { position: view.position, rotation: view.rotation, stackedLook: view.stackedLook, wideShift: view.wideShift, keepWidth: view.keepWidth, subject: boxFor(view.subject) },
-      { aspect, kind, region: stackedRegion(stackedSceneFraction(shot, w, h), h) },
+      {
+        position: view.position, rotation: view.rotation, stackedLook: view.stackedLook, wideShift: view.wideShift, keepWidth: view.keepWidth, wideFov: view.wideFov, narrowHold: view.narrowHold, subject: boxFor(view.subject),
+        narrowRaise: view.narrowRaise && { clear: boxFor(view.narrowRaise.clear), slide: view.narrowRaise.slide },
+      },
+      { aspect, kind, region: stackedRegion(stackedSceneFraction(shot, w, h), h), width: w },
     )
   }, [viewSize, boxFor])
 
@@ -207,6 +214,7 @@ function CameraAnimator({ controlsRef, freeCam }: CameraAnimatorProps) {
     goalDist.current = pose.position.distanceTo(pose.target)
     goalFov.current = pose.fov
     goalShiftY.current = pose.shiftY
+    goalShiftX.current = pose.shiftX
   }, [])
 
   const navigateTo = useCallback((viewName: ViewName, dur?: number, isIntro?: boolean) => {
@@ -218,6 +226,7 @@ function CameraAnimator({ controlsRef, freeCam }: CameraAnimatorProps) {
     startDist.current = Math.max(camera.position.distanceTo(controlsRef.current.target), 1e-3)
     startFov.current = (camera as THREE.PerspectiveCamera).fov
     startShiftY.current = shiftY.current
+    startShiftX.current = shiftX.current
     setGoal(pose)
 
     currentShot.current = viewName
@@ -267,6 +276,7 @@ function CameraAnimator({ controlsRef, freeCam }: CameraAnimatorProps) {
     rig.target.copy(pose.target)
     setFov(pose.fov)
     shiftY.current = goalShiftY.current = pose.shiftY
+    shiftX.current = goalShiftX.current = pose.shiftX
     rig.update()
     if (shot !== 'start' && ready.current) captureRest()
   }, [size.width, size.height, poseFor, navigateTo, captureRest, camera, controlsRef, setFov, setGoal])
@@ -324,6 +334,7 @@ function CameraAnimator({ controlsRef, freeCam }: CameraAnimatorProps) {
     const anchorEased = goalAnchorOx.current === 0 ? easeOut(t) : easeInOut(t)
     anchorOx.current = startAnchorOx.current + (goalAnchorOx.current - startAnchorOx.current) * anchorEased
     shiftY.current = startShiftY.current + (goalShiftY.current - startShiftY.current) * eased
+    shiftX.current = startShiftX.current + (goalShiftX.current - startShiftX.current) * eased
     if (introAnim.current && !introPreCompleteFired.current && t >= INTRO_PRE_COMPLETE_T) {
       introPreCompleteFired.current = true
       performance.mark('intro:pre-complete')
@@ -338,6 +349,7 @@ function CameraAnimator({ controlsRef, freeCam }: CameraAnimatorProps) {
       introAnim.current = false
       anchorOx.current = goalAnchorOx.current
       shiftY.current = goalShiftY.current
+      shiftX.current = goalShiftX.current
       captureRest()
       ready.current = true
 
@@ -499,7 +511,7 @@ function CameraAnimator({ controlsRef, freeCam }: CameraAnimatorProps) {
     }
 
     const pcam = camera as THREE.PerspectiveCamera
-    const anchor = anchorOx.current
+    const anchor = anchorOx.current + shiftX.current
     const shift = shiftY.current
 
     if (Math.abs(anchor) < 1e-6 && Math.abs(shift) < 1e-6) {
