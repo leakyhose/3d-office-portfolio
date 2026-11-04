@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { LIGHTMAP_INTENSITY } from './office'
 import { createNightSkyTexture } from './nightSky'
+import './output'
 
 const PAPER_RE = /^EXPERIENCE[ _]PAPER$/
 const ROOM_PREFIX = 'Room_'
@@ -29,7 +30,7 @@ export function applyBakedLighting(root: THREE.Object3D, lightmap: THREE.Texture
     mesh.receiveShadow = false
     if (mesh.name === SKY_NAME) {
       (mesh.material as THREE.Material).dispose()
-      mesh.material = new THREE.MeshBasicMaterial({ name: SKY_NAME, map: createNightSkyTexture() })
+      mesh.material = new THREE.MeshBasicMaterial({ name: SKY_NAME, map: createNightSkyTexture(), dithering: true })
       return
     }
     const meshLightmap = mesh.name.startsWith(ROOM_PREFIX) ? roomLightmap : lightmap
@@ -41,6 +42,7 @@ export function applyBakedLighting(root: THREE.Object3D, lightmap: THREE.Texture
           std.lightMap = meshLightmap
           std.lightMapIntensity = LIGHTMAP_INTENSITY
           std.envMapIntensity = 0
+          std.dithering = true // + the vignette (output.ts)
           std.needsUpdate = true
         }
         return std
@@ -61,6 +63,8 @@ export function applyBakedLighting(root: THREE.Object3D, lightmap: THREE.Texture
         // program re-check before each pass, every frame. The only such mesh
         // is a flat decal (ubc-logo), where one pass looks the same.
         forceSinglePass: true,
+        // output.ts: vignette + dithering
+        dithering: true,
         lightMap: hasLightmapUv ? meshLightmap : null,
         lightMapIntensity: LIGHTMAP_INTENSITY,
       })

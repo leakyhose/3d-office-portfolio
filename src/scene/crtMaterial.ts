@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import './output'
 
 /** Shared clock for the scene's animated shaders (CRT + ambience). */
 export const sceneTime = { value: 0 }
@@ -14,7 +15,7 @@ export const sceneTime = { value: 0 }
  * The canvas content is untouched, so text/video stays legible.
  */
 export function createCrtMaterial(map: THREE.Texture | null) {
-  const mat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.95, 0.95, 0.95), map })
+  const mat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.95, 0.95, 0.95), map, dithering: true })
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uCrtTime = sceneTime
     shader.vertexShader = shader.vertexShader

@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { sceneTime } from './crtMaterial'
+import './output'
 
 // One THREE.Points draw call for all the small life in the room:
 //  - warm dust motes drifting through the lamp light over the desk,
@@ -24,6 +25,7 @@ attribute vec4 aSeed; // phase, speed, world size, kind
 attribute vec3 aColor;
 varying vec3 vColor;
 varying float vAlpha;
+varying vec3 vOutputClip;
 void main() {
   vec3 p = position;
   float kind = aSeed.w;
@@ -44,6 +46,7 @@ void main() {
   vec4 mv = modelViewMatrix * vec4(p, 1.0);
   float dist = max(-mv.z, 0.01);
   gl_Position = projectionMatrix * mv;
+  vOutputClip = gl_Position.xyw;
   gl_PointSize = min(aSeed.z * uScale / dist, 9.0);
   // motes right in front of the lens would be big blurry blobs
   if (kind < 1.5) a *= smoothstep(1.0, 3.0, dist);
@@ -55,10 +58,11 @@ void main() {
 const fragmentShader = /* glsl */ `
 varying vec3 vColor;
 varying float vAlpha;
+#include <scene_vignette_pars>
 void main() {
   float r = length(gl_PointCoord - 0.5) * 2.0;
   float m = 1.0 - smoothstep(0.0, 1.0, r);
-  gl_FragColor = vec4(vColor * (m * m * vAlpha), 1.0);
+  gl_FragColor = vec4(vColor * (m * m * vAlpha * sceneVignette()), 1.0);
 }
 `
 

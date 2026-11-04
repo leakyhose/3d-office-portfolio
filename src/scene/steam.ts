@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import './output'
 
 // The scene has no realtime lights any more (lighting is baked), so the steam
 // cubes use an unlit material with a cheap fixed-direction lambert term
@@ -6,7 +7,7 @@ import * as THREE from 'three'
 // ambient floor keeps the shadowed faces light, like backlit vapour.
 const KEY_DIR = new THREE.Vector3(8, 14, 15).normalize() // scripts/bake/stage.py KEY_DIR
 export function createSteamMaterial() {
-  const mat = new THREE.MeshBasicMaterial({ color: '#e6e1d8' })
+  const mat = new THREE.MeshBasicMaterial({ color: '#e6e1d8', dithering: true })
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.keyDir = { value: KEY_DIR }
     shader.vertexShader = shader.vertexShader

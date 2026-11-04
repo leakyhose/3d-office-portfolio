@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { createSteamMaterial } from './steam'
 import { createCrtMaterial } from './crtMaterial'
 import { createAmbienceGeometry, createAmbienceMaterial } from './ambience'
+import { createBackdrop } from './output'
 
 /**
  * Starts compiling the scene's shader programs as soon as the WebGL context
@@ -32,25 +33,27 @@ export function prewarmPrograms(gl: THREE.WebGLRenderer, camera: THREE.Camera, f
 
   const materials: THREE.Material[] = [
     // GLB materials with a base colour texture / plain colour, + transparent decal
-    new THREE.MeshBasicMaterial({ map: tex(), lightMap, side: THREE.DoubleSide }),
-    new THREE.MeshBasicMaterial({ lightMap, side: THREE.DoubleSide }),
-    new THREE.MeshBasicMaterial({ map: tex(), lightMap, side: THREE.DoubleSide, transparent: true, forceSinglePass: true }),
+    new THREE.MeshBasicMaterial({ map: tex(), lightMap, side: THREE.DoubleSide, dithering: true }),
+    new THREE.MeshBasicMaterial({ lightMap, side: THREE.DoubleSide, dithering: true }),
+    new THREE.MeshBasicMaterial({ map: tex(), lightMap, side: THREE.DoubleSide, transparent: true, forceSinglePass: true, dithering: true }),
     // experience paper (keeps MeshStandardMaterial)
-    new THREE.MeshStandardMaterial({ map: tex(), lightMap, side: THREE.DoubleSide }),
+    new THREE.MeshStandardMaterial({ map: tex(), lightMap, side: THREE.DoubleSide, dithering: true }),
   ]
   const meshes: THREE.Object3D[] = materials.map((m) => new THREE.Mesh(glbLike, m))
   // computer screen (CRT tube; its mesh still has both UV sets)
   meshes.push(new THREE.Mesh(glbLike, createCrtMaterial(tex())))
   // night sky outside the window (unlit canvas texture, no lightmap UV set)
   const plain = new THREE.PlaneGeometry()
-  meshes.push(new THREE.Mesh(plain, new THREE.MeshBasicMaterial({ map: tex() })))
+  meshes.push(new THREE.Mesh(plain, new THREE.MeshBasicMaterial({ map: tex(), dithering: true })))
   // dust motes + LEDs
   const ambienceGeo = createAmbienceGeometry()
   meshes.push(new THREE.Points(ambienceGeo, createAmbienceMaterial()))
   // floor (PlaneGeometry + uv1, front side)
   const floorGeo = new THREE.PlaneGeometry()
   floorGeo.setAttribute('uv1', floorGeo.getAttribute('uv').clone())
-  meshes.push(new THREE.Mesh(floorGeo, new THREE.MeshBasicMaterial({ lightMap })))
+  meshes.push(new THREE.Mesh(floorGeo, new THREE.MeshBasicMaterial({ lightMap, dithering: true })))
+  // backdrop (fills what the scene doesn't cover)
+  meshes.push(createBackdrop(0x000000))
   // coffee steam
   meshes.push(new THREE.InstancedMesh(new THREE.BoxGeometry(), createSteamMaterial(), 1))
   scene.add(...meshes)
