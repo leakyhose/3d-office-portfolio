@@ -56,10 +56,18 @@ export const VIEWS: ViewsMap = {
   experience: {
     // Straight down over the sheet, lens-shifted so the top of the frame
     // stays on the floor past the desk's end (tilting would bring the back
-    // wall and its skirting under the title).
-    position: [5.95, 7.36, 2.2],
+    // wall and its skirting under the title). A longer lens from higher up:
+    // the sheet is as large as at 50 degrees, but the floor beside the desk
+    // shows less, so the frame's bottom ends before the rug and the panel's
+    // side is bare, dark floor from top to bottom. On squarer screens the
+    // floor between the wall and the rug can't fill the frame; the dolly
+    // holds a height above the middle, so wall and rug both stay past the
+    // title and the nav links.
+    position: [5.95, 8.51, 2.99],
     rotation: [-1.553, 0, 0],
-    wideShift: 0.3,
+    wideShift: -0.34,
+    wideFov: 36,
+    narrowHold: 0.35,
     pivotObject: 'EXPERIENCE_PAPER',
     subject: { names: ['EXPERIENCE_PAPER'], pad: 0.04 },
     // portrait: the original, slightly tilted angle (no lens shift there)

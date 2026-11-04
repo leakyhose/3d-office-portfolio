@@ -31,6 +31,15 @@ export interface ViewConfig {
    * aspects keep where that edge cuts the subject (see framing.ts).
    */
   wideShift?: number
+  /** Wide layout: vertical field of view (degrees), if not framing.ts's WIDE_FOV. */
+  wideFov?: number
+  /**
+   * Wide layout, narrower than 16:10, with a wideShift: the screen height
+   * (NDC, -1 bottom edge .. 1 top edge) whose place at the subject's depth
+   * the dolly back keeps; the extra height goes above and below it in
+   * proportion. Default: the frame edge nearest the optical axis.
+   */
+  narrowHold?: number
   /**
    * Wide layout, screens wider than 16:10: dolly in so the shot keeps the
    * width it has at 16:10, up to this aspect, instead of showing more at the

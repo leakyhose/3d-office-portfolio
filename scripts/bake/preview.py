@@ -20,12 +20,12 @@ SCALE = int(argv[4]) if len(argv) > 4 else 50
 os.makedirs(OUT, exist_ok=True)
 
 # position, look-at target (from src/config/views.ts; target = position + 20 * forward)
-# [, vertical lens shift (views.ts wideShift, NDC)]
+# [, vertical lens shift (views.ts wideShift, NDC) [, vertical FOV (wideFov)]]
 CAMS = {
     'home': ((-8, 12, 19), (4.96, 4.0, 6.04)),
     'about': ((-0.29, 5.61, 4.35), (-20.11, 7.91, 3.0)),
-    'experience': ((5.95, 7.36, 2.2), (5.95, -12.64, 1.84), 0.3),
-    'projects': ((0.2, 6.5, 6.0), (4.17, 6.5, -13.6), -0.74),
+    'experience': ((5.95, 8.51, 2.99), (5.95, -11.49, 2.63), -0.34, 36),
+    'projects': ((0.75, 5.4, 5.2), (0.75, 5.4, -14.8), -1.34),
     'contact': ((7.6, 7.9, -0.4), (-9.29, -2.7, -1.88)),
     'far': ((16, 16, 27), (-2, 4, 1)),
     'behind': ((14, 14, -16), (0, 4, 2)),
@@ -109,6 +109,7 @@ scene.camera = cam
 for v in VIEWS:
     pos, tgt = CAMS[v][:2]
     # setViewOffset shifts by NDC/2 of the height; Blender's shift is in units of the width
+    cam_data.angle_y = math.radians(CAMS[v][3] if len(CAMS[v]) > 3 else 50)
     cam_data.shift_y = -(CAMS[v][2] if len(CAMS[v]) > 2 else 0) / 2 * 900 / 1440
     cam.location = stage.t2b(pos)
     cam.rotation_euler = (stage.t2b(tgt) - stage.t2b(pos)).to_track_quat('-Z', 'Y').to_euler()

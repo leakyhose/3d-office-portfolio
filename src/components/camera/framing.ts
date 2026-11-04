@@ -62,6 +62,10 @@ export interface PoseSpec {
   wideShift?: number
   /** Wide layout: keep the 16:10 width on wider screens, up to this aspect (ViewConfig.keepWidth). */
   keepWidth?: number
+  /** Wide layout, narrower than 16:10: the screen height the dolly holds (ViewConfig.narrowHold). */
+  narrowHold?: number
+  /** Wide layout: vertical FOV (degrees) if not WIDE_FOV (ViewConfig.wideFov). */
+  wideFov?: number
   /** Wide layout, narrower than 16:10: ViewConfig.narrowRaise, with its clear box resolved. */
   narrowRaise?: { clear: THREE.Box3 | null; slide: number }
 }
@@ -154,7 +158,7 @@ export function resolvePose(spec: PoseSpec, ctx: FrameContext): Pose {
   }
 
   basis(spec.rotation)
-  const fov = WIDE_FOV
+  const fov = spec.wideFov ?? WIDE_FOV
   const tan = Math.tan(THREE.MathUtils.degToRad(fov) / 2)
   const shift = spec.wideShift ?? 0
   const keep = spec.keepWidth ?? 0
@@ -174,8 +178,9 @@ export function resolvePose(spec: PoseSpec, ctx: FrameContext): Pose {
   // Scale the shot about a height that stays put on screen: the subject's
   // centre, or for a lens-shifted shot the frame edge nearest the axis (the
   // bottom edge when shifted down, the top when shifted up), where it cuts
-  // the subject's depth.
-  const ya = shift ? (Math.sign(shift) - shift) * zs * tan : ys
+  // the subject's depth (or the height narrowHold names).
+  const hold = aspect < REF_ASPECT ? spec.narrowHold ?? Math.sign(shift) : Math.sign(shift)
+  const ya = shift ? (hold - shift) * zs * tan : ys
   pos.addScaledVector(_v, -(ya * k - ya))
   const raise = spec.narrowRaise
   if (aspect >= REF_ASPECT || !raise) return poseFrom(pos, fov, shift)
