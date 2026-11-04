@@ -76,7 +76,7 @@ export const VIEWS: ViewsMap = {
     rotation: [0, 0, 0],
     wideShift: -1.34,
     // as large as the gap beside the panel allows on wider screens
-    keepWidth: 1.9,
+    keepWidth: 2.25,
     pivotObject: 'ComputerScreen',
     subject: { names: ['ComputerScreen'], pad: 0.08 },
     // portrait: face the screen square-on so the demo fills the width
