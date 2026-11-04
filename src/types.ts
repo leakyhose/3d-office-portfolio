@@ -44,6 +44,18 @@ export interface ViewConfig {
    * and the scene behind a right-hand panel stays as framed at 16:10.
    */
   wideAnchor?: number
+  /**
+   * Wide layout, screens narrower than 16:10 (with a wideShift): the dolly
+   * back that keeps the subject's width leaves empty space above it. Spend
+   * it raising the subject (more vertical lens shift), back to where its top
+   * sits at 16:10 at most, and only as far as the frame's bottom edge can
+   * drop without showing any of `clear` (the desk clutter beside it).
+   * `slide`: the camera also moves to its left, this far (world units) at
+   * 4:3 and in proportion to how far the aspect is below 16:10, with a
+   * horizontal lens shift keeping the subject where it was on screen; the
+   * parallax tucks what stands behind the subject's right side out of sight.
+   */
+  narrowRaise?: { clear: Subject; slide: number }
   left: PanelId | null
   right: PanelId | null
 }

@@ -77,6 +77,10 @@ export const VIEWS: ViewsMap = {
     wideShift: -1.34,
     // as large as the gap beside the panel allows on wider screens
     keepWidth: 2.25,
+    // squarer screens: raise the monitor into the space above it, down to
+    // just above the phone; slid left to face the monitor head on, which
+    // keeps the speaker tucked behind the PC case out of sight
+    narrowRaise: { clear: { names: ['Phone_stand_ComputerDesk_0', 'Phonehandle_ComputerDesk_0'] }, slide: 0.9 },
     pivotObject: 'ComputerScreen',
     subject: { names: ['ComputerScreen'], pad: 0.08 },
     // portrait: face the screen square-on so the demo fills the width

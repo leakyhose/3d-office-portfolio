@@ -19,7 +19,11 @@ import type { Subject } from '../../types'
  *    A view with a vertical lens shift (wideShift) was framed against the
  *    frame edge nearest its optical axis (e.g. ending just above the desk
  *    clutter): the dolly keeps where that edge cuts the subject's depth, so
- *    it still clears what it was framed to clear.
+ *    it still clears what it was framed to clear. A narrowRaise view then
+ *    spends the room this leaves above the subject raising it (more lens
+ *    shift), as far as its clear objects allow, and slides the camera left
+ *    (a horizontal lens shift holding the subject in place) so less of what
+ *    stands behind the subject's right side shows.
  *  - Wide layout, wider than REF_ASPECT, keepWidth views: the same dolly,
  *    forwards, so the shot keeps its REF_ASPECT width up to the keepWidth
  *    aspect (wider still shows more at the sides).
@@ -43,6 +47,8 @@ export interface Pose {
    * down instead would sink it below the desk top for the low shots).
    */
   shiftY: number
+  /** Horizontal lens shift in NDC (the image moves left by this much), see narrowRaise. */
+  shiftX: number
 }
 
 export interface PoseSpec {
@@ -56,6 +62,8 @@ export interface PoseSpec {
   wideShift?: number
   /** Wide layout: keep the 16:10 width on wider screens, up to this aspect (ViewConfig.keepWidth). */
   keepWidth?: number
+  /** Wide layout, narrower than 16:10: ViewConfig.narrowRaise, with its clear box resolved. */
+  narrowRaise?: { clear: THREE.Box3 | null; slide: number }
 }
 
 export interface FrameContext {
@@ -66,7 +74,10 @@ export interface FrameContext {
 }
 
 const TARGET_DIST = 20
-const WIDE_TAN = Math.tan(THREE.MathUtils.degToRad(WIDE_FOV) / 2)
+/** narrowRaise: the aspect at which the camera has slid `slide` */
+const NARROW_ASPECT = 4 / 3
+/** narrowRaise: NDC kept between the frame's bottom edge and the clear objects */
+const CLEAR_PAD = 0.03
 
 const _q = new THREE.Quaternion()
 const _e = new THREE.Euler()
@@ -88,8 +99,23 @@ function basis(rotation: readonly [number, number, number], look?: readonly [num
   _f.set(0, 0, -1).applyQuaternion(_q)
 }
 
-function poseFrom(position: THREE.Vector3, fov: number, shiftY = 0): Pose {
-  return { position, target: position.clone().addScaledVector(_f, TARGET_DIST), fov, shiftY }
+function poseFrom(position: THREE.Vector3, fov: number, shiftY = 0, shiftX = 0): Pose {
+  return { position, target: position.clone().addScaledVector(_f, TARGET_DIST), fov, shiftY, shiftX }
+}
+
+const _p = new THREE.Vector3()
+
+/** Highest NDC y, before lens shift, of a box's corners seen from `from` (current basis; tan = tan(fov / 2)). */
+function boxTopNdc(box: THREE.Box3, from: THREE.Vector3, tan: number): number {
+  let best = -Infinity
+  for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) {
+    _p.set(x, y, z).sub(from)
+    const depth = _p.dot(_f)
+    if (depth <= 0.01) continue
+    const ny = _p.dot(_v) / (depth * tan)
+    best = Math.max(best, ny)
+  }
+  return best
 }
 
 /** Union of the world boxes of the subject's objects, padded (null if none found). */
@@ -119,16 +145,18 @@ export function resolvePose(spec: PoseSpec, ctx: FrameContext): Pose {
   }
 
   basis(spec.rotation)
+  const fov = WIDE_FOV
+  const tan = Math.tan(THREE.MathUtils.degToRad(fov) / 2)
   const shift = spec.wideShift ?? 0
   const keep = spec.keepWidth ?? 0
-  if ((aspect >= REF_ASPECT && !keep) || !spec.subject) return poseFrom(authored, WIDE_FOV, shift)
+  if ((aspect >= REF_ASPECT && !keep) || !spec.subject) return poseFrom(authored, fov, shift)
 
   // Subject centre in camera space (right, up, depth).
   spec.subject.getCenter(_c)
   _d.subVectors(_c, authored)
   const ys = _d.dot(_v)
   const zs = _d.dot(_f)
-  if (zs <= 0.01) return poseFrom(authored, WIDE_FOV, shift)
+  if (zs <= 0.01) return poseFrom(authored, fov, shift)
   // NDC x = x / (z tan A), NDC y = y / (z tan). Pushing the subject to depth
   // zs * k with k = REF / A keeps its NDC x (and its width on screen) as at
   // REF_ASPECT with the same x; scaling y by k keeps its NDC y too.
@@ -138,9 +166,22 @@ export function resolvePose(spec: PoseSpec, ctx: FrameContext): Pose {
   // centre, or for a lens-shifted shot the frame edge nearest the axis (the
   // bottom edge when shifted down, the top when shifted up), where it cuts
   // the subject's depth.
-  const ya = shift ? (Math.sign(shift) - shift) * zs * WIDE_TAN : ys
+  const ya = shift ? (Math.sign(shift) - shift) * zs * tan : ys
   pos.addScaledVector(_v, -(ya * k - ya))
-  return poseFrom(pos, WIDE_FOV, shift)
+  const raise = spec.narrowRaise
+  if (aspect >= REF_ASPECT || !raise) return poseFrom(pos, fov, shift)
+
+  // Slide left, `slide` at 4:3 and in proportion below 16:10 (more on
+  // squarer screens); the lens shift keeps the subject's centre put.
+  const slide = raise.slide * (REF_ASPECT - aspect) / (REF_ASPECT - NARROW_ASPECT)
+  pos.addScaledVector(_u, -slide)
+  const shiftX = slide / (zs * k * tan * aspect)
+  // Raise: back to the subject's top at 16:10 at most, and not so far that
+  // the frame's bottom edge (NDC -1 - shift before the shift) reaches the
+  // clear objects.
+  let lift = boxTopNdc(spec.subject, authored, tan) - boxTopNdc(spec.subject, pos, tan)
+  if (raise.clear) lift = Math.min(lift, -1 - boxTopNdc(raise.clear, pos, tan) - CLEAR_PAD - shift)
+  return poseFrom(pos, fov, shift + Math.max(0, lift), shiftX)
 }
 
 const _corners = Array.from({ length: 8 }, () => new THREE.Vector3())
