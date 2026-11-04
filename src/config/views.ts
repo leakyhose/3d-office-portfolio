@@ -85,10 +85,11 @@ export const VIEWS: ViewsMap = {
     right: 'projects',
   },
   contact: {
-    // From past the desk's end, over the phone onto the back wall; the desk
-    // edge and its shadow stay left of the links.
-    position: [7.6, 7.9, -0.4],
-    rotation: [-1.432, 1.006, 1.407],
+    // From above the desk's front-right corner, down onto the phone; the
+    // links sit over the evenly lit back wall beyond the desk, and the
+    // desk's corner stays left of the nav.
+    position: [6.5, 8.5, 3.0],
+    rotation: [-0.716, 0.422, 0.343],
     pivotObject: 'Phone_stand_ComputerDesk_0',
     subject: { names: ['Phone_stand_ComputerDesk_0', 'Phonehandle_ComputerDesk_0'], pad: 0.1 },
     stackedLook: [-0.35, -0.6, -1],
