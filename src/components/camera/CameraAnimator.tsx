@@ -4,7 +4,7 @@ import * as THREE from 'three'
 import { VIEWS, ANIM_DURATION, START_POSITION, START_ROTATION, START_SUBJECT } from '../../config/views'
 import { setNavigateTo, clearNavigateTo, setFreeCamHandler, clearFreeCamHandler, fireNavigationComplete, fireIntroPreComplete, setCameraAnimatingQuery, clearCameraAnimatingQuery } from './bridge'
 import { useScreenMesh } from '../screenMesh'
-import { easeInOut, easeOut } from './motion'
+import { easeInOut, easeOut, lookQuaternion, interpolateOrientation } from './motion'
 import { resolvePose, subjectBox, REF_ASPECT, type Pose } from './framing'
 import { layoutKindFor, stackedRegion, stackedSceneFraction, FULL_REGION, reducedMotionQuery, type LayoutKind } from '../../layout'
 import type { ViewName, Subject } from '../../types'
@@ -104,11 +104,16 @@ function CameraAnimator({ controlsRef, freeCam }: CameraAnimatorProps) {
   const animating = useRef(false)
   const introAnim = useRef(false)
   const startPos = useRef(new THREE.Vector3())
-  const startTarget = useRef(new THREE.Vector3())
   const goalPos = useRef(new THREE.Vector3())
   const goalTarget = useRef(new THREE.Vector3())
   const startFov = useRef(50)
   const goalFov = useRef(50)
+  // Orientation is interpolated directly (not via the look-at target; see
+  // interpolateOrientation), along with the target's distance.
+  const startQuat = useRef(new THREE.Quaternion())
+  const goalQuat = useRef(new THREE.Quaternion())
+  const startDist = useRef(20)
+  const goalDist = useRef(20)
   const elapsed = useRef(0)
   const duration = useRef(ANIM_DURATION)
 
@@ -189,18 +194,26 @@ function CameraAnimator({ controlsRef, freeCam }: CameraAnimatorProps) {
     oyLimits.current = computeOyLimits(restOff, restRight.current, MIN_POLAR, MAX_POLAR)
   }, [camera, controlsRef, fullScene])
 
+  /** Flight goal from a pose (also used to retarget mid-flight). */
+  const setGoal = useCallback((pose: Pose) => {
+    goalPos.current.copy(pose.position)
+    goalTarget.current.copy(pose.target)
+    lookQuaternion(pose.position, pose.target, goalQuat.current)
+    goalDist.current = pose.position.distanceTo(pose.target)
+    goalFov.current = pose.fov
+    goalShiftY.current = pose.shiftY
+  }, [])
+
   const navigateTo = useCallback((viewName: ViewName, dur?: number, isIntro?: boolean) => {
     const view = VIEWS[viewName]
     if (!view || !controlsRef.current) return
     const pose = poseFor(viewName)
     startPos.current.copy(camera.position)
-    startTarget.current.copy(controlsRef.current.target)
+    startQuat.current.copy(camera.quaternion)
+    startDist.current = Math.max(camera.position.distanceTo(controlsRef.current.target), 1e-3)
     startFov.current = (camera as THREE.PerspectiveCamera).fov
-    goalPos.current.copy(pose.position)
-    goalTarget.current.copy(pose.target)
-    goalFov.current = pose.fov
     startShiftY.current = shiftY.current
-    goalShiftY.current = pose.shiftY
+    setGoal(pose)
 
     currentShot.current = viewName
     elapsed.current = 0
@@ -218,7 +231,7 @@ function CameraAnimator({ controlsRef, freeCam }: CameraAnimatorProps) {
     ready.current = false
     dragOffset.current = { x: 0, y: 0 }
     if (isIntro) performance.mark('intro:anim-start')
-  }, [controlsRef, camera, viewSize, poseFor])
+  }, [controlsRef, camera, viewSize, poseFor, setGoal])
 
   useEffect(() => {
     setNavigateTo(navigateTo)
@@ -238,10 +251,7 @@ function CameraAnimator({ controlsRef, freeCam }: CameraAnimatorProps) {
     const shot = currentShot.current
     const pose = poseFor(shot)
     if (animating.current) {
-      goalPos.current.copy(pose.position)
-      goalTarget.current.copy(pose.target)
-      goalFov.current = pose.fov
-      goalShiftY.current = pose.shiftY
+      setGoal(pose)
       return
     }
     if (shot !== 'start' && kindChanged && ready.current) {
@@ -254,7 +264,7 @@ function CameraAnimator({ controlsRef, freeCam }: CameraAnimatorProps) {
     shiftY.current = goalShiftY.current = pose.shiftY
     rig.update()
     if (shot !== 'start' && ready.current) captureRest()
-  }, [size.width, size.height, poseFor, navigateTo, captureRest, camera, controlsRef, setFov])
+  }, [size.width, size.height, poseFor, navigateTo, captureRest, camera, controlsRef, setFov, setGoal])
 
   const handleFreeCam = useCallback((entering: boolean) => {
     if (entering) {
@@ -299,19 +309,25 @@ function CameraAnimator({ controlsRef, freeCam }: CameraAnimatorProps) {
     elapsed.current += delta
     const t = Math.min(elapsed.current / duration.current, 1)
     const eased = introAnim.current ? easeInOut(t) : easeOut(t)
+    // Position, orientation, FOV and lens shift all follow the same curve, so
+    // the camera stops moving and turning together.
     camera.position.lerpVectors(startPos.current, goalPos.current, eased)
-    controlsRef.current.target.lerpVectors(startTarget.current, goalTarget.current, eased)
+    interpolateOrientation(startQuat.current, goalQuat.current, eased, camera.quaternion)
+    const dist = startDist.current + (goalDist.current - startDist.current) * eased
+    controlsRef.current.target.set(0, 0, -dist).applyQuaternion(camera.quaternion).add(camera.position)
     setFov(startFov.current + (goalFov.current - startFov.current) * eased)
     const anchorEased = goalAnchorOx.current === 0 ? easeOut(t) : easeInOut(t)
     anchorOx.current = startAnchorOx.current + (goalAnchorOx.current - startAnchorOx.current) * anchorEased
     shiftY.current = startShiftY.current + (goalShiftY.current - startShiftY.current) * eased
-    controlsRef.current.update()
     if (introAnim.current && !introPreCompleteFired.current && t >= INTRO_PRE_COMPLETE_T) {
       introPreCompleteFired.current = true
       performance.mark('intro:pre-complete')
       if (currentShot.current !== 'start') fireIntroPreComplete(currentShot.current)
     }
     if (t >= 1) {
+      camera.position.copy(goalPos.current)
+      controlsRef.current.target.copy(goalTarget.current)
+      controlsRef.current.update()
       const wasIntro = introAnim.current
       animating.current = false
       introAnim.current = false
