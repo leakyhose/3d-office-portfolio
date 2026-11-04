@@ -17,9 +17,14 @@ type Shot = ViewName | 'start'
 // (lens shift via setViewOffset) so the monitor stays clear of the panel.
 // Below 16:10 the framing dolly takes over, so the shift is held there.
 // With keepWidth, framing.ts holds the 16:10 framing on wider screens instead.
+// A view's wideAnchor picks the side the extra width goes to (lens shift too).
 const ANCHOR_ASPECT = 16 / 9
 function computeAnchorGoal(shot: Shot, aspect: number, kind: LayoutKind) {
-  if (shot !== 'projects' || kind !== 'wide' || VIEWS.projects.keepWidth) return 0
+  if (shot === 'start' || kind !== 'wide') return 0
+  // wideAnchor: lens shift by a share of the width beyond 16:10 (see ViewConfig)
+  const anchor = VIEWS[shot].wideAnchor
+  if (anchor) return anchor * (1 - REF_ASPECT / Math.max(aspect, REF_ASPECT))
+  if (shot !== 'projects' || VIEWS.projects.keepWidth) return 0
   return 1 - ANCHOR_ASPECT / Math.max(aspect, REF_ASPECT)
 }
 

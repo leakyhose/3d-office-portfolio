@@ -76,7 +76,7 @@ export const VIEWS: ViewsMap = {
     rotation: [0, 0, 0],
     wideShift: -1.34,
     // as large as the gap beside the panel allows on wider screens
-    keepWidth: 1.9,
+    keepWidth: 2.25,
     pivotObject: 'ComputerScreen',
     subject: { names: ['ComputerScreen'], pad: 0.08 },
     // portrait: face the screen square-on so the demo fills the width
@@ -85,11 +85,17 @@ export const VIEWS: ViewsMap = {
     right: 'projects',
   },
   contact: {
-    // From above the desk's front-right corner, down onto the phone; the
-    // links sit over the evenly lit back wall beyond the desk, and the
-    // desk's corner stays left of the nav.
-    position: [6.5, 8.5, 3.0],
-    rotation: [-0.716, 0.422, 0.343],
+    // Low over the desk, close beside the phone, looking across its keypad
+    // toward the dark back corner (the original angle, a step closer): the
+    // title and links sit over the unlit wall above the desk's far edge.
+    // The exception to the rule above: from this low the desk fills the
+    // bottom of the frame, so the section nav sits over its bare, evenly lit
+    // top, below the experience sheet.
+    position: [2.26, 5.37, 2.38],
+    rotation: [-0.396, -1.077, -0.353],
+    // wider screens show more on the left (the whole phone) and keep the
+    // scene behind the panel as at 16:10, sheet clear of the text
+    wideAnchor: -1,
     pivotObject: 'Phone_stand_ComputerDesk_0',
     subject: { names: ['Phone_stand_ComputerDesk_0', 'Phonehandle_ComputerDesk_0'], pad: 0.1 },
     stackedLook: [-0.35, -0.6, -1],

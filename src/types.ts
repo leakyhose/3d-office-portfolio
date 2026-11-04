@@ -37,6 +37,13 @@ export interface ViewConfig {
    * sides (the subject stays as large as the space beside the panel allows).
    */
   keepWidth?: number
+  /**
+   * Wide layout, screens wider than 16:10: where the extra width goes
+   * (horizontal lens shift). 0 (default) splits it between both sides; -1
+   * keeps the right edge where it is at 16:10, so it all shows on the left
+   * and the scene behind a right-hand panel stays as framed at 16:10.
+   */
+  wideAnchor?: number
   left: PanelId | null
   right: PanelId | null
 }
