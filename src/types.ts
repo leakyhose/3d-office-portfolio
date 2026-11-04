@@ -26,17 +26,17 @@ export interface ViewConfig {
   stackedLook?: [number, number, number]
   /**
    * Wide layout: vertical lens shift (NDC, negative = the frame shows more
-   * above). Keeps a level camera's bottom edge at a fixed elevation, so a
-   * shot can end just above the desk clutter beside its subject; narrower
-   * screens then dolly back at the same height (see framing.ts).
+   * above). Lets a level camera end a shot at a chosen edge (just below the
+   * monitor, above the desk clutter beside it) without tilting; other
+   * aspects keep where that edge cuts the subject (see framing.ts).
    */
   wideShift?: number
   /**
    * Wide layout, screens wider than 16:10: dolly in so the shot keeps the
-   * width it has at 16:10 instead of showing more at the sides (where the
-   * panel would reach past the even part of the wall).
+   * width it has at 16:10, up to this aspect, instead of showing more at the
+   * sides (the subject stays as large as the space beside the panel allows).
    */
-  keepWidth?: boolean
+  keepWidth?: number
   left: PanelId | null
   right: PanelId | null
 }
