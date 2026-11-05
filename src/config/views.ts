@@ -8,10 +8,11 @@ import type { ViewsMap, Subject } from '../types'
 // dark floor around the desk, or the backdrop above its horizon): no objects,
 // edges, shadows or lighting gradients behind it, at any wide-layout aspect.
 
-// From the back-left corner: the title and menu sit over the dark right wall,
-// clear of the lamp's pool on the back wall.
-const INITIAL_POSITION: [number, number, number] = [-8, 12, 19]
-const INITIAL_ROTATION: [number, number, number] = [-0.553, -0.705, -0.381]
+// The original view: close above the desk's front-left corner, looking down
+// across it. The desk runs up from the lower left, the chair stands large in
+// the middle, and the title and menu fill the right over the bare floor.
+const INITIAL_POSITION: [number, number, number] = [-5.9, 10.47, 14.15]
+const INITIAL_ROTATION: [number, number, number] = [-0.588, -0.637, -0.377]
 
 /** Intro: the camera starts in front of the monitor while it boots. */
 export const START_POSITION: [number, number, number] = [-0.18, 7.28, 3.85]
