@@ -597,13 +597,13 @@ button:has(.typed:is(.is-empty, .is-off)) {
   font-size: clamp(52px, calc(13 * var(--uh)), 360px);
 }
 
-/* The menu starts 39% down the frame, as on the 1.84:1 frame: on squarer
-   screens the camera keeps that frame's width (views.ts refAspect), so the
-   chair keeps its height share while the vw-sized title shrinks; the menu
-   stays beside the chair instead of riding up above it. */
+/* The menu starts beside the chair's back: 39% down the 1.84:1 frame, and
+   on squarer screens where the camera's framing puts the chair (--menu-top,
+   set by HomePanel from views.ts narrowFill), not riding up above it with
+   the vw-sized title. */
 .layout-wide #menu {
   gap: calc(var(--fs-nav) * 0.31);
-  margin-top: max(calc(7.1 * var(--uh)), calc(39vh - 14.15 * var(--uh)));
+  margin-top: max(calc(7.1 * var(--uh)), calc(var(--menu-top, 0.39) * 100vh - 14.15 * var(--uh)));
   padding-right: calc(0.5 * var(--uh));
 }
 

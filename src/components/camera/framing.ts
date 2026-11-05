@@ -1,6 +1,6 @@
 import * as THREE from 'three'
-import type { LayoutKind, Region } from '../../layout'
-import type { Subject } from '../../types'
+import { narrowFillAt, type LayoutKind, type Region } from '../../layout'
+import type { NarrowFill, Subject } from '../../types'
 
 /*
  * Camera framing across aspect ratios.
@@ -70,6 +70,8 @@ export interface PoseSpec {
   wideFov?: number
   /** Wide layout: the aspect the pose is authored for, if not REF_ASPECT (ViewConfig.refAspect). */
   refAspect?: number
+  /** Wide layout, narrower than refAspect: ViewConfig.narrowFill. */
+  narrowFill?: NarrowFill
   /** Wide layout, narrower than 16:10: ViewConfig.narrowRaise, with its clear box resolved. */
   narrowRaise?: { clear: THREE.Box3 | null; slide: number }
 }
@@ -172,20 +174,33 @@ export function resolvePose(spec: PoseSpec, ctx: FrameContext): Pose {
   // Subject centre in camera space (right, up, depth).
   spec.subject.getCenter(_c)
   _d.subVectors(_c, authored)
+  const xs = _d.dot(_u)
   const ys = _d.dot(_v)
   const zs = _d.dot(_f)
   if (zs <= 0.01) return poseFrom(authored, fov, shift)
   // NDC x = x / (z tan A), NDC y = y / (z tan). Pushing the subject to depth
   // zs * k with k = REF / A keeps its NDC x (and its width on screen) as at
   // REF_ASPECT with the same x; scaling y by k keeps its NDC y too.
-  const k = ref / (keep ? Math.min(aspect, keep) : aspect)
+  // narrowFill keeps only g of that width: k = g REF / A.
+  const fill = aspect < ref && spec.narrowFill ? narrowFillAt(spec.narrowFill, aspect) : null
+  const k = (fill ? fill.g : 1) * ref / (keep ? Math.min(aspect, keep) : aspect)
   const pos = authored.clone().addScaledVector(_f, -(zs * k - zs))
   // Scale the shot about a height that stays put on screen: the subject's
   // centre, or for a lens-shifted shot the frame edge nearest the axis (the
   // bottom edge when shifted down, the top when shifted up), where it cuts
   // the subject's depth (or the height narrowHold names).
   const hold = aspect < ref ? spec.narrowHold ?? Math.sign(shift) : Math.sign(shift)
-  const ya = shift ? (hold - shift) * zs * tan : ys
+  let ya = shift ? (hold - shift) * zs * tan : ys
+  if (fill && spec.narrowFill) {
+    // ...or about narrowFill's anchor (blended in from the subject's centre):
+    // a point at x (camera space, subject depth) is at NDC x / (zs tan REF)
+    // in the REF frame; moving the camera sideways by xa (1 - g) keeps the
+    // anchor's NDC x as the shot narrows to g of the width.
+    const [ax, ay] = spec.narrowFill.anchor
+    const xa = THREE.MathUtils.lerp(xs, ax * zs * tan * ref, fill.t)
+    ya = THREE.MathUtils.lerp(ys, ay * zs * tan, fill.t)
+    pos.addScaledVector(_u, xa * (1 - fill.g))
+  }
   pos.addScaledVector(_v, -(ya * k - ya))
   const raise = spec.narrowRaise
   if (aspect >= ref || !raise) return poseFrom(pos, fov, shift)

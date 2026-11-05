@@ -35,6 +35,14 @@ export const VIEWS: ViewsMap = {
     // place beside the menu (and the cat stays in frame) instead of sliding
     // under it as the sides crop toward 16:10 and below.
     refAspect: 1.84,
+    // ...but that leaves squarer screens with the desk and chair small in the
+    // middle over empty floor. From 1.75 (16:9 is untouched) to 4:3 and
+    // below, keep only 86% of that width, scaled about a point near the
+    // chair's right edge, low in the frame: the chair holds its clearance
+    // from the menu, the scene grows down to the frame's bottom and to the
+    // left (the cat's tail and the desk's far end crop), and the menu moves
+    // down with the chair (HomePanel).
+    narrowFill: { from: 1.75, to: 1.33, keep: 0.86, anchor: [0.38, -0.6] },
     pivotObject: 'ComputerScreen',
     // what's on the desk (legs and chair may run off the frame)
     subject: {
