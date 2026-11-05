@@ -19,8 +19,18 @@ export const START_POSITION: [number, number, number] = [-0.18, 7.28, 3.85]
 export const START_ROTATION: [number, number, number] = [-0.154, -0.026, -0.004]
 export const START_SUBJECT: Subject = { names: ['ComputerScreen'], pad: 0.02 }
 
-/** Fog during the intro (colour, near, far); lifts as the camera pulls back. */
-export const INTRO_FOG: [string, number, number] = ['#1e1a15', 20, 65]
+/**
+ * The void around the office: the fog's colour and the backdrop above the
+ * floor's horizon. It is the plain floor's own colour on screen (its albedo
+ * times the floor lightmap's even edge texels: sRGB (22, 15, 6), measured with
+ * the vignette and dither off), so the far floor fades into the fog and the
+ * backdrop without a lighter band behind the Home title. The page behind the
+ * canvas is the same colour (--void in App.css, index.css, index.html).
+ */
+export const VOID_COLOR = '#160f06'
+
+/** Fog (colour, near, far): hides the edge of the world while the intro pulls back, and stays on. */
+export const INTRO_FOG: [string, number, number] = [VOID_COLOR, 20, 65]
 
 export const ANIM_DURATION = 1.5
 export const INTRO_ZOOM_DURATION = 3.0

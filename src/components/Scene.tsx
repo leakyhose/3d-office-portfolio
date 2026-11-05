@@ -23,8 +23,10 @@ import { createBackdrop } from '../scene/output'
 import { drawBlankScreen } from '../drawScreenTexture'
 import { warmVideos } from '../videoManager'
 import type { ScreenPhase } from '../types'
+import { VOID_COLOR } from '../config/views'
 
-const BACKGROUND = '#1e1a15'
+/** The floor's albedo (times its lightmap; on screen it comes out as VOID_COLOR). */
+const FLOOR_ALBEDO = '#1e1a15'
 const prepared = new WeakSet<THREE.Object3D>()
 
 const OfficeModel = memo(function OfficeModel() {
@@ -86,7 +88,7 @@ const OfficeModel = memo(function OfficeModel() {
 
 /** The backdrop colour above the floor's horizon (vignetted + dithered like the scene, see output.ts). */
 function Background() {
-  const mesh = useMemo(() => createBackdrop(BACKGROUND), [])
+  const mesh = useMemo(() => createBackdrop(VOID_COLOR), [])
   useEffect(() => () => {
     mesh.geometry.dispose()
     mesh.material.dispose()
@@ -109,7 +111,7 @@ function Floor() {
       uv1[i * 2 + 1] = (pos.getZ(i) - FLOOR_BAKE_CENTER[1]) / FLOOR_BAKE_SIZE + 0.5
     }
     geo.setAttribute('uv1', new THREE.BufferAttribute(uv1, 2))
-    const material = new THREE.MeshBasicMaterial({ color: BACKGROUND, lightMap: floorLightmap, lightMapIntensity: LIGHTMAP_INTENSITY, dithering: true })
+    const material = new THREE.MeshBasicMaterial({ color: FLOOR_ALBEDO, lightMap: floorLightmap, lightMapIntensity: LIGHTMAP_INTENSITY, dithering: true })
     const m = new THREE.Mesh(geo, material)
     m.position.set(0, -0.01, 0)
     return m

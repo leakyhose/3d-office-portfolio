@@ -6,7 +6,12 @@
    type never outgrows the viewport (ultrawide, phone landscape).
    ══════════════════════════════════════════════════════════════ */
 :root {
+  /* the stacked layout's panel sheet (and text set on it) */
   --bg: #1e1a15;
+  /* the page behind the canvas (wide layout): the scene's void (VOID_COLOR
+     in src/config/views.ts; also index.css, index.html), so the canvas fades
+     in over the colour its own fog and backdrop end in */
+  --void: #160f06;
   --ink: #f2ebdf;
   --ink-2: #d5ccbd;
   --muted: #a39887;
@@ -70,6 +75,12 @@
   overflow: hidden;
   font-family: 'VT323', monospace;
   color: var(--ink);
+  background: var(--void);
+}
+
+/* The panel sheet is up before the canvas fades in: keep the page its colour
+   so the empty sheet doesn't stand out against the void above it. */
+#app.layout-stacked {
   background: var(--bg);
 }
 
