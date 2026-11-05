@@ -29,6 +29,12 @@ export const VIEWS: ViewsMap = {
   home: {
     position: INITIAL_POSITION,
     rotation: INITIAL_ROTATION,
+    // Composed on the original 2000x1087 (1.84:1) frame, with the title and
+    // menu sized in vw up to that aspect (App.css #home-panel): narrower
+    // screens dolly back to keep that frame's width, so the chair keeps its
+    // place beside the menu (and the cat stays in frame) instead of sliding
+    // under it as the sides crop toward 16:10 and below.
+    refAspect: 1.84,
     pivotObject: 'ComputerScreen',
     // what's on the desk (legs and chair may run off the frame)
     subject: {

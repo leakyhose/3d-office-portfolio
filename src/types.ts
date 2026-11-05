@@ -34,6 +34,13 @@ export interface ViewConfig {
   /** Wide layout: vertical field of view (degrees), if not framing.ts's WIDE_FOV. */
   wideFov?: number
   /**
+   * Wide layout: the aspect the pose is authored for, if not 16:10. Narrower
+   * screens dolly back to keep the shot's width as it is at this aspect
+   * (see framing.ts), so a composition tuned with a CSS panel sized in vw up
+   * to this aspect keeps its proportions down to the stacked layout.
+   */
+  refAspect?: number
+  /**
    * Wide layout, narrower than 16:10, with a wideShift: the screen height
    * (NDC, -1 bottom edge .. 1 top edge) whose place at the subject's depth
    * the dolly back keeps; the extra height goes above and below it in

@@ -177,7 +177,7 @@ function CameraAnimator({ controlsRef, freeCam }: CameraAnimatorProps) {
     const view = VIEWS[shot]
     return resolvePose(
       {
-        position: view.position, rotation: view.rotation, stackedLook: view.stackedLook, wideShift: view.wideShift, keepWidth: view.keepWidth, wideFov: view.wideFov, narrowHold: view.narrowHold, subject: boxFor(view.subject),
+        position: view.position, rotation: view.rotation, stackedLook: view.stackedLook, wideShift: view.wideShift, keepWidth: view.keepWidth, refAspect: view.refAspect, wideFov: view.wideFov, narrowHold: view.narrowHold, subject: boxFor(view.subject),
         narrowRaise: view.narrowRaise && { clear: boxFor(view.narrowRaise.clear), slide: view.narrowRaise.slide },
       },
       { aspect, kind, region: stackedRegion(stackedSceneFraction(shot, w, h), h), width: w },
