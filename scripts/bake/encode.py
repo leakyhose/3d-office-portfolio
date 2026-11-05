@@ -83,7 +83,7 @@ def lin_to_srgb(x):
     return np.where(x <= 0.0031308, x * 12.92, 1.055 * np.power(x, 1 / 2.4) - 0.055)
 
 
-for which in ('atlas', 'room', 'floor'):
+for which in ('atlas', 'floor'):
     d, mask = read(os.path.join(src, f'{which}_diffuse.exr'))
     ao, _ = read(os.path.join(src, f'{which}_ao.exr'))
     final = d * (1 - AO + AO * ao[..., :1])

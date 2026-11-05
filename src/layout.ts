@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react'
-import type { ViewName } from './types'
+import type { NarrowFill, ViewName } from './types'
 
 /*
  * Screen layout, shared by the HTML overlay (CSS classes) and the camera
@@ -70,6 +70,29 @@ export function stackedRegion(sceneFraction: number, height: number): Region {
   // The panel's top fades in over the scene; keep the subject above the fade.
   const bottom = 1 - 2 * sceneFraction + 2 * 16 / height
   return { left: -0.9, right: 0.9, bottom, top: 1 - topPad }
+}
+
+/**
+ * Wide layout, a view's narrowFill at an aspect (see ViewConfig.narrowFill):
+ * how far the blend has gone (t, 0..1) and the share of the refAspect width
+ * the shot keeps (g, 1 = all of it). Shared by the camera framing and the
+ * panels that follow it.
+ */
+export function narrowFillAt(fill: NarrowFill, aspect: number): { t: number; g: number } {
+  const t = Math.min(1, Math.max(0, (fill.from - aspect) / (fill.from - fill.to)))
+  return { t, g: 1 - t * (1 - fill.keep) }
+}
+
+/**
+ * Where NDC height `y` of the refAspect frame (at the subject's depth) is on
+ * screen at `aspect`: the full narrowFill moves it as the shot scales about
+ * the anchor; the blend eases it in from staying put.
+ */
+export function narrowFillY(fill: NarrowFill, ref: number, aspect: number, y: number): number {
+  const { t, g } = narrowFillAt(fill, aspect)
+  const ay = fill.anchor[1]
+  const full = ay + (y - ay) * aspect / (g * ref)
+  return y + (full - y) * t
 }
 
 /** Region used before any panel is up (intro boot on the monitor). */

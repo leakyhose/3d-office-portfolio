@@ -16,6 +16,13 @@ export interface Subject {
   padTop?: number
 }
 
+export interface NarrowFill {
+  from: number
+  to: number
+  keep: number
+  anchor: [number, number]
+}
+
 export interface ViewConfig {
   position: [number, number, number]
   rotation: [number, number, number]
@@ -33,6 +40,23 @@ export interface ViewConfig {
   wideShift?: number
   /** Wide layout: vertical field of view (degrees), if not framing.ts's WIDE_FOV. */
   wideFov?: number
+  /**
+   * Wide layout: the aspect the pose is authored for, if not 16:10. Narrower
+   * screens dolly back to keep the shot's width as it is at this aspect
+   * (see framing.ts), so a composition tuned with a CSS panel sized in vw up
+   * to this aspect keeps its proportions down to the stacked layout.
+   */
+  refAspect?: number
+  /**
+   * Wide layout, narrower than refAspect: keeping the refAspect width leaves
+   * squarer screens with the shot small in the middle. From aspect `from`
+   * down to `to` this blends to keeping only `keep` of that width, scaled
+   * about `anchor` (an NDC point of the refAspect frame, at the subject's
+   * depth) instead of the subject's centre: the shot grows away from the
+   * anchor, so a point there (the chair's edge beside a panel, the frame's
+   * bottom edge) holds its place. See narrowFillAt.
+   */
+  narrowFill?: NarrowFill
   /**
    * Wide layout, narrower than 16:10, with a wideShift: the screen height
    * (NDC, -1 bottom edge .. 1 top edge) whose place at the subject's depth

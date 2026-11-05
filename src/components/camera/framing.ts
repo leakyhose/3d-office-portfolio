@@ -1,6 +1,6 @@
 import * as THREE from 'three'
-import type { LayoutKind, Region } from '../../layout'
-import type { Subject } from '../../types'
+import { narrowFillAt, type LayoutKind, type Region } from '../../layout'
+import type { NarrowFill, Subject } from '../../types'
 
 /*
  * Camera framing across aspect ratios.
@@ -10,6 +10,8 @@ import type { Subject } from '../../types'
  * for the actual viewport without changing its rotation, only by moving the
  * camera along its own axes:
  *
+ *  - A view may be authored for another aspect (refAspect); read REF_ASPECT
+ *    below as that aspect for it.
  *  - Wide layout, aspect >= REF_ASPECT: the authored pose as is (the vertical
  *    FOV is fixed, so wider screens just show more at the sides).
  *  - Wide layout, narrower than REF_ASPECT: dolly back around the subject so
@@ -66,6 +68,10 @@ export interface PoseSpec {
   narrowHold?: number
   /** Wide layout: vertical FOV (degrees) if not WIDE_FOV (ViewConfig.wideFov). */
   wideFov?: number
+  /** Wide layout: the aspect the pose is authored for, if not REF_ASPECT (ViewConfig.refAspect). */
+  refAspect?: number
+  /** Wide layout, narrower than refAspect: ViewConfig.narrowFill. */
+  narrowFill?: NarrowFill
   /** Wide layout, narrower than 16:10: ViewConfig.narrowRaise, with its clear box resolved. */
   narrowRaise?: { clear: THREE.Box3 | null; slide: number }
 }
@@ -162,32 +168,46 @@ export function resolvePose(spec: PoseSpec, ctx: FrameContext): Pose {
   const tan = Math.tan(THREE.MathUtils.degToRad(fov) / 2)
   const shift = spec.wideShift ?? 0
   const keep = spec.keepWidth ?? 0
-  if ((aspect >= REF_ASPECT && !keep) || !spec.subject) return poseFrom(authored, fov, shift)
+  const ref = spec.refAspect ?? REF_ASPECT
+  if ((aspect >= ref && !keep) || !spec.subject) return poseFrom(authored, fov, shift)
 
   // Subject centre in camera space (right, up, depth).
   spec.subject.getCenter(_c)
   _d.subVectors(_c, authored)
+  const xs = _d.dot(_u)
   const ys = _d.dot(_v)
   const zs = _d.dot(_f)
   if (zs <= 0.01) return poseFrom(authored, fov, shift)
   // NDC x = x / (z tan A), NDC y = y / (z tan). Pushing the subject to depth
   // zs * k with k = REF / A keeps its NDC x (and its width on screen) as at
   // REF_ASPECT with the same x; scaling y by k keeps its NDC y too.
-  const k = REF_ASPECT / (keep ? Math.min(aspect, keep) : aspect)
+  // narrowFill keeps only g of that width: k = g REF / A.
+  const fill = aspect < ref && spec.narrowFill ? narrowFillAt(spec.narrowFill, aspect) : null
+  const k = (fill ? fill.g : 1) * ref / (keep ? Math.min(aspect, keep) : aspect)
   const pos = authored.clone().addScaledVector(_f, -(zs * k - zs))
   // Scale the shot about a height that stays put on screen: the subject's
   // centre, or for a lens-shifted shot the frame edge nearest the axis (the
   // bottom edge when shifted down, the top when shifted up), where it cuts
   // the subject's depth (or the height narrowHold names).
-  const hold = aspect < REF_ASPECT ? spec.narrowHold ?? Math.sign(shift) : Math.sign(shift)
-  const ya = shift ? (hold - shift) * zs * tan : ys
+  const hold = aspect < ref ? spec.narrowHold ?? Math.sign(shift) : Math.sign(shift)
+  let ya = shift ? (hold - shift) * zs * tan : ys
+  if (fill && spec.narrowFill) {
+    // ...or about narrowFill's anchor (blended in from the subject's centre):
+    // a point at x (camera space, subject depth) is at NDC x / (zs tan REF)
+    // in the REF frame; moving the camera sideways by xa (1 - g) keeps the
+    // anchor's NDC x as the shot narrows to g of the width.
+    const [ax, ay] = spec.narrowFill.anchor
+    const xa = THREE.MathUtils.lerp(xs, ax * zs * tan * ref, fill.t)
+    ya = THREE.MathUtils.lerp(ys, ay * zs * tan, fill.t)
+    pos.addScaledVector(_u, xa * (1 - fill.g))
+  }
   pos.addScaledVector(_v, -(ya * k - ya))
   const raise = spec.narrowRaise
-  if (aspect >= REF_ASPECT || !raise) return poseFrom(pos, fov, shift)
+  if (aspect >= ref || !raise) return poseFrom(pos, fov, shift)
 
   // Slide left, `slide` at 4:3 and in proportion below 16:10 (more on
   // squarer screens); the lens shift keeps the subject's centre put.
-  const slide = raise.slide * (REF_ASPECT - aspect) / (REF_ASPECT - NARROW_ASPECT)
+  const slide = raise.slide * (ref - aspect) / (ref - NARROW_ASPECT)
   pos.addScaledVector(_u, -slide)
   const shiftX = slide / (zs * k * tan * aspect)
   // Raise: back to the subject's top at 16:10 at most, and not so far that

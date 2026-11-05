@@ -28,13 +28,13 @@ const BACKGROUND = '#1e1a15'
 const prepared = new WeakSet<THREE.Object3D>()
 
 const OfficeModel = memo(function OfficeModel() {
-  const { scene, lightmap, roomLightmap } = getOfficeAssets()
+  const { scene, lightmap } = getOfficeAssets()
   const { setScreenSetup, setFullScene } = useScreenMesh()
 
   // Swap in the baked-lighting materials before the scene is first rendered.
   if (!prepared.has(scene)) {
     prepared.add(scene)
-    applyBakedLighting(scene, lightmap, roomLightmap)
+    applyBakedLighting(scene, lightmap)
   }
 
   useLayoutEffect(() => {
@@ -84,7 +84,7 @@ const OfficeModel = memo(function OfficeModel() {
   return null
 })
 
-/** The backdrop colour behind the room (vignetted + dithered like the scene, see output.ts). */
+/** The backdrop colour above the floor's horizon (vignetted + dithered like the scene, see output.ts). */
 function Background() {
   const mesh = useMemo(() => createBackdrop(BACKGROUND), [])
   useEffect(() => () => {

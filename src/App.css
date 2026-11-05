@@ -259,6 +259,23 @@ kbd {
   padding-top: var(--gap-l);
 }
 
+/* Section nav links laid out but never shown: sets up their font sizes ahead
+   of the first panel swap (SectionNavWarmup). A 1px box, so it can't add
+   overflow anywhere; its content is still laid out in full. */
+.nav-warmup {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  display: flex;
+  white-space: nowrap;
+  font-family: 'VT323', monospace;
+  visibility: hidden;
+  pointer-events: none;
+}
+
 /* ── Home ── */
 #name-title {
   font-size: var(--fs-display);
@@ -579,6 +596,32 @@ button:has(.typed:is(.is-empty, .is-off)) {
 
 .layout-wide .panel-right .project-header {
   justify-content: flex-end;
+}
+
+/* Home: the name and menu at their original size, in proportion to the
+   frame: the name across the top right, over the floor behind the desk, the
+   menu down the right beside the chair. --uh is 1vw up to the original
+   1.84:1 frame and follows the height on wider screens, so the column keeps
+   its share of the frame (and its place beside the chair) at any aspect. */
+.layout-wide #home-panel {
+  --uh: min(1vw, 1.84vh);
+  --fs-nav: clamp(22px, calc(3.4 * var(--uh)), 96px);
+  width: auto;
+  padding: calc(2.45 * var(--uh)) calc(6.5 * var(--uh)) 0 0;
+}
+
+.layout-wide #name-title {
+  font-size: clamp(52px, calc(13 * var(--uh)), 360px);
+}
+
+/* The menu starts beside the chair's back: 39% down the 1.84:1 frame, and
+   on squarer screens where the camera's framing puts the chair (--menu-top,
+   set by HomePanel from views.ts narrowFill), not riding up above it with
+   the vw-sized title. */
+.layout-wide #menu {
+  gap: calc(var(--fs-nav) * 0.31);
+  margin-top: max(calc(7.1 * var(--uh)), calc(var(--menu-top, 0.39) * 100vh - 14.15 * var(--uh)));
+  padding-right: calc(0.5 * var(--uh));
 }
 
 /* the monitor fills the left half of the projects shot */

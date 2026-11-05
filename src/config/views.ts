@@ -4,14 +4,15 @@ import type { ViewsMap, Subject } from '../types'
 // src/components/camera/framing.ts adapts them to the actual aspect ratio and
 // layout using each view's `subject` (GLB object names).
 
-// Every pose keeps the panels' text over empty, evenly lit scene (bare wall,
-// floor or darkness): no objects, edges or lighting gradients behind it, at
-// any wide-layout aspect.
+// Every pose keeps the panels' text over empty, evenly lit scene (the plain,
+// dark floor around the desk, or the backdrop above its horizon): no objects,
+// edges, shadows or lighting gradients behind it, at any wide-layout aspect.
 
-// From the back-left corner: the title and menu sit over the dark right wall,
-// clear of the lamp's pool on the back wall.
-const INITIAL_POSITION: [number, number, number] = [-8, 12, 19]
-const INITIAL_ROTATION: [number, number, number] = [-0.553, -0.705, -0.381]
+// The original view: close above the desk's front-left corner, looking down
+// across it. The desk runs up from the lower left, the chair stands large in
+// the middle, and the title and menu fill the right over the bare floor.
+const INITIAL_POSITION: [number, number, number] = [-5.9, 10.47, 14.15]
+const INITIAL_ROTATION: [number, number, number] = [-0.588, -0.637, -0.377]
 
 /** Intro: the camera starts in front of the monitor while it boots. */
 export const START_POSITION: [number, number, number] = [-0.18, 7.28, 3.85]
@@ -28,6 +29,20 @@ export const VIEWS: ViewsMap = {
   home: {
     position: INITIAL_POSITION,
     rotation: INITIAL_ROTATION,
+    // Composed on the original 2000x1087 (1.84:1) frame, with the title and
+    // menu sized in vw up to that aspect (App.css #home-panel): narrower
+    // screens dolly back to keep that frame's width, so the chair keeps its
+    // place beside the menu (and the cat stays in frame) instead of sliding
+    // under it as the sides crop toward 16:10 and below.
+    refAspect: 1.84,
+    // ...but that leaves squarer screens with the desk and chair small in the
+    // middle over empty floor. From 1.75 (16:9 is untouched) to 4:3 and
+    // below, keep only 86% of that width, scaled about a point near the
+    // chair's right edge, low in the frame: the chair holds its clearance
+    // from the menu, the scene grows down to the frame's bottom and to the
+    // left (the cat's tail and the desk's far end crop), and the menu moves
+    // down with the chair (HomePanel).
+    narrowFill: { from: 1.75, to: 1.33, keep: 0.86, anchor: [0.38, -0.6] },
     pivotObject: 'ComputerScreen',
     // what's on the desk (legs and chair may run off the frame)
     subject: {
