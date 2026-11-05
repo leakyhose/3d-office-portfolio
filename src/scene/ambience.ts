@@ -2,15 +2,13 @@ import * as THREE from 'three'
 import { sceneTime } from './crtMaterial'
 import './output'
 
-// One THREE.Points draw call for all the small life in the room:
-//  - warm dust motes drifting through the lamp light over the desk,
-//  - cool motes in the moonlight falling through the window,
+// One THREE.Points draw call for all the small life on the desk:
+//  - warm dust motes drifting through the light over the desk,
 //  - the PC's power LED (steady green) and HDD LED (flickers in bursts).
 // Everything moves in the vertex shader from static attributes, so the CPU
 // does nothing per frame beyond updating two uniforms.
 
 const KIND_DUST = 0
-const KIND_MOON = 1
 const KIND_LED = 2
 const KIND_HDD = 3
 
@@ -96,8 +94,7 @@ export function createAmbienceGeometry() {
   const add = (p: [number, number, number], s: [number, number, number, number], c: [number, number, number]) => {
     pos.push(...p); seed.push(...s); col.push(...c)
   }
-  // lamp-lit dust over the desk and chair
-  // (kept low and in front of the wall, where the lamp actually lights them)
+  // dust in the light over the desk and chair
   for (let i = 0; i < 55; i++) {
     const b = 0.35 + rand() * 0.35
     add(
@@ -105,16 +102,6 @@ export function createAmbienceGeometry() {
       [rand(), 0.35 + rand() * 0.5, 0.04 + rand() * 0.035, KIND_DUST],
       [b, b * 0.82, b * 0.55],
     )
-  }
-  // moonbeam motes: along the light falling through the window onto the desk
-  const dir = new THREE.Vector3(2, -4.7, 3).normalize()
-  // (only its lower part, where it crosses the desk next to the cat)
-  for (let i = 0; i < 20; i++) {
-    const start = new THREE.Vector3(-8.2 + rand() * 4.4, 6.8 + rand() * 5.2, -0.9)
-    const p = start.addScaledVector(dir, 2.5 + rand() * 2.5)
-    if (p.y < 5) p.y = 5 + rand()
-    const b = 0.35 + rand() * 0.3
-    add([p.x, p.y, p.z], [rand(), 0.25 + rand() * 0.35, 0.035 + rand() * 0.025, KIND_MOON], [b * 0.7, b * 0.82, b])
   }
   add(POWER_LED, [0, 0, 0.08, KIND_LED], [0.45, 1.0, 0.5])
   add(HDD_LED, [rand(), 0, 0.075, KIND_HDD], [1.0, 0.65, 0.2])

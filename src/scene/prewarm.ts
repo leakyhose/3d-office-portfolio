@@ -42,9 +42,6 @@ export function prewarmPrograms(gl: THREE.WebGLRenderer, camera: THREE.Camera, f
   const meshes: THREE.Object3D[] = materials.map((m) => new THREE.Mesh(glbLike, m))
   // computer screen (CRT tube; its mesh still has both UV sets)
   meshes.push(new THREE.Mesh(glbLike, createCrtMaterial(tex())))
-  // night sky outside the window (unlit canvas texture, no lightmap UV set)
-  const plain = new THREE.PlaneGeometry()
-  meshes.push(new THREE.Mesh(plain, new THREE.MeshBasicMaterial({ map: tex(), dithering: true })))
   // dust motes + LEDs
   const ambienceGeo = createAmbienceGeometry()
   meshes.push(new THREE.Points(ambienceGeo, createAmbienceMaterial()))
@@ -68,7 +65,7 @@ export function prewarmPrograms(gl: THREE.WebGLRenderer, camera: THREE.Camera, f
     release = null
     compiled.then(() => {
       for (const m of meshes) ((m as THREE.Mesh).material as THREE.Material).dispose()
-      glbLike.dispose(); floorGeo.dispose(); plain.dispose(); ambienceGeo.dispose()
+      glbLike.dispose(); floorGeo.dispose(); ambienceGeo.dispose()
     })
   }
 }

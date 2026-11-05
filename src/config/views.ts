@@ -4,9 +4,9 @@ import type { ViewsMap, Subject } from '../types'
 // src/components/camera/framing.ts adapts them to the actual aspect ratio and
 // layout using each view's `subject` (GLB object names).
 
-// Every pose keeps the panels' text over empty, evenly lit scene (bare wall,
-// floor or darkness): no objects, edges or lighting gradients behind it, at
-// any wide-layout aspect.
+// Every pose keeps the panels' text over empty, evenly lit scene (the plain,
+// dark floor around the desk, or the backdrop above its horizon): no objects,
+// edges, shadows or lighting gradients behind it, at any wide-layout aspect.
 
 // From the back-left corner: the title and menu sit over the dark right wall,
 // clear of the lamp's pool on the back wall.

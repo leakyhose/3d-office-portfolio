@@ -4,14 +4,11 @@ import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.j
 import officeUrl from '../assets/office.glb?url'
 import lightmapUrl from '../assets/office-lightmap.webp?url'
 import floorLightmapUrl from '../assets/floor-lightmap.avif?url'
-import roomLightmapUrl from '../assets/room-lightmap.avif?url'
 import floorLightmapFallbackUrl from '../assets/floor-lightmap.webp?url'
-import roomLightmapFallbackUrl from '../assets/room-lightmap.webp?url'
 
-// Lighting is baked offline (Blender/Cycles, see scripts/bake/) into three
-// lightmaps (UV set TEXCOORD_1): one atlas for the desk model's meshes, one
-// for the room around it (Room_* meshes: walls, window, rug) and one for the
-// floor patch inside the room. The encoded value is
+// Lighting is baked offline (Blender/Cycles, see scripts/bake/) into two
+// lightmaps (UV set TEXCOORD_1): one atlas for the desk model's meshes and
+// one for the floor patch under it. The encoded value is
 // (diffuse irradiance / PI) / LIGHTMAP_SCALE in sRGB, so the runtime factor
 // that reproduces Cycles' result with three's lightMap math
 // (albedo * texel * intensity / PI) is PI * LIGHTMAP_SCALE.
@@ -19,26 +16,26 @@ export const LIGHTMAP_SCALE = 1.5
 export const LIGHTMAP_INTENSITY = Math.PI * LIGHTMAP_SCALE
 
 // The floor lightmap covers a FLOOR_BAKE_SIZE square (world units) centred on
-// FLOOR_BAKE_CENTER (x, z); outside it the clamped edge texels continue.
+// FLOOR_BAKE_CENTER (x, z), around every shadow the key casts; outside it the
+// clamped edge texels continue as evenly lit floor to the horizon.
 // Keep in sync with scripts/bake/bake.py.
-export const FLOOR_BAKE_SIZE = 36
-export const FLOOR_BAKE_CENTER: [number, number] = [5, 12]
+export const FLOOR_BAKE_SIZE = 32
+export const FLOOR_BAKE_CENTER: [number, number] = [-2, 3]
 
 export interface OfficeAssets {
   scene: THREE.Group
   lightmap: THREE.Texture
-  roomLightmap: THREE.Texture
   floorLightmap: THREE.Texture
 }
 
-export const OFFICE_ASSET_URLS = [officeUrl, lightmapUrl, roomLightmapUrl, floorLightmapUrl]
+export const OFFICE_ASSET_URLS = [officeUrl, lightmapUrl, floorLightmapUrl]
 
-// The room and floor lightmaps are 4:4:4 AVIF: lossy WebP turned the walls'
-// and floor's smooth gradients into blocks and rings (see
-// scripts/bake/bake.sh). Browsers that can't decode AVIF (Safari before 16,
-// or on macOS before Ventura) fall back to WebP copies (only the AVIFs are
-// preloaded). The desk atlas stays WebP: its AVIF decodes ~70% slower, and it
-// is the last download the first frame waits for.
+// The floor lightmap is 4:4:4 AVIF: lossy WebP turned the soft shadows'
+// gradients into blocks and rings (see scripts/bake/bake.sh). Browsers that
+// can't decode AVIF (Safari before 16, or on macOS before Ventura) fall back
+// to a WebP copy (only the AVIF is preloaded). The desk atlas stays WebP: its
+// AVIF decodes ~70% slower, and it is the last download the first frame waits
+// for.
 function loadLightmap(url: string, fallbackUrl: string): Promise<THREE.Texture> {
   return loadTexture(url).catch(() => loadTexture(fallbackUrl))
 }
@@ -80,12 +77,11 @@ export function loadOffice(): Promise<OfficeAssets> {
   gltfLoader.setMeshoptDecoder(MeshoptDecoder)
   lightmaps = [
     loadTexture(lightmapUrl),
-    loadLightmap(roomLightmapUrl, roomLightmapFallbackUrl),
     loadLightmap(floorLightmapUrl, floorLightmapFallbackUrl),
   ]
-  promise = Promise.all([gltfLoader.loadAsync(officeUrl), ...lightmaps]).then(([gltf, lightmap, roomLightmap, floorLightmap]) => {
+  promise = Promise.all([gltfLoader.loadAsync(officeUrl), ...lightmaps]).then(([gltf, lightmap, floorLightmap]) => {
     performance.mark('stage:assets-loaded')
-    loaded = { scene: gltf.scene, lightmap, roomLightmap, floorLightmap }
+    loaded = { scene: gltf.scene, lightmap, floorLightmap }
     return loaded
   })
   return promise

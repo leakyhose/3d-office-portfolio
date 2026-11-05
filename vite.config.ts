@@ -13,7 +13,7 @@ import { EXPERIENCE } from './src/config/experience'
 // <link> would wait for the CSS to download before running, delaying every
 // 3D download by a round trip or more.
 function preloadSceneAssets(): Plugin {
-  const patterns = [/office.*\.glb$/, /office-lightmap.*\.webp$/, /(room|floor)-lightmap.*\.avif$/]
+  const patterns = [/office.*\.glb$/, /office-lightmap.*\.webp$/, /floor-lightmap.*\.avif$/]
   return {
     name: 'preload-scene-assets',
     apply: 'build',
