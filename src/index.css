@@ -8,8 +8,8 @@ html, body, #root {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  /* same colour as the 3D scene background, so the page looks like the
-     scene's backdrop before the canvas fades in */
-  background: #1e1a15;
+  /* the 3D scene's void (fog + backdrop: VOID_COLOR in src/config/views.ts),
+     so the page looks like the scene's backdrop before the canvas fades in */
+  background: #160f06;
   -webkit-text-size-adjust: 100%;
 }

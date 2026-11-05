@@ -24,7 +24,8 @@ export const START_SUBJECT: Subject = { names: ['ComputerScreen'], pad: 0.02 }
  * floor's horizon. It is the plain floor's own colour on screen (its albedo
  * times the floor lightmap's even edge texels: sRGB (22, 15, 6), measured with
  * the vignette and dither off), so the far floor fades into the fog and the
- * backdrop without a lighter band behind the Home title.
+ * backdrop without a lighter band behind the Home title. The page behind the
+ * canvas is the same colour (--void in App.css, index.css, index.html).
  */
 export const VOID_COLOR = '#160f06'
 
