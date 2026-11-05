@@ -10,6 +10,11 @@
          before the CSS bundle and the canvas arrive. -->
     <style>
       html, body { margin: 0; background: #160f06; }
+      /* stacked layout (layoutKindFor in src/layout.ts): the panel sheet's
+         colour, so the still-empty sheet doesn't show as a lighter block */
+      @media (max-aspect-ratio: 11/10), (max-width: 599.98px) {
+        html, body { background: #1e1a15; }
+      }
     </style>
   </head>
   <body>

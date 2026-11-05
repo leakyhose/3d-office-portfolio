@@ -13,3 +13,12 @@ html, body, #root {
   background: #160f06;
   -webkit-text-size-adjust: 100%;
 }
+
+/* stacked layout (layoutKindFor in src/layout.ts): the panel sheet (--bg)
+   covers the bottom of the screen from the first frame, so the page matches
+   it there rather than the void (see #app.layout-stacked in App.css) */
+@media (max-aspect-ratio: 11/10), (max-width: 599.98px) {
+  html, body, #root {
+    background: #1e1a15;
+  }
+}
