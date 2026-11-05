@@ -6,6 +6,7 @@ import { navigateToView, jumpToView, triggerIntroZoom, enterFreeCam, setOnNaviga
 import PANELS from './panels'
 import { invalidateTypedLayout } from './components/typedLayout'
 import { SECTIONS, hrefFor, navClick } from './panels/sections'
+import { SectionNavWarmup } from './panels/SectionNav'
 import { canRender3D, StageBoundary } from './capabilities'
 import { useScreenLayout, useCanHover, stackedSceneFraction } from './layout'
 import './App.css'
@@ -211,6 +212,17 @@ function App() {
     const t = setTimeout(() => setKeyHintArmed(true), 800)
     return () => clearTimeout(t)
   }, [introComplete, keyboardScene])
+
+  // Wide layout: set up the section nav's font sizes on Home once the intro
+  // is done and the page is idle, not in the first swap (SectionNavWarmup).
+  const [warmNav, setWarmNav] = useState(false)
+  useEffect(() => {
+    if (!introComplete || warmNav) return
+    const ric = window.requestIdleCallback ?? ((cb: () => void) => window.setTimeout(cb, 500))
+    const cic = window.cancelIdleCallback ?? window.clearTimeout
+    const id = ric(() => setWarmNav(true))
+    return () => cic(id)
+  }, [introComplete, warmNav])
 
   // In free cam, fade the HUD after 2s of inactivity so only the scene shows.
   useEffect(() => {
@@ -449,6 +461,7 @@ function App() {
             <span><kbd>Esc</kbd>home</span>
           </div>
         )}
+        {warmNav && mode === 'wide' && <SectionNavWarmup />}
       </div>
     </div>
   )

@@ -25,6 +25,27 @@ interface SectionNavProps {
   onNavigate: (v: ViewName, e?: NavEvent) => void
 }
 
+/**
+ * An invisible copy of the section nav's links (App.css .nav-warmup). On the
+ * wide layout the Home menu is set larger than --fs-nav, so nothing on Home
+ * uses the section nav's text and icon sizes: without this, the first swap
+ * away from Home sets up VT323 and the icon font at those sizes (shaping,
+ * glyph metrics) inside the swap's layout, in the middle of the flight.
+ * Mounted once Home is idle, it pays for that up front.
+ */
+export function SectionNavWarmup() {
+  return (
+    <div className="nav-warmup" aria-hidden="true">
+      {SECTIONS.map((s) => (
+        <span key={s.view} className="nav-link">
+          <i className={`hn hn-${s.icon}`} />
+          {s.label}
+        </span>
+      ))}
+    </div>
+  )
+}
+
 /** The other sections, at the foot of every panel (hidden in the stacked layout, which has a tab bar). */
 export default function SectionNav({ current, visible, onNavigate }: SectionNavProps) {
   return (

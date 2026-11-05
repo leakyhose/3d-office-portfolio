@@ -259,6 +259,23 @@ kbd {
   padding-top: var(--gap-l);
 }
 
+/* Section nav links laid out but never shown: sets up their font sizes ahead
+   of the first panel swap (SectionNavWarmup). A 1px box, so it can't add
+   overflow anywhere; its content is still laid out in full. */
+.nav-warmup {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  display: flex;
+  white-space: nowrap;
+  font-family: 'VT323', monospace;
+  visibility: hidden;
+  pointer-events: none;
+}
+
 /* ── Home ── */
 #name-title {
   font-size: var(--fs-display);
