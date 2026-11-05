@@ -581,6 +581,28 @@ button:has(.typed:is(.is-empty, .is-off)) {
   justify-content: flex-end;
 }
 
+/* Home: the name and menu at their original size, in proportion to the
+   frame: the name across the top right, over the floor behind the desk, the
+   menu down the right beside the chair. --uh is 1vw up to the original
+   1.84:1 frame and follows the height on wider screens, so the column keeps
+   its share of the frame (and its place beside the chair) at any aspect. */
+.layout-wide #home-panel {
+  --uh: min(1vw, 1.84vh);
+  --fs-nav: clamp(22px, calc(3.4 * var(--uh)), 96px);
+  width: auto;
+  padding: calc(2.45 * var(--uh)) calc(6.5 * var(--uh)) 0 0;
+}
+
+.layout-wide #name-title {
+  font-size: clamp(52px, calc(13 * var(--uh)), 360px);
+}
+
+.layout-wide #menu {
+  gap: calc(var(--fs-nav) * 0.31);
+  margin-top: calc(7.1 * var(--uh));
+  padding-right: calc(0.5 * var(--uh));
+}
+
 /* the monitor fills the left half of the projects shot */
 .layout-wide #projects-panel {
   width: min(44vw, 860px);

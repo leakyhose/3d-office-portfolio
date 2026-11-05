@@ -1,18 +1,17 @@
-"""Bake static lighting for art/newcat.glb (+ the room from stage.py) into lightmaps.
+"""Bake static lighting for art/newcat.glb (lights from stage.py) into lightmaps.
 
 Normally run via scripts/bake/bake.sh. Direct use:
   Blender -b --python bake.py -- <in.glb> <out_dir> [atlas_size] [samples]
   (BAKE_DEVICE=GPU to try Metal; the first Metal run spends a long time
   compiling kernels, CPU is predictable.)
 
-Lights and the room live in stage.py (preview.py renders them from the app's
+Lights and the desk arrangement live in stage.py (preview.py renders them from the app's
 camera views without baking). Change them there, not in code.
 
 Outputs (in out_dir):
-  scene_lm.glb        model + room, with a 'Lightmap' UV set (TEXCOORD_1) on every baked mesh
+  scene_lm.glb        model, with a 'Lightmap' UV set (TEXCOORD_1) on every baked mesh
   atlas_diffuse.exr   diffuse lighting (direct+indirect, no albedo) for the model's meshes
   atlas_ao.exr        ambient occlusion
-  room_*.exr          same for the room (walls, window, rug): its own UV space
   floor_*.exr         same for the floor patch (FLOOR_CENTER / FLOOR_SIZE_M)
 Coordinates: three (x, y, z) == Blender (x, -z, y).
 """
@@ -21,16 +20,18 @@ from mathutils import Vector, Matrix
 
 sys.path.insert(0, os.path.dirname(__file__))
 import stage  # noqa: E402
-from stage import t2b, hex_lin, ROOM_PREFIX  # noqa: E402
+from stage import t2b, hex_lin  # noqa: E402
 
 argv = sys.argv[sys.argv.index('--') + 1:]
 IN, OUT = argv[0], argv[1]
 SIZE = int(argv[2]) if len(argv) > 2 else 2048
 SAMPLES = int(argv[3]) if len(argv) > 3 else 384
-ROOM_RES = int(os.environ.get('ROOM_RES', '1024'))
 # Keep in sync with FLOOR_BAKE_SIZE / FLOOR_BAKE_CENTER in src/scene/office.ts
-FLOOR_SIZE_M = 36.0
-FLOOR_CENTER = (5.0, 12.0)  # three x, z
+# The patch covers every shadow the key casts (towards -x, -z); outside it the
+# floor is evenly lit, so the runtime's clamped edge texels carry on to the
+# horizon.
+FLOOR_SIZE_M = 32.0
+FLOOR_CENTER = (-2.0, 3.0)  # three x, z
 FLOOR_RES = int(os.environ.get('FLOOR_RES', '1024'))
 os.makedirs(OUT, exist_ok=True)
 
@@ -39,14 +40,11 @@ bpy.ops.import_scene.gltf(filepath=IN)
 scene = bpy.context.scene
 stage.arrange(scene)  # desk rearrangement (see stage.OBJECT_MOVES)
 
-room_objs, sky = stage.build_room()
-
 # Meshes that get a lightmap. The screen gets a runtime emissive material, so it
-# only acts as an occluder here; the sky is unlit.
-SKIP = {'ComputerScreen', sky.name}
+# only acts as an occluder here.
+SKIP = {'ComputerScreen'}
 meshes = [o for o in scene.objects if o.type == 'MESH']
-baked = [o for o in meshes if o.name not in SKIP and not o.name.startswith(ROOM_PREFIX)]
-room = [o for o in room_objs]
+baked = [o for o in meshes if o.name not in SKIP]
 
 # Lightmap texel density per object (linear factor over the uniform default).
 # Close-up views get more texels (experience paper + pen, phone, desk top),
@@ -81,7 +79,7 @@ def prepare_uv_layers(objs):
         while len(me.uv_layers) > 1:
             me.uv_layers.remove(me.uv_layers[-1])
         if len(me.uv_layers) == 0:
-            me.uv_layers.new(name='UVMap')  # room meshes: placeholder TEXCOORD_0
+            me.uv_layers.new(name='UVMap')  # placeholder TEXCOORD_0
         uv0 = me.uv_layers[0]
         lm = me.uv_layers.new(name='Lightmap')
         me.uv_layers.active = lm
@@ -209,26 +207,10 @@ def report_density(objs, size, label):
             print(f'DENSITY {label} {o.name}: {size * math.sqrt(ua / wa):.1f} texels/unit')
 
 
-def join_room(objs):
-    """One mesh for the whole room (three.js: one draw call per material)."""
-    bpy.ops.object.select_all(action='DESELECT')
-    for o in objs:
-        o.select_set(True)
-    bpy.context.view_layer.objects.active = objs[0]
-    bpy.ops.object.join()
-    joined = bpy.context.view_layer.objects.active
-    joined.name = ROOM_PREFIX + 'Interior'
-    joined.data.name = ROOM_PREFIX + 'Interior'
-    bpy.ops.object.select_all(action='DESELECT')
-    return joined
-
-
 print('PHASE unwrap', flush=True)
-prepare_uv_layers(baked + room)
+prepare_uv_layers(baked)
 unwrap(baked, SIZE, weighted=True)
-unwrap(room, ROOM_RES, weighted=False)
 report_density(baked, SIZE, 'atlas')
-report_density(room, ROOM_RES, 'room')
 
 # --- Floor patch -----------------------------------------------------------
 bpy.ops.mesh.primitive_plane_add(size=FLOOR_SIZE_M, location=t2b((FLOOR_CENTER[0], -0.01, FLOOR_CENTER[1])))
@@ -268,12 +250,12 @@ for m in bpy.data.materials:
 # logos, dark palette texels) and imprints the textures into the lighting.
 # Bake the model against a uniform grey albedo instead (the old realtime
 # render had no colour bleeding either) and restore the real colours before
-# exporting. The floor and the room keep their real (plain, dark) colours so
-# they bounce a plausible amount of light.
+# exporting. The floor keeps its real (plain, dark) colour so it bounces a
+# plausible amount of light.
 BAKE_ALBEDO = 0.35
 saved_base_colors = []
 for m in bpy.data.materials:
-    if not m.use_nodes or m.name == '__bake_floor_mat' or m.name.startswith(ROOM_PREFIX):
+    if not m.use_nodes or m.name == '__bake_floor_mat':
         continue
     for n in m.node_tree.nodes:
         if n.type == 'BSDF_PRINCIPLED':
@@ -333,13 +315,12 @@ def new_img(name, size):
 
 images = {
     'atlas': {'diffuse': new_img('atlas_diffuse', SIZE), 'ao': new_img('atlas_ao', SIZE)},
-    'room': {'diffuse': new_img('room_diffuse', ROOM_RES), 'ao': new_img('room_ao', ROOM_RES)},
     'floor': {'diffuse': new_img('floor_diffuse', FLOOR_RES), 'ao': new_img('floor_ao', FLOOR_RES)},
 }
-bake_objs = baked + room + [floor]
+bake_objs = baked + [floor]
 mats = {}
 for o in bake_objs:
-    which = 'floor' if o is floor else 'room' if o in room else 'atlas'
+    which = 'floor' if o is floor else 'atlas'
     for m in o.data.materials:
         if m is None:
             continue
@@ -401,10 +382,9 @@ for o, m in tmp_mats:
     bpy.data.materials.remove(m)
 for ob in [o for o in scene.objects if o.name.startswith('__')]:
     bpy.data.objects.remove(ob, do_unlink=True)
-for o in baked + room:
+for o in baked:
     o.data.uv_layers.active = o.data.uv_layers[0]
     o.data.uv_layers[0].active_render = True
-join_room(room)
 
 bpy.ops.object.select_all(action='DESELECT')
 bpy.ops.export_scene.gltf(

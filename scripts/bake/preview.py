@@ -1,5 +1,5 @@
-"""Quick Cycles renders of the app's camera views, for iterating on the room
-and lights in stage.py without running the full lightmap bake.
+"""Quick Cycles renders of the app's camera views, for iterating on the
+lights in stage.py without running the full lightmap bake.
 
   Blender -b --python scripts/bake/preview.py -- art/newcat.glb <out_dir> [views=home,about,...] [samples=48] [scale=50]
 
@@ -22,7 +22,7 @@ os.makedirs(OUT, exist_ok=True)
 # position, look-at target (from src/config/views.ts; target = position + 20 * forward)
 # [, vertical lens shift (views.ts wideShift, NDC) [, vertical FOV (wideFov)]]
 CAMS = {
-    'home': ((-8, 12, 19), (4.96, 4.0, 6.04)),
+    'home': ((-5.9, 10.47, 14.15), (6.0, 1.55, 0.77)),
     'about': ((-0.29, 5.61, 4.35), (-20.11, 7.91, 3.0)),
     'experience': ((5.95, 8.51, 2.99), (5.95, -11.49, 2.63), -0.34, 36),
     'projects': ((0.75, 5.4, 5.2), (0.75, 5.4, -14.8), -1.34),
@@ -42,17 +42,7 @@ bpy.ops.mesh.primitive_plane_add(size=200, location=(0, 0, -0.01))
 floor = bpy.context.active_object
 floor.data.materials.append(stage.material('__floor', stage.FLOOR_COLOR))
 
-_, sky = stage.build_room()
 world = stage.add_lights(IN)
-
-# Night sky behind the window (runtime: unlit canvas texture)
-skm = sky.data.materials[0]
-skm.use_nodes = True
-skm.node_tree.nodes.clear()
-_o = skm.node_tree.nodes.new('ShaderNodeOutputMaterial')
-_e = skm.node_tree.nodes.new('ShaderNodeEmission')
-_e.inputs['Color'].default_value = (*stage.hex_lin('#1b2a4a'), 1)
-skm.node_tree.links.new(_e.outputs['Emission'], _o.inputs['Surface'])
 
 # Backdrop colour for camera rays only (lighting unchanged).
 nt = world.node_tree

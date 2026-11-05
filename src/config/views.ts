@@ -4,14 +4,15 @@ import type { ViewsMap, Subject } from '../types'
 // src/components/camera/framing.ts adapts them to the actual aspect ratio and
 // layout using each view's `subject` (GLB object names).
 
-// Every pose keeps the panels' text over empty, evenly lit scene (bare wall,
-// floor or darkness): no objects, edges or lighting gradients behind it, at
-// any wide-layout aspect.
+// Every pose keeps the panels' text over empty, evenly lit scene (the plain,
+// dark floor around the desk, or the backdrop above its horizon): no objects,
+// edges, shadows or lighting gradients behind it, at any wide-layout aspect.
 
-// From the back-left corner: the title and menu sit over the dark right wall,
-// clear of the lamp's pool on the back wall.
-const INITIAL_POSITION: [number, number, number] = [-8, 12, 19]
-const INITIAL_ROTATION: [number, number, number] = [-0.553, -0.705, -0.381]
+// The original view: close above the desk's front-left corner, looking down
+// across it. The desk runs up from the lower left, the chair stands large in
+// the middle, and the title and menu fill the right over the bare floor.
+const INITIAL_POSITION: [number, number, number] = [-5.9, 10.47, 14.15]
+const INITIAL_ROTATION: [number, number, number] = [-0.588, -0.637, -0.377]
 
 /** Intro: the camera starts in front of the monitor while it boots. */
 export const START_POSITION: [number, number, number] = [-0.18, 7.28, 3.85]
