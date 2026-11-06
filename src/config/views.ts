@@ -124,10 +124,10 @@ export const VIEWS: ViewsMap = {
   contact: {
     // Low over the desk, close beside the phone, looking across its keypad
     // toward the dark back corner (the original angle, a step closer): the
-    // title and links sit over the unlit wall above the desk's far edge.
-    // The exception to the rule above: from this low the desk fills the
-    // bottom of the frame, so the section nav sits over its bare, evenly lit
-    // top, below the experience sheet.
+    // whole panel sits in the void above the desk's far edge: the links in a
+    // row across the top left, the title and the section nav under it on
+    // the right (App.css #contact-panel). From this low the desk fills the
+    // bottom of the frame, so nothing goes there.
     position: [2.26, 5.37, 2.38],
     rotation: [-0.396, -1.077, -0.353],
     // wider screens show more on the left (the whole phone) and keep the

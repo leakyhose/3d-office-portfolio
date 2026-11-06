@@ -635,6 +635,45 @@ button:has(.typed:is(.is-empty, .is-off)) {
   padding-right: calc(0.5 * var(--uh));
 }
 
+/* Contact: the shot leaves its void across the top, so the panel spans the
+   screen. The links run in a row along the top left (a column would reach
+   the handset, which rises on the left), the title holds the top right and
+   the section nav sits under it, off the desk. The links get whatever width
+   the title leaves and wrap there (GitHub to a second line on the narrowest
+   wide screens). Keyboard order is unchanged: links, then nav. */
+.layout-wide #contact-panel {
+  left: 0;
+  width: auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-content: start;
+  align-items: start;
+  column-gap: var(--gap-l);
+}
+
+.layout-wide #contact-panel .panel-title {
+  grid-area: 1 / 2;
+  justify-self: end;
+}
+
+.layout-wide #contact-panel .contact-list {
+  grid-area: 1 / 1;
+  justify-self: start;
+  flex-flow: row wrap;
+  column-gap: calc(var(--gap-l) * 1.2);
+  row-gap: var(--gap-m);
+  margin-top: 0;
+  text-align: left;
+}
+
+/* spans both columns so it never widens the title's (it's wider than the
+   title, which would take that width from the links) */
+.layout-wide #contact-panel .section-nav {
+  grid-area: 2 / 1 / 3 / 3;
+  justify-self: end;
+  margin-top: 0;
+}
+
 /* the monitor fills the left half of the projects shot */
 .layout-wide #projects-panel {
   width: min(44vw, 860px);
