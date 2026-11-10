@@ -43,7 +43,14 @@ function ProjectsPanel({ visible, onNavigate, onUntypeComplete, onProjectSelect,
               >
                 <h2 className="project-header">
                   <img src={project.icon} alt="" className="project-icon" />
-                  <a className="project-name" href={project.link} target="_blank" rel="noreferrer">
+                  <a
+                    className="project-name"
+                    href={project.link}
+                    target="_blank"
+                    rel="noreferrer"
+                    data-umami-event="project-open"
+                    data-umami-event-project={project.id}
+                  >
                     <TypedText text={project.name} visible={visible} speed={20} />
                     <ExternalMark />
                   </a>
@@ -54,6 +61,8 @@ function ProjectsPanel({ visible, onNavigate, onUntypeComplete, onProjectSelect,
                     rel="noreferrer"
                     aria-label={`${project.name} source on GitHub`}
                     title="Source on GitHub"
+                    data-umami-event="project-source"
+                    data-umami-event-project={project.id}
                   >
                     <i className="hn hn-github" aria-hidden="true" />
                   </a>

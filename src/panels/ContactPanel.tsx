@@ -44,7 +44,7 @@ function ContactPanel({ visible, onNavigate, onUntypeComplete, showSectionNav }:
               </span>
             </dt>
             <dd>
-              <button type="button" className="contact-value" onClick={copyEmail} title="Copy email address">
+              <button type="button" className="contact-value" onClick={copyEmail} title="Copy email address" data-umami-event="email-copy">
                 <TypedText text={EMAIL} icon="at" visible={visible} speed={7} />
               </button>
             </dd>
@@ -55,7 +55,7 @@ function ContactPanel({ visible, onNavigate, onUntypeComplete, showSectionNav }:
                 <TypedText text={l.label} visible={visible} speed={25} />
               </dt>
               <dd>
-                <a className="contact-value" href={l.href} target="_blank" rel="noreferrer">
+                <a className="contact-value" href={l.href} target="_blank" rel="noreferrer" data-umami-event={`contact-${l.icon}`}>
                   <TypedText text={l.text} icon={l.icon} visible={visible} speed={7} />
                 </a>
               </dd>
