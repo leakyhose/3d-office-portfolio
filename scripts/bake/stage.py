@@ -10,7 +10,7 @@ desk; see git history for build_room().)
 Coordinates: three (x, y, z) == Blender (x, -z, y). Helpers take three coords.
 """
 import bpy, bmesh, math, os
-from mathutils import Vector
+from mathutils import Vector, Matrix
 
 
 def t2b(v):  # three -> blender coords
@@ -63,8 +63,43 @@ def _smooth(a, b, x):
     return t * t * (3 - 2 * t)
 
 
-def arrange(scene):
-    """Applies OBJECT_MOVES and the matching cable edits to the imported model."""
+# The cat: art/cat.glb (built by scripts/cat/build_cat.py) takes the place of
+# the source model's own cat, under the same object name (the app looks it up
+# as Cube010_WhiteFur_0). Blender coords: where it sits on the desk, and the
+# heading of its nose (radians about Z, from +X).
+CAT = 'Cube.010_WhiteFur_0'
+CAT_AT = (-4.56, -1.10, 4.712)
+CAT_HEADING = -0.931
+
+
+def cat_path(model_path):
+    return os.path.join(os.path.dirname(os.path.abspath(model_path)), 'cat.glb')
+
+
+def replace_cat(scene, path):
+    old = scene.objects[CAT]
+    for slot in old.material_slots:  # free the names WhiteFur / BlackFur
+        if slot.material:
+            slot.material.name = '__old_' + slot.material.name
+    old_mesh = old.data
+    bpy.data.objects.remove(old, do_unlink=True)
+    bpy.data.meshes.remove(old_mesh)
+    before = set(scene.objects)
+    bpy.ops.import_scene.gltf(filepath=path)
+    cat = next(o for o in scene.objects if o not in before and o.type == 'MESH')
+    cat.name = CAT
+    cat.data.name = CAT
+    cat.parent = None
+    cat.matrix_world = Matrix.Translation(CAT_AT) @ Matrix.Rotation(CAT_HEADING, 4, 'Z')
+    for m in [m for m in bpy.data.materials if m.name.startswith('__old_')]:
+        bpy.data.materials.remove(m)
+    return cat
+
+
+def arrange(scene, model_path):
+    """Applies OBJECT_MOVES and the matching cable edits to the imported model,
+    and swaps in the cat."""
+    replace_cat(scene, cat_path(model_path))
     for name, d in OBJECT_MOVES.items():
         scene.objects[name].location += t2b(d)
 
@@ -179,7 +214,7 @@ def add_lights(model_path):
     hemi.inputs['A'].default_value = (*[c * k for c in hex_lin('#0f0d0a')], 1)
     hemi.inputs['B'].default_value = (*[c * k for c in hex_lin('#c4a878')], 1)
     nt.links.new(mapr.outputs['Result'], hemi.inputs['Factor'])
-    hdr_path = os.path.join(os.path.dirname(model_path), 'lebombo_1k.hdr')
+    hdr_path = os.path.join(os.path.dirname(os.path.abspath(model_path)), 'lebombo_1k.hdr')
     add = nt.nodes.new('ShaderNodeMix')
     add.data_type = 'RGBA'
     add.blend_type = 'ADD'
