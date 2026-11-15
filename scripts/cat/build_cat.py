@@ -54,11 +54,12 @@ def make_materials():
 
 
 # --- building blocks ------------------------------------------------------------
-def ring(c, u, v, ru, rv, n=8, off=None):
+def ring(c, u, v, ru, rv, n=8, off=None, shape=None):
     """n points on an ellipse about c in the plane (u, v). By default a facet,
-    not a vertex, faces +u."""
+    not a vertex, faces +u. shape: a radius factor per point."""
     off = -math.pi / n if off is None else off
-    return [Vector(c) + u * (ru * math.cos(off + 2 * math.pi * k / n)) + v * (rv * math.sin(off + 2 * math.pi * k / n)) for k in range(n)]
+    f = shape or [1.0] * n
+    return [Vector(c) + u * (ru * f[k] * math.cos(off + 2 * math.pi * k / n)) + v * (rv * f[k] * math.sin(off + 2 * math.pi * k / n)) for k in range(n)]
 
 
 def solid(rings, mat, xf=None):
@@ -131,11 +132,15 @@ BODY = [(-0.05, -0.12, 0.36, 0.31), (0.20, -0.12, 0.42, 0.38), (0.50, -0.03, 0.3
 # (x, half width, half height); the last one is the flat face plate.
 HEAD_AT = Vector((0.19, 0, 1.30))
 HEAD_TILT = math.radians(-8)  # chin up a little
-SKULL = [(-0.36, 0.17, 0.15), (-0.20, 0.36, 0.32), (0.04, 0.45, 0.38), (0.25, 0.41, 0.35), (0.32, 0.33, 0.28)]
+SKULL = [(-0.36, 0.15, 0.15), (-0.20, 0.32, 0.32), (0.04, 0.40, 0.385), (0.24, 0.365, 0.35), (0.33, 0.27, 0.26)]
 FACE_X = SKULL[-1][0]
-EYE_Y, EYE_Z = (0.095, 0.235), (-0.005, 0.105)  # the eye's box on the face plate
-EYE_SLANT = 0.022  # how much lower the lid is at the nose end: the grumpy look
-MUZZLE_Y, MUZZLE_Z, MUZZLE_OUT = 0.15, (-0.235, -0.035), 0.07
+# The skull's outline, seen from the front: full cheeks, a smaller chin and crown
+# (radius factors, anticlockwise from the lower left cheek).
+CHEEKS = [1.08, 1.0, 0.96, 0.96, 1.0, 1.08, 0.86, 0.86]
+EYE_Y, EYE_Z = (0.07, 0.20), (-0.05, 0.085)  # the eye's box on the face plate
+EYE_SLANT = 0.012  # how much lower the lid is at the nose end: a hint of grumpy
+PUPIL_Y, PUPIL_Z = (0.10, 0.17), (-0.035, 0.065)
+MUZZLE_Y, MUZZLE_Z, MUZZLE_OUT = 0.105, (-0.205, -0.065), 0.06
 LEG_Y, PAW_HALF = 0.125, 0.085
 TAIL = [(-0.30, 0.0, 0.10), (-0.52, -0.10, 0.09), (-0.56, -0.34, 0.085), (-0.38, -0.52, 0.08), (-0.10, -0.56, 0.075), (0.08, -0.52, 0.07)]
 TAIL_R = [0.10, 0.10, 0.10, 0.095, 0.085, 0.0]
@@ -151,7 +156,7 @@ def build_parts():
     # head
     xf = Matrix.Translation(HEAD_AT) @ Matrix.Rotation(HEAD_TILT, 4, 'Y')
     lower_front = lambda i, k: 'WhiteFur' if i >= len(SKULL) - 2 and k == 6 else 'CatMask'  # under the jaw
-    head = solid([ring((x, 0, 0), Y, Z, ry, rz) for x, ry, rz in SKULL], lower_front)
+    head = solid([ring((x, 0, 0), Y, Z, ry, rz, shape=CHEEKS) for x, ry, rz in SKULL], lower_front)
     bmesh.ops.transform(head, verts=head.verts[:], matrix=xf)
     parts.append(head)
 
@@ -161,20 +166,23 @@ def build_parts():
         (y0, y1), (z0, z1) = EYE_Y, EYE_Z
         eye = lambda x: [Vector((x, y0 * s, z0)), Vector((x, y1 * s, z0)), Vector((x, y1 * s, z1)), Vector((x, y0 * s, z1 - EYE_SLANT))]
         parts.append(solid([eye(FACE_X - 0.04), eye(FACE_X + 0.012)], 'CatEye', xf))
+        (y0, y1), (z0, z1) = PUPIL_Y, PUPIL_Z
+        pupil = lambda x: [Vector((x, y0 * s, z0)), Vector((x, y1 * s, z0)), Vector((x, y1 * s, z1)), Vector((x, y0 * s, z1))]
+        parts.append(solid([pupil(FACE_X - 0.03), pupil(FACE_X + 0.024)], 'CatDark', xf))
 
     # muzzle: a white wedge on the lower face, and the nose on top of it
     z0, z1 = MUZZLE_Z
     box = lambda x, hy, za, zb: [Vector((x, hy, za)), Vector((x, hy, zb)), Vector((x, -hy, zb)), Vector((x, -hy, za))]
-    parts.append(solid([box(FACE_X - 0.05, MUZZLE_Y, z0, z1), box(FACE_X + MUZZLE_OUT, MUZZLE_Y * 0.7, z0 + 0.035, z1 - 0.045)], 'WhiteFur', xf))
+    parts.append(solid([box(FACE_X - 0.05, MUZZLE_Y, z0, z1), box(FACE_X + MUZZLE_OUT, MUZZLE_Y * 0.72, z0 + 0.03, z1 - 0.035)], 'WhiteFur', xf))
     nz = z1 - 0.02
-    tri = lambda x, k: [Vector((x, 0.05 * k, nz + 0.03 * k)), Vector((x, -0.05 * k, nz + 0.03 * k)), Vector((x, 0, nz - 0.045 * k))]
+    tri = lambda x, k: [Vector((x, 0.04 * k, nz + 0.025 * k)), Vector((x, -0.04 * k, nz + 0.025 * k)), Vector((x, 0, nz - 0.035 * k))]
     parts.append(solid([tri(FACE_X - 0.03, 1.0), tri(FACE_X + MUZZLE_OUT + 0.02, 0.8)], 'CatDark', xf))
 
     # ears: dark pyramids on the skull's upper corners
     for s in (1, -1):
         n = Vector((0, 0.72 * s, 0.69))
         t = Vector((0, -0.69 * s, 0.72))
-        p = Vector((-0.07, 0.30 * s, 0.26))
+        p = Vector((-0.07, 0.27 * s, 0.27))
         base = [p - n * 0.07 + X * 0.085, p - n * 0.07 + t * 0.15, p - n * 0.07 - X * 0.085, p - n * 0.07 - t * 0.15]
         parts.append(solid([base, [p + n * 0.18 + t * 0.02]], 'CatPoint', xf))
 
