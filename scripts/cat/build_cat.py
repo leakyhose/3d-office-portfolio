@@ -58,7 +58,7 @@ BASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'art
 FWD, LAT = Vector((0.87, -0.5, 0)), Vector((0.5, 0.87, 0))
 PAWS_MID = Vector((0.36, -0.10, 0))
 BODY_WIDER = 1.1  # a stockier build than the original
-SMOOTH = 62  # degrees: edges gentler than this are shaded smooth, as the original's were
+SMOOTH = 25  # degrees: edges gentler than this are inside one facet (as bake_cat.py lights it)
 # The head is what lies beyond this plane through the neck.
 NECK_AT, NECK_NO = Vector((0.52, -0.1, 1.47)), Vector((0.836, 0, 0.549)).normalized()
 HEAD_PIVOT = Vector((0.66, -0.10, 1.62))
@@ -72,6 +72,17 @@ EARS_FROM, EARS_OUT, SKULL_TOP = 1.80, 0.10, 1.87
 MUZZLE_HALF, MUZZLE_TOP, MUZZLE_DEEP = 0.13, 1.575, 0.07
 BIB_BACK, BIB_HALF = -0.05, 0.22  # the white bib: forward of this (from the paws), this far to each side
 LEGS_BELOW = 0.78
+# The hind feet lie on the desk behind the forepaws. The original models every
+# toe (some 80 triangles a foot), which in a light colour is a clutter of
+# slivers: each foot is rebuilt as one plain solid around its points. A foot
+# is what lies lower than FOOT_TOP between FOOT_FROM and FOOT_TO (forward of
+# the forepaws), the toes (from TOES_FROM) lower than TOES_TOP: the forelegs
+# stand right there. Its faces flatter to each other than FOOT_PLAIN are merged.
+FOOT_FROM, FOOT_TO, FOOT_TOP = -0.56, 0.16, 0.34
+TOES_FROM, TOES_TOP = -0.30, 0.18
+FOOT_SIDE = 0.06  # at least this far from the middle
+FOOT_PLAIN = 22
+HIND_FOOT = 99  # a material index of its own, until the colours go on
 
 
 def cut(bm, co, plane_no, faces):
@@ -107,6 +118,27 @@ def build_body():
     bpy.data.meshes.remove(old)
     bmesh.ops.remove_doubles(bm, verts=bm.verts[:], dist=1e-4)
 
+    # the hind feet, each as one plain solid
+    for side in (1, -1):
+        foot = []
+        for f in bm.faces:
+            c = f.calc_center_median()
+            fwd, lat = (c - PAWS_MID).dot(FWD), (c - PAWS_MID).dot(LAT)
+            top = max(v.co.z for v in f.verts)
+            if f.material_index not in white and lat * side > FOOT_SIDE and FOOT_FROM < fwd < FOOT_TO and top < (TOES_TOP if fwd > TOES_FROM else FOOT_TOP):
+                foot.append(f)
+        pts = list({v for f in foot for v in f.verts})
+        before = set(bm.faces)
+        got = bmesh.ops.convex_hull(bm, input=[bm.verts.new(v.co) for v in pts])
+        bmesh.ops.delete(bm, geom=list({g for g in got['geom_interior'] + got['geom_unused'] if isinstance(g, bmesh.types.BMVert)}), context='VERTS')
+        bmesh.ops.delete(bm, geom=foot, context='FACES')
+        new = [f for f in bm.faces if f not in before]
+        for f in new:
+            f.material_index = HIND_FOOT
+        bmesh.ops.dissolve_limit(bm, angle_limit=math.radians(FOOT_PLAIN), verts=list({v for f in new for v in f.verts}),
+                                 edges=list({e for f in new for e in f.edges}), delimit={'MATERIAL'})
+        print('CAT hind foot:', len(foot), 'triangles ->', sum(len(f.verts) - 2 for f in bm.faces if f.material_index == HIND_FOOT), 'so far')
+
     # the head comes off at the neck, and the neck is closed
     bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], dist=1e-6, plane_co=NECK_AT, plane_no=NECK_NO)
     head_points = [v.co.copy() for v in bm.verts if (v.co - NECK_AT).dot(NECK_NO) > -1e-5]
@@ -121,6 +153,7 @@ def build_body():
 
     # straight edges for the colours to meet at
     faces = lambda test: [f for f in bm.faces if test(*where(f))]
+    cut(bm, PAWS_MID + FWD * TOES_FROM, FWD, [f for f in bm.faces if f.material_index == HIND_FOOT])
     cut(bm, PAWS_MID + FWD * BIB_BACK, FWD, faces(lambda fwd, lat, c: c.z > 0.7))
     for side in (1, -1):
         cut(bm, PAWS_MID + LAT * BIB_HALF * side, LAT, faces(lambda fwd, lat, c: c.z > 0.7 and fwd > BIB_BACK - 0.1))
@@ -130,6 +163,8 @@ def build_body():
 
     def colour(f):
         fwd, lat, c = where(f)
+        if f.material_index == HIND_FOOT:
+            return 'WhiteFur' if fwd > TOES_FROM else 'CatCream'  # white toes
         if c.x < -0.6 or (c.z < 0.14 and fwd < -0.72):
             return 'CatPoint'  # tail
         if f.material_index in white:
@@ -263,6 +298,8 @@ def render_previews(ob, out_dir):
         'back': ((-1, -0.5, 0.6), (0, -0.05, 1.0), 7.4),
         'face': ((1, -0.12, 0.1), (0.8, -0.1, 1.7), 3.8),
         'top': ((0.01, 0, 1), (0, -0.1, 1.0), 7.6),
+        'legs': ((1, 0.55, 0.12), (0.3, -0.05, 0.42), 3.6),
+        'legs2': ((0.6, -1, 0.2), (0.3, -0.05, 0.42), 3.6),
     }
     for name, (d, tgt, dist) in views.items():
         d = Vector(d).normalized()
