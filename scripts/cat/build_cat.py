@@ -47,8 +47,10 @@ def make_materials():
 
 
 # --- the cat -----------------------------------------------------------------------
-# The original desk cat's mesh (art/cat_base.glb, in cat space), recoloured,
-# with a bigger head and a shorter muzzle.
+# The original desk cat's mesh (art/cat_base.glb, in cat space), recoloured.
+# Its head is rebuilt as plain closed shapes around the original's points (a
+# skull and two solid ears: the original's hollow ears and loose seams bake
+# badly), bigger and with the muzzle pressed flat.
 BASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'art', 'cat_base.glb')
 # The body sits turned on the desk, the head looks along +X: the body's own
 # forward and left, and the point between the forepaws.
@@ -57,20 +59,40 @@ PAWS_MID = Vector((0.36, -0.10, 0))
 BODY_WIDER = 1.1  # a stockier build than the original
 SMOOTH = 62  # degrees: edges gentler than this are shaded smooth, as the original's were
 # The head is what lies beyond this plane through the neck.
-NECK_AT, NECK_NO = Vector((0.52, -0.1, 1.47)), Vector((0.836, 0, 0.549))
+NECK_AT, NECK_NO = Vector((0.52, -0.1, 1.47)), Vector((0.836, 0, 0.549)).normalized()
 HEAD_PIVOT = Vector((0.66, -0.10, 1.62))
 HEAD_SCALE = 1.22  # an exotic shorthair's big round head
 MUZZLE_FROM, MUZZLE_KEEP = 0.80, 0.18  # the muzzle beyond this x keeps this much of its length
 HEAD_Y = -0.11  # the head's middle
-EARS_ABOVE, CROWN_HALF = 1.80, 0.12  # the ears: above this z, this far out from the middle
-MUZZLE_HALF = 0.11
-MUZZLE_X, MUZZLE_TOP = 0.88, 1.58  # the white muzzle: forward of this x, below this z (before the head is reshaped)
+# In the original's coordinates: the ears are the points above EARS_FROM and
+# further out than EARS_OUT; the skull is everything up to SKULL_TOP.
+EARS_FROM, EARS_OUT, SKULL_TOP = 1.80, 0.10, 1.87
+# The white muzzle patch on the finished face: half width, top, depth back from the nose.
+MUZZLE_HALF, MUZZLE_TOP, MUZZLE_DEEP = 0.13, 1.575, 0.07
 BIB_BACK, BIB_HALF = -0.05, 0.22  # the white bib: forward of this (from the paws), this far to each side
 LEGS_BELOW = 0.78
 
 
-def build():
-    bpy.ops.wm.read_factory_settings(use_empty=True)
+def cut(bm, co, plane_no, faces):
+    """A straight edge along the plane through these faces."""
+    geom = set()
+    for f in faces:
+        geom.update((f, *f.edges, *f.verts))
+    bmesh.ops.bisect_plane(bm, geom=list(geom), dist=1e-5, plane_co=Vector(co), plane_no=Vector(plane_no))
+
+
+def reshape_head(co):
+    """A point of the original head, on the new one: a shorter muzzle, then
+    bigger, easing in over the neck."""
+    co = co.copy()
+    d = (co - NECK_AT).dot(NECK_NO)
+    if co.x > MUZZLE_FROM:
+        co.x = MUZZLE_FROM + (co.x - MUZZLE_FROM) * MUZZLE_KEEP
+    return HEAD_PIVOT + (co - HEAD_PIVOT) * (1 + (HEAD_SCALE - 1) * min(max(d, 0) / 0.12, 1.0))
+
+
+def build_body():
+    """-> (the body without its head, the old head's points)"""
     bpy.ops.import_scene.gltf(filepath=BASE)
     ob = next(o for o in bpy.context.scene.objects if o.type == 'MESH')
     bm = bmesh.new()
@@ -80,42 +102,33 @@ def build():
     old = ob.data
     for slot in ob.material_slots:
         bpy.data.materials.remove(slot.material)
-    mats = make_materials()
+    bpy.data.objects.remove(ob, do_unlink=True)
+    bpy.data.meshes.remove(old)
     bmesh.ops.remove_doubles(bm, verts=bm.verts[:], dist=1e-4)
-    no = NECK_NO.normalized()
+
+    # the head comes off at the neck, and the neck is closed
+    bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], dist=1e-6, plane_co=NECK_AT, plane_no=NECK_NO)
+    head_points = [v.co.copy() for v in bm.verts if (v.co - NECK_AT).dot(NECK_NO) > -1e-5]
+    bmesh.ops.delete(bm, geom=[f for f in bm.faces if (f.calc_center_median() - NECK_AT).dot(NECK_NO) > 0], context='FACES')
+    rim = [e for e in bm.edges if e.is_boundary and all(abs((v.co - NECK_AT).dot(NECK_NO)) < 1e-4 for v in e.verts)]
+    bmesh.ops.triangle_fill(bm, edges=rim, use_beauty=True)
 
     def where(f):
-        """(in the head, forward of the paws, to the cat's left, centre)"""
+        """(forward of the paws, to the cat's left, centre)"""
         c = f.calc_center_median()
-        return (c - NECK_AT).dot(no) > 0, (c - PAWS_MID).dot(FWD), (c - PAWS_MID).dot(LAT), c
-
-    def cut(co, plane_no, test):
-        """A straight edge along the plane, through the faces that pass test(*where(f))."""
-        geom = set()
-        for f in bm.faces:
-            if test(*where(f)):
-                geom.update((f, *f.edges, *f.verts))
-        bmesh.ops.bisect_plane(bm, geom=list(geom), dist=1e-5, plane_co=Vector(co), plane_no=Vector(plane_no))
+        return (c - PAWS_MID).dot(FWD), (c - PAWS_MID).dot(LAT), c
 
     # straight edges for the colours to meet at
-    cut((MUZZLE_X, 0, 0), (1, 0, 0), lambda head, fwd, lat, c: head)
-    cut((0, 0, MUZZLE_TOP), (0, 0, 1), lambda head, fwd, lat, c: head and c.x > MUZZLE_X - 0.1)
-    cut((0, 0, EARS_ABOVE), (0, 0, 1), lambda head, fwd, lat, c: head)
+    faces = lambda test: [f for f in bm.faces if test(*where(f))]
+    cut(bm, PAWS_MID + FWD * BIB_BACK, FWD, faces(lambda fwd, lat, c: c.z > 0.7))
     for side in (1, -1):
-        cut((0, HEAD_Y + MUZZLE_HALF * side, 0), (0, 1, 0), lambda head, fwd, lat, c: head and c.x > MUZZLE_X - 0.1 and c.z < MUZZLE_TOP + 0.1)
-        cut((0, HEAD_Y + CROWN_HALF * side, 0), (0, 1, 0), lambda head, fwd, lat, c: head and c.z > EARS_ABOVE - 0.1)
-    cut(PAWS_MID + FWD * BIB_BACK, FWD, lambda head, fwd, lat, c: not head and c.z > 0.7)
-    for side in (1, -1):
-        cut(PAWS_MID + LAT * BIB_HALF * side, LAT, lambda head, fwd, lat, c: not head and c.z > 0.7 and fwd > BIB_BACK - 0.1)
-    cut((0, 0, LEGS_BELOW), (0, 0, 1), lambda head, fwd, lat, c: not head and fwd > -0.3)
-    bm.normal_update()
+        cut(bm, PAWS_MID + LAT * BIB_HALF * side, LAT, faces(lambda fwd, lat, c: c.z > 0.7 and fwd > BIB_BACK - 0.1))
+    cut(bm, (0, 0, LEGS_BELOW), (0, 0, 1), faces(lambda fwd, lat, c: fwd > -0.3))
+    # some of the original's faces point inwards (it never showed on a black cat)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
 
     def colour(f):
-        head, fwd, lat, c = where(f)
-        if head:
-            if c.z > EARS_ABOVE and abs(c.y - HEAD_Y) > CROWN_HALF:
-                return 'CatPoint'  # ears
-            return 'WhiteFur' if c.x > MUZZLE_X and c.z < MUZZLE_TOP and abs(c.y - HEAD_Y) < MUZZLE_HALF else 'CatMask'
+        fwd, lat, c = where(f)
         if c.x < -0.6 or (c.z < 0.14 and fwd < -0.72):
             return 'CatPoint'  # tail
         if f.material_index in white:
@@ -130,32 +143,68 @@ def build():
 
     for f, name in [(f, colour(f)) for f in bm.faces]:
         f.material_index = MAT_INDEX[name]
-        f.smooth = True
-    # some of the original's faces point inwards (it never showed on a black cat)
-    bm.normal_update()
-    before = {f: f.normal.copy() for f in bm.faces}
+    for v in bm.verts:  # wider across the body's own left-right
+        v.co += LAT * ((v.co - PAWS_MID).dot(LAT) * (BODY_WIDER - 1))
+    return bm, head_points
+
+
+def build_head(points):
+    bm = bmesh.new()
+
+    def hull(pts, name):
+        verts = [bm.verts.new(reshape_head(p)) for p in pts]
+        got = bmesh.ops.convex_hull(bm, input=verts)
+        inside = set(got['geom_interior']) | set(got['geom_unused'])
+        bmesh.ops.delete(bm, geom=[v for v in verts if v in inside], context='VERTS')
+        faces = [f for f in bm.faces if f.material_index == 0 and not f.tag]
+        for f in faces:
+            f.material_index = MAT_INDEX[name]
+            f.tag = True
+        return faces
+
+    skull = hull([p for p in points if p.z < SKULL_TOP], 'CatMask')
+    for side in (1, -1):
+        hull([p for p in points if p.z > EARS_FROM and (p.y - HEAD_Y) * side > EARS_OUT], 'CatPoint')
+    # flat faces come out of the hull in triangles: merge them back, per colour
+    bmesh.ops.dissolve_limit(bm, angle_limit=math.radians(3), verts=bm.verts[:], edges=bm.edges[:], delimit={'MATERIAL'})
+
+    # the white muzzle: a patch on the face's front, with straight edges
+    grey = lambda: [f for f in bm.faces if f.material_index == MAT_INDEX['CatMask']]
+    nose = max(v.co.x for f in grey() for v in f.verts)
+    for side in (1, -1):
+        cut(bm, (0, HEAD_Y + MUZZLE_HALF * side, 0), (0, 1, 0), grey())
+    cut(bm, (0, 0, MUZZLE_TOP), (0, 0, 1), grey())
+    cut(bm, (nose - MUZZLE_DEEP, 0, 0), (1, 0, 0), grey())
+    for f in grey():
+        c = f.calc_center_median()
+        if c.x > nose - MUZZLE_DEEP and c.z < MUZZLE_TOP and abs(c.y - HEAD_Y) < MUZZLE_HALF:
+            f.material_index = MAT_INDEX['WhiteFur']
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
-    print('CAT faces turned outwards:', sum(1 for f in bm.faces if f.normal.dot(before[f]) < 0), 'of', len(bm.faces))
-    for v in bm.verts:
-        d = (v.co - NECK_AT).dot(no)
-        if d > 0:  # head: a shorter muzzle, then bigger, easing in over the neck
-            if v.co.x > MUZZLE_FROM:
-                v.co.x = MUZZLE_FROM + (v.co.x - MUZZLE_FROM) * MUZZLE_KEEP
-            k = 1 + (HEAD_SCALE - 1) * min(d / 0.12, 1.0)
-            v.co = HEAD_PIVOT + (v.co - HEAD_PIVOT) * k
-        else:  # body: wider across its own left-right
-            v.co += LAT * ((v.co - PAWS_MID).dot(LAT) * (BODY_WIDER - 1))
-    bmesh.ops.triangulate(bm, faces=bm.faces[:])
-    bm.normal_update()
+    return bm
+
+
+def build():
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    body, head_points = build_body()
+    mats = make_materials()
+    head = build_head(head_points)
     me = bpy.data.meshes.new('Cat')
+    bm = bmesh.new()
+    for part in (body, head):
+        part.to_mesh(me)
+        part.free()
+        bm.from_mesh(me)
+    bmesh.ops.triangulate(bm, faces=bm.faces[:])
+    for f in bm.faces:
+        f.smooth = True
+    bm.normal_update()
     bm.to_mesh(me)
     bm.free()
     for m in mats:
         me.materials.append(m)
     me.set_sharp_from_angle(angle=math.radians(SMOOTH))
-    ob.data = me
-    bpy.data.meshes.remove(old)
-    ob.name = 'Cat'
+    ob = bpy.data.objects.new('Cat', me)
+    bpy.context.scene.collection.objects.link(ob)
     return ob
 
 
