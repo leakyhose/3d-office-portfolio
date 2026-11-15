@@ -68,6 +68,7 @@ def _smooth(a, b, x):
 # as Cube010_WhiteFur_0). Blender coords: where it sits on the desk, and the
 # heading of its nose (radians about Z, from +X).
 CAT = 'Cube.010_WhiteFur_0'
+CHAIR = 'Cube.000_ComputerDesk_0'
 CAT_AT = (-4.56, -1.10, 4.712)
 CAT_HEADING = -0.931
 
@@ -96,10 +97,51 @@ def replace_cat(scene, path):
     return cat
 
 
+# The second cat: art/chair_cat.glb (scripts/cat/build_chair_cat.py), asleep
+# on the chair's seat (the app looks it up as ChairCat). Blender coords: where
+# the middle of its curl lies (it is set down on the seat there), how deep it
+# sinks into the cushion, and its heading (radians about Z).
+CHAIR_CAT = 'ChairCat'
+CHAIR_CAT_AT = (0.55, -7.25)
+CHAIR_CAT_SINK = 0.04
+CHAIR_CAT_HEADING = 1.66
+
+
+def chair_cat_path(model_path):
+    return os.path.join(os.path.dirname(os.path.abspath(model_path)), 'chair_cat.glb')
+
+
+def place_chair_cat(scene, path):
+    old = scene.objects.get(CHAIR_CAT)
+    if old:  # from an earlier run
+        mats = [slot.material for slot in old.material_slots if slot.material]
+        old_mesh = old.data
+        bpy.data.objects.remove(old, do_unlink=True)
+        bpy.data.meshes.remove(old_mesh)
+        for m in mats:
+            if m.users == 0:
+                bpy.data.materials.remove(m)
+    before = set(scene.objects)
+    bpy.ops.import_scene.gltf(filepath=path)
+    cat = next(o for o in scene.objects if o not in before and o.type == 'MESH')
+    cat.name = CHAIR_CAT
+    cat.data.name = CHAIR_CAT
+    cat.parent = None
+    chair = scene.objects[CHAIR]
+    bpy.context.view_layer.update()
+    inv = chair.matrix_world.inverted()
+    hit = chair.ray_cast(inv @ Vector((*CHAIR_CAT_AT, 50)), (inv.to_3x3() @ Vector((0, 0, -1))).normalized())
+    assert hit[0], 'no seat under the chair cat'
+    z = (chair.matrix_world @ hit[1]).z - CHAIR_CAT_SINK
+    cat.matrix_world = Matrix.Translation((*CHAIR_CAT_AT, z)) @ Matrix.Rotation(CHAIR_CAT_HEADING, 4, 'Z')
+    return cat
+
+
 def arrange(scene, model_path):
     """Applies OBJECT_MOVES and the matching cable edits to the imported model,
-    and swaps in the cat."""
+    and puts in the cats."""
     replace_cat(scene, cat_path(model_path))
+    place_chair_cat(scene, chair_cat_path(model_path))
     for name, d in OBJECT_MOVES.items():
         scene.objects[name].location += t2b(d)
 
@@ -133,7 +175,6 @@ def arrange(scene, model_path):
 # had; the fog takes it to the backdrop colour towards the horizon.
 FLOOR_COLOR = '#34312e'
 KEY_POS = (14.2, 13.3, 12.3)  # direction towards the key sun
-CHAIR = 'Cube.000_ComputerDesk_0'
 
 
 def add_sun(name, pos3, color, strength, angle_deg):
@@ -159,17 +200,24 @@ def add_lights(model_path):
     # From this side the backrest shades most of the seat, which then reads
     # as a dark hole in the middle of the home view. The chair takes the key
     # from its own sun instead, one it casts no shadow from: seat and backrest
-    # are lit through, while the chair still shadows the floor.
+    # are lit through, while the chair still shadows the floor. The cat on
+    # the seat is lit with it, and does shade the seat (and itself).
     chair = scene.objects[CHAIR]
+    seated = [chair] + [o for o in [scene.objects.get(CHAIR_CAT)] if o]
     only_chair = bpy.data.collections.new('__key_chair_only')
-    only_chair.objects.link(chair)
     not_chair = bpy.data.collections.new('__key_not_chair')
-    not_chair.objects.link(chair)
-    not_chair.collection_objects[0].light_linking.link_state = 'EXCLUDE'
+    for o in seated:
+        only_chair.objects.link(o)
+        not_chair.objects.link(o)
+    for co in not_chair.collection_objects:
+        co.light_linking.link_state = 'EXCLUDE'
     key.light_linking.receiver_collection = not_chair
+    all_but_chair = bpy.data.collections.new('__key_chair_blockers')
+    all_but_chair.objects.link(chair)
+    all_but_chair.collection_objects[0].light_linking.link_state = 'EXCLUDE'
     chair_key = add_sun('__key_chair', KEY_POS, hex_lin('#ffe0a0'), 2.8, 1.5)
     chair_key.light_linking.receiver_collection = only_chair
-    chair_key.light_linking.blocker_collection = not_chair
+    chair_key.light_linking.blocker_collection = all_but_chair
     add_sun('__rim', (30, 20, -10), hex_lin('#ffe8cc'), 0.03, 3)
 
     scr = scene.objects['ComputerScreen']

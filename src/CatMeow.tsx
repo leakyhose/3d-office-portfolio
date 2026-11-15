@@ -3,9 +3,9 @@ import { useThree } from './three/fiber'
 import { getOfficeAssets } from './scene/office'
 import * as THREE from 'three'
 
-// The cat's node in office.glb (scripts/bake/stage.py CAT): a group with one
-// mesh per fur colour, so clicks are tested against the whole group.
-const CAT_NODE = 'Cube010_WhiteFur_0'
+// The cats' nodes in office.glb (scripts/bake/stage.py CAT, CHAIR_CAT): each a
+// group with one mesh per fur colour, so clicks are tested against the groups.
+const CAT_NODES = ['Cube010_WhiteFur_0', 'ChairCat']
 
 const CAT_SOUNDS = [
   '/cat-sounds/idle1.mp3',
@@ -19,11 +19,11 @@ export default memo(function CatMeow() {
   const gl = useThree((s) => s.gl)
   const camera = useThree((s) => s.camera)
 
-  const catMesh = useMemo(() => {
-    const found = scene.getObjectByName(CAT_NODE) ?? null
-    if (!found) console.warn(`CatMeow: ${CAT_NODE} not found in the scene`)
-    return found
-  }, [scene])
+  const cats = useMemo(() => CAT_NODES.flatMap((name) => {
+    const found = scene.getObjectByName(name)
+    if (!found) console.warn(`CatMeow: ${name} not found in the scene`)
+    return found ? [found] : []
+  }), [scene])
 
   const audios = useMemo(() => CAT_SOUNDS.map((src) => {
     // Fetched on first hover over the cat, not on the critical loading path.
@@ -35,7 +35,7 @@ export default memo(function CatMeow() {
   const currentRef = useRef<HTMLAudioElement | null>(null)
 
   useEffect(() => {
-    if (!catMesh) return
+    if (!cats.length) return
     const canvas = gl.domElement
     const raycaster = new THREE.Raycaster()
     const ndc = new THREE.Vector2()
@@ -45,7 +45,7 @@ export default memo(function CatMeow() {
       ndc.x = ((clientX - rect.left) / rect.width) * 2 - 1
       ndc.y = -((clientY - rect.top) / rect.height) * 2 + 1
       raycaster.setFromCamera(ndc, camera)
-      return raycaster.intersectObject(catMesh, true).length > 0
+      return raycaster.intersectObjects(cats, true).length > 0
     }
 
     const onClick = (e: MouseEvent) => {
@@ -92,7 +92,7 @@ export default memo(function CatMeow() {
       if (hoverRaf) cancelAnimationFrame(hoverRaf)
       canvas.style.cursor = ''
     }
-  }, [catMesh, gl, camera, audios])
+  }, [cats, gl, camera, audios])
 
   return null
 })
