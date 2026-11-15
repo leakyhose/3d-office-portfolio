@@ -33,7 +33,8 @@ DESK = 'Office_desk_ComputerDesk_0'
 # the existing atlas by FAR: covers the cat's shadow and its contact darkening.
 NEAR, FAR = 2.0, 3.0
 GUTTER = 5  # texels kept between the cat's islands and everything else
-DENSITY = 68.0  # lightmap texels per unit on the cat, if that fits (the old cat's)
+DENSITY = float(os.environ.get('CAT_DENSITY', 120))  # lightmap texels per unit on the cat, if that fits
+SMOOTH = float(os.environ.get('CAT_SMOOTH', 62))  # degrees, as build_cat.py
 FLOOR_SIZE_M, FLOOR_CENTER = 32.0, (-2.0, 3.0)  # as bake.py
 
 old = oiio.ImageBuf(OLD_ATLAS).get_pixels(oiio.UINT8)[..., :3]
@@ -195,8 +196,12 @@ bm.from_mesh(me)
 bmesh.ops.remove_doubles(bm, verts=bm.verts[:], dist=1e-5)  # the glTF has every face split off
 bm.to_mesh(me)
 bm.free()
+# lit as it is shaded: smooth across its gentle edges (welding dropped the glTF's normals)
+if 'custom_normal' in me.attributes:
+    me.attributes.remove(me.attributes['custom_normal'])
 for p in me.polygons:
-    p.use_smooth = False
+    p.use_smooth = True
+me.set_sharp_from_angle(angle=math.radians(SMOOTH))
 while len(me.uv_layers):
     me.uv_layers.remove(me.uv_layers[-1])
 me.uv_layers.new(name='UVMap')  # placeholder TEXCOORD_0, so Lightmap is TEXCOORD_1
