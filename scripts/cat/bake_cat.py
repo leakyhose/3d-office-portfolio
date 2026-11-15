@@ -33,7 +33,12 @@ DESK = 'Office_desk_ComputerDesk_0'
 # the existing atlas by FAR: covers the cat's shadow and its contact darkening.
 NEAR, FAR = 2.0, 3.0
 GUTTER = 5  # texels kept between the cat's islands and everything else
-DENSITY = 68.0  # lightmap texels per unit on the cat, if that fits (the old cat's)
+DENSITY = float(os.environ.get('CAT_DENSITY', 120))  # lightmap texels per unit on the cat, if that fits
+FACET = float(os.environ.get('CAT_FACET', 25))  # degrees: edges gentler than this are inside one facet
+# How far each facet's lighting is pulled towards its own average: the hard
+# shadows the cat casts on itself are too fine for the lightmap (stair-steps)
+# and too harsh for a figure this small.
+EVEN = float(os.environ.get('CAT_EVEN', 0.6))
 FLOOR_SIZE_M, FLOOR_CENTER = 32.0, (-2.0, 3.0)  # as bake.py
 
 old = oiio.ImageBuf(OLD_ATLAS).get_pixels(oiio.UINT8)[..., :3]
@@ -131,8 +136,9 @@ def place(blocked, h, w):
     return (int(free[0][0]), int(free[0][1])) if len(free) else None
 
 
-def uv_islands(me, uv):
-    """Faces grouped into UV islands (lists of polygon indices)."""
+def uv_islands(me, uv, group):
+    """Faces grouped into UV islands (lists of polygon indices), split where
+    the faces' group changes."""
     parent = list(range(len(me.polygons)))
 
     def find(i):
@@ -144,7 +150,7 @@ def uv_islands(me, uv):
     seen = {}
     for p in me.polygons:
         for li in p.loop_indices:
-            key = (me.loops[li].vertex_index, round(float(uv[li][0]), 5), round(float(uv[li][1]), 5))
+            key = (me.loops[li].vertex_index, round(float(uv[li][0]), 5), round(float(uv[li][1]), 5), group[p.index])
             if key in seen:
                 parent[find(p.index)] = find(seen[key])
             else:
@@ -155,14 +161,14 @@ def uv_islands(me, uv):
     return list(out.values())
 
 
-def pack_into_gaps(me, uv, blocked, density, k):
+def pack_into_gaps(me, uv, group, blocked, density, k):
     """Moves every island of uv (uniform scale: k UV units per world unit) into
     free atlas space at `density` texels per world unit, largest first.
     Returns the new UVs, or None if they don't all fit."""
     blocked = blocked.copy()
     out = uv.copy()
     islands = []
-    for faces in uv_islands(me, uv):
+    for faces in uv_islands(me, uv, group):
         loops = [li for f in faces for li in me.polygons[f].loop_indices]
         px = (uv[loops] - uv[loops].min(0)) / k * density
         islands.append((loops, px))
@@ -195,8 +201,30 @@ bm.from_mesh(me)
 bmesh.ops.remove_doubles(bm, verts=bm.verts[:], dist=1e-5)  # the glTF has every face split off
 bm.to_mesh(me)
 bm.free()
+# Lit in clear polygons, like everything else in the room: only the edges
+# gentler than FACET are smoothed over, so the triangles of one facet are lit
+# as one face (welding dropped the glTF's normals).
+if 'custom_normal' in me.attributes:
+    me.attributes.remove(me.attributes['custom_normal'])
 for p in me.polygons:
-    p.use_smooth = False
+    p.use_smooth = True
+me.set_sharp_from_angle(angle=math.radians(FACET))
+# the facets: triangles joined across the smoothed edges
+bm = bmesh.new()
+bm.from_mesh(me)
+bm.faces.ensure_lookup_table()
+facet_of = list(range(len(bm.faces)))
+def _root(i):
+    while facet_of[i] != i:
+        facet_of[i] = facet_of[facet_of[i]]
+        i = facet_of[i]
+    return i
+for e in bm.edges:
+    if e.smooth and len(e.link_faces) == 2 and e.link_faces[0].material_index == e.link_faces[1].material_index:
+        facet_of[_root(e.link_faces[0].index)] = _root(e.link_faces[1].index)
+facet_of = np.array([_root(i) for i in range(len(bm.faces))], np.float32)
+bm.free()
+print('CAT facets:', len(set(facet_of.tolist())), 'of', len(facet_of), 'triangles')
 while len(me.uv_layers):
     me.uv_layers.remove(me.uv_layers[-1])
 me.uv_layers.new(name='UVMap')  # placeholder TEXCOORD_0, so Lightmap is TEXCOORD_1
@@ -221,7 +249,8 @@ for p in me.polygons:
 k = math.sqrt(area_uv / area_w)
 density = DENSITY
 while True:  # into the gaps between the other islands, as dense as fits
-    packed = pack_into_gaps(me, uv, blocked, density, k)
+    # an island to each facet: no lightmap texel is shared across a hard edge
+    packed = pack_into_gaps(me, uv, facet_of, blocked, density, k)
     if packed is not None:
         break
     density *= 0.94
@@ -232,7 +261,10 @@ me.uv_layers.active = me.uv_layers[0]
 me.uv_layers[0].active_render = True
 
 cat_tris, cat_world = uv_tris(cat)
-cat_mask, _ = raster(cat_tris)
+me.calc_loop_triangles()
+tri_poly = np.zeros(len(me.loop_triangles), np.int32)
+me.loop_triangles.foreach_get('polygon_index', tri_poly)
+cat_mask, cat_facet = raster(cat_tris, np.repeat(facet_of[tri_poly], 3).reshape(-1, 3, 1))
 assert not (grow(cat_mask, 2) & grow(used, 2)).any(), 'cat islands touch other islands'
 
 # where on the desk the new bake replaces the old one
@@ -354,6 +386,12 @@ bpy.ops.export_scene.gltf(
 
 # --- lay the new texels over the existing atlas ----------------------------------
 final, _ = encode.combine(OUT, 'atlas')
+ids = cat_facet[..., 0].astype(np.int64)
+for i in np.unique(ids[cat_mask]):
+    m = cat_mask & (ids == i)
+    final[m] += (final[m].mean(0) - final[m]) * EVEN
+grown = grow(cat_mask, GUTTER - 2)
+final[grown] = encode.dilate(np.where(cat_mask[..., None], final, 0), cat_mask, GUTTER)[grown]
 new = encode.to_srgb8(final).astype(np.float32)
 w = weight.copy()
 edge = desk_mask.copy()
