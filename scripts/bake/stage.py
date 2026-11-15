@@ -102,7 +102,7 @@ def replace_cat(scene, path):
 # the middle of its curl lies (it is set down on the seat there), how deep it
 # sinks into the cushion, and its heading (radians about Z).
 CHAIR_CAT = 'ChairCat'
-CHAIR_CAT_AT = (0.55, -7.25)
+CHAIR_CAT_AT = (0.92, -7.20)
 CHAIR_CAT_SINK = 0.04
 CHAIR_CAT_HEADING = 1.66
 

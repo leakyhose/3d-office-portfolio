@@ -58,7 +58,7 @@ BASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'art
 FWD, LAT = Vector((0.87, -0.5, 0)), Vector((0.5, 0.87, 0))
 PAWS_MID = Vector((0.36, -0.10, 0))
 BODY_WIDER = 1.1  # a stockier build than the original
-SMOOTH = 62  # degrees: edges gentler than this are shaded smooth, as the original's were
+SMOOTH = 25  # degrees: edges gentler than this are inside one facet (as bake_cat.py lights it)
 # The head is what lies beyond this plane through the neck.
 NECK_AT, NECK_NO = Vector((0.52, -0.1, 1.47)), Vector((0.836, 0, 0.549)).normalized()
 HEAD_PIVOT = Vector((0.66, -0.10, 1.62))
@@ -263,6 +263,8 @@ def render_previews(ob, out_dir):
         'back': ((-1, -0.5, 0.6), (0, -0.05, 1.0), 7.4),
         'face': ((1, -0.12, 0.1), (0.8, -0.1, 1.7), 3.8),
         'top': ((0.01, 0, 1), (0, -0.1, 1.0), 7.6),
+        'legs': ((1, 0.55, 0.12), (0.3, -0.05, 0.42), 3.6),
+        'legs2': ((0.6, -1, 0.2), (0.3, -0.05, 0.42), 3.6),
     }
     for name, (d, tgt, dist) in views.items():
         d = Vector(d).normalized()
