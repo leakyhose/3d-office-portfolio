@@ -30,15 +30,12 @@ CAMS = {
     'far': ((16, 16, 27), (-2, 4, 1)),
     'behind': ((14, 14, -16), (0, 4, 2)),
     'right': ((22, 12, 14), (0, 4, 2)),
-    # close-ups of the cat, from the home and about views' sides
-    'cat': ((-4.9, 7.3, 5.4), (-4.45, 5.6, 1.4)),
-    'catface': ((-2.5, 5.95, 3.1), (-4.4, 5.7, 1.45)),
 }
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
 bpy.ops.import_scene.gltf(filepath=IN)
 scene = bpy.context.scene
-stage.arrange(scene, IN)  # desk rearrangement (see stage.OBJECT_MOVES)
+stage.arrange(scene)  # desk rearrangement (see stage.OBJECT_MOVES)
 
 # Floor (runtime: 600x600 plane, colour = backdrop)
 bpy.ops.mesh.primitive_plane_add(size=200, location=(0, 0, -0.01))

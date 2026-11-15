@@ -38,7 +38,7 @@ os.makedirs(OUT, exist_ok=True)
 bpy.ops.wm.read_factory_settings(use_empty=True)
 bpy.ops.import_scene.gltf(filepath=IN)
 scene = bpy.context.scene
-stage.arrange(scene, IN)  # desk rearrangement (see stage.OBJECT_MOVES)
+stage.arrange(scene)  # desk rearrangement (see stage.OBJECT_MOVES)
 
 # Meshes that get a lightmap. The screen gets a runtime emissive material, so it
 # only acts as an occluder here.

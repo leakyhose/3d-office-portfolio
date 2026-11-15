@@ -3,9 +3,7 @@ import { useThree } from './three/fiber'
 import { getOfficeAssets } from './scene/office'
 import * as THREE from 'three'
 
-// The cat's node in office.glb (scripts/bake/stage.py CAT): a group with one
-// mesh per fur colour, so clicks are tested against the whole group.
-const CAT_NODE = 'Cube010_WhiteFur_0'
+const CAT_MATERIAL_HINT = 'WhiteFur'
 
 const CAT_SOUNDS = [
   '/cat-sounds/idle1.mp3',
@@ -20,8 +18,21 @@ export default memo(function CatMeow() {
   const camera = useThree((s) => s.camera)
 
   const catMesh = useMemo(() => {
-    const found = scene.getObjectByName(CAT_NODE) ?? null
-    if (!found) console.warn(`CatMeow: ${CAT_NODE} not found in the scene`)
+    let found: THREE.Mesh | null = null
+    const allMeshNames: string[] = []
+    scene.traverse((child) => {
+      const mesh = child as THREE.Mesh
+      if (!mesh.isMesh) return
+      allMeshNames.push(`${mesh.name} [mat: ${(mesh.material as THREE.Material)?.name ?? '?'}]`)
+      if (found) return
+      const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+      const matchesMaterial = mats.some((m) => m && m.name && m.name.includes(CAT_MATERIAL_HINT))
+      const matchesName = mesh.name.includes(CAT_MATERIAL_HINT)
+      if (matchesMaterial || matchesName) found = mesh
+    })
+    if (!found) {
+      console.warn(`CatMeow: cat mesh not found. Meshes in scene:`, allMeshNames)
+    }
     return found
   }, [scene])
 

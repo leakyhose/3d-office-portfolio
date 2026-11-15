@@ -13,8 +13,11 @@ import bpy
 import numpy as np
 import OpenImageIO as oiio
 
-SCALE = 1.5
-AO = 0.5
+argv = sys.argv[sys.argv.index('--') + 1:]
+src, dst = argv[0], argv[1]
+SCALE = float(argv[2]) if len(argv) > 2 else 1.5
+AO = float(argv[3]) if len(argv) > 3 else 0.5
+os.makedirs(dst, exist_ok=True)
 
 
 def read(p):
@@ -80,8 +83,7 @@ def lin_to_srgb(x):
     return np.where(x <= 0.0031308, x * 12.92, 1.055 * np.power(x, 1 / 2.4) - 0.055)
 
 
-def combine(src, which):
-    """diffuse * AO, dilated into the gutters and denoised (linear); + coverage mask."""
+for which in ('atlas', 'floor'):
     d, mask = read(os.path.join(src, f'{which}_diffuse.exr'))
     ao, _ = read(os.path.join(src, f'{which}_ao.exr'))
     final = d * (1 - AO + AO * ao[..., :1])
@@ -89,27 +91,9 @@ def combine(src, which):
     final = dilate(final, mask)
     if os.environ.get('DENOISE', '1') == '1':
         final = denoise(final)
-    return final, mask
-
-
-def to_srgb8(final):
-    return (lin_to_srgb(final / SCALE) * 255 + 0.5).astype(np.uint8)
-
-
-def write_png(enc, path):
+    print(which, 'max', final.max(), 'p99', np.percentile(final, 99), 'p50', np.percentile(final, 50))
+    enc = (lin_to_srgb(final / SCALE) * 255 + 0.5).astype(np.uint8)
     out = oiio.ImageBuf(oiio.ImageSpec(enc.shape[1], enc.shape[0], 3, oiio.UINT8))
     out.set_pixels(oiio.ROI(), enc)
-    out.write(path)
-
-
-if __name__ == '__main__':
-    argv = sys.argv[sys.argv.index('--') + 1:]
-    src, dst = argv[0], argv[1]
-    SCALE = float(argv[2]) if len(argv) > 2 else SCALE
-    AO = float(argv[3]) if len(argv) > 3 else AO
-    os.makedirs(dst, exist_ok=True)
-    for which in ('atlas', 'floor'):
-        final, _ = combine(src, which)
-        print(which, 'max', final.max(), 'p99', np.percentile(final, 99), 'p50', np.percentile(final, 50))
-        write_png(to_srgb8(final), os.path.join(dst, f'{which}.png'))
-    print('ENCODED')
+    out.write(os.path.join(dst, f'{which}.png'))
+print('ENCODED')
