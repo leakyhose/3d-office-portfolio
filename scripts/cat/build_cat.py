@@ -136,11 +136,11 @@ PAWS_MID = Vector((0.36, -0.10, 0))
 BODY_WIDER = 1.1  # a stockier build than the original
 BODY_SMOOTH = 35  # degrees: body edges gentler than this are shaded smooth
 # The old head comes off at this plane through the neck.
-NECK_AT, NECK_NO = Vector((0.52, -0.1, 1.47)), Vector((0.836, 0, 0.549))
+NECK_AT, NECK_NO = Vector((0.55, -0.1, 1.52)), Vector((0.836, 0, 0.549))
 
 # Head space: origin at the skull's centre, +X out of the face; rings across X
 # (x, half width, half height); the last one is the flat face plate.
-HEAD_AT = Vector((0.66, -0.10, 1.66))
+HEAD_AT = Vector((0.60, -0.10, 1.64))
 HEAD_TILT = math.radians(-6)  # chin up a little
 HEAD_SCALE = 1.0
 SKULL = [(-0.36, 0.15, 0.15), (-0.20, 0.32, 0.32), (0.04, 0.40, 0.385), (0.24, 0.365, 0.35), (0.33, 0.27, 0.26)]
@@ -187,6 +187,17 @@ def build_body():
         f.smooth = True
     bmesh.ops.remove_doubles(bm, verts=bm.verts[:], dist=1e-4)
     bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], dist=1e-6, plane_co=NECK_AT, plane_no=NECK_NO, clear_outer=True)
+    # close the neck's open end
+    rim = [e for e in bm.edges if e.is_boundary and all(abs((v.co - NECK_AT).dot(NECK_NO.normalized())) < 1e-4 for v in e.verts)]
+    for f in bmesh.ops.triangle_fill(bm, edges=rim, use_beauty=True)['geom']:
+        if isinstance(f, bmesh.types.BMFace):
+            f.material_index = MAT_INDEX['CatCream']
+            f.smooth = True
+    # some of the original's faces point inwards (it never showed on a black cat)
+    bm.normal_update()
+    before = {f: f.normal.copy() for f in bm.faces}
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    print('CAT faces turned outwards:', sum(1 for f in bm.faces if f.normal.dot(before[f]) < 0), 'of', len(bm.faces))
     for v in bm.verts:  # wider across the body's own left-right
         v.co += LAT * ((v.co - PAWS_MID).dot(LAT) * (BODY_WIDER - 1))
     return bm
