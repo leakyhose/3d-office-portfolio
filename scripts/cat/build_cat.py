@@ -63,7 +63,7 @@ SMOOTH = 62  # degrees: edges gentler than this are shaded smooth, as the origin
 NECK_AT, NECK_NO = Vector((0.52, -0.1, 1.47)), Vector((0.836, 0, 0.549)).normalized()
 HEAD_PIVOT = Vector((0.66, -0.10, 1.62))
 HEAD_SCALE = 1.22  # an exotic shorthair's big round head
-MUZZLE_FROM, MUZZLE_KEEP = 0.80, 0.18  # the muzzle beyond this x keeps this much of its length
+MUZZLE_FROM, MUZZLE_KEEP = 0.80, 0.32  # the muzzle beyond this x keeps this much of its length
 HEAD_Y = -0.11  # the head's middle
 # In the original's coordinates: the ears are the points above EARS_FROM and
 # further out than EARS_OUT; the skull is everything up to SKULL_TOP.
