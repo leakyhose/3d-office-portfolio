@@ -17,8 +17,8 @@ PREVIEW = argv[1] if len(argv) > 1 else None
 # sRGB colours
 COLORS = {
     'TortieBlack': (78, 64, 56),
-    'TortieOrange': (166, 106, 58),
-    'TortieTan': (118, 88, 66),
+    'TortieOrange': (186, 122, 64),
+    'TortieTan': (134, 100, 72),
     'TortieCream': (214, 190, 160),
 }
 MAT_INDEX = {n: i for i, n in enumerate(COLORS)}
@@ -83,11 +83,11 @@ def foot(deg, out=1.0):
 def body(bm):
     # tortoiseshell: one colour to each panel of the mound, in patches
     patches = [
-        'BBBTBBOBB',  # round the bottom, from the shoulders (+X) by the front (+Y)
-        'OBBBBBOBB',
-        'BBBBOBBTB',
+        'OBBTBOOBB',  # round the bottom, from the shoulders (+X) by the front (+Y)
+        'OBTBBBOBB',
+        'BOBBOBBTB',
     ]
-    cap = 'BBBBOBBBB'
+    cap = 'BBTBOBBBB'
     names = {'B': 'TortieBlack', 'O': 'TortieOrange', 'T': 'TortieTan'}
     rows = []
     for k, (z, wide) in enumerate(RINGS):
@@ -127,10 +127,10 @@ def head(bm):
     geom = set()
     for f in [f for f in bm.faces if f.material_index == MAT_INDEX['TortieBlack'] and (f.calc_center_median() - HEAD_AT).length < 0.45 * HEAD]:
         geom.update((f, *f.edges, *f.verts))
-    bmesh.ops.bisect_plane(bm, geom=list(geom), dist=1e-5, plane_co=at(0.04, 0, 0), plane_no=fwd)  # a blaze: the cheek by the muzzle only
+    bmesh.ops.bisect_plane(bm, geom=list(geom), dist=1e-5, plane_co=at(-0.06, 0, 0), plane_no=fwd)  # a blaze: the cheek by the muzzle only
     for f in bm.faces:
         c = f.calc_center_median() - HEAD_AT
-        if f.material_index == MAT_INDEX['TortieBlack'] and c.dot(fwd) > 0.04 * HEAD and (c - fwd * c.dot(fwd)).length < 0.4 and c.dot(left) < -0.015 and f.normal.dot(left) < 0.2 and f in bm.faces and c.z < 0.4 and (f.calc_center_median() - HEAD_AT).length < 0.36 * HEAD:
+        if f.material_index == MAT_INDEX['TortieBlack'] and c.dot(fwd) > -0.06 * HEAD and (c - fwd * c.dot(fwd)).length < 0.4 and c.dot(left) < -0.015 and f.normal.dot(left) < 0.2 and f in bm.faces and c.z < 0.4 and (f.calc_center_median() - HEAD_AT).length < 0.36 * HEAD:
             f.material_index = MAT_INDEX['TortieOrange']
     nose = at(0.27, 0, 0).dot(fwd)
     for f in bm.faces:  # the pale muzzle

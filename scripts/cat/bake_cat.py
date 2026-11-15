@@ -42,11 +42,6 @@ FACET = float(os.environ.get('CAT_FACET', 25))  # degrees: edges gentler than th
 # shadows the cat casts on itself are too fine for the lightmap (stair-steps)
 # and too harsh for a figure this small.
 EVEN = float(os.environ.get('CAT_EVEN', 0.6))
-# The desk cat's legs and feet (in its own space: below this height, in front
-# of the tail at this x) are rounded off in narrow strips, as the original's:
-# lit in facets they are a clutter of slivers, so there the edges gentler than
-# LEGS_FACET are smoothed over instead, and the legs are lit round.
-LEGS_BELOW, LEGS_AHEAD, LEGS_FACET = 0.80, -0.6, float(os.environ.get('CAT_LEGS_FACET', 50))
 # How much of the chair cat's shadow the seat takes: in full it is a dark
 # hole in the middle of the home view.
 SHADE = float(os.environ.get('CAT_SHADE', 0.6))
@@ -229,11 +224,6 @@ for cat in cats:
   bm = bmesh.new()
   bm.from_mesh(me)
   bm.faces.ensure_lookup_table()
-  if cat is cats[0]:
-    for e in bm.edges:
-      if len(e.link_faces) == 2 and all(v.co.z < LEGS_BELOW and v.co.x > LEGS_AHEAD for v in e.verts):
-        e.smooth = e.calc_face_angle() < math.radians(LEGS_FACET)
-    bm.to_mesh(me)
   facet_of = list(range(len(bm.faces)))
   def _root(i):
     while facet_of[i] != i:
